@@ -8,9 +8,14 @@ app.innerHTML = `
   <div class="hud">
     <p class="hud-count">SIGNALS <span id="signal-count">0</span>/3</p>
     <p class="hud-mission">MISSION // Sweep the grid — recover 3 relay signals</p>
+    <p class="hud-boost">
+      BOOST
+      <span class="boost-bar"><span class="boost-fill" id="boost-fill"></span></span>
+      <span class="boost-state" id="boost-state">READY</span>
+    </p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
-  <p class="hint">WASD / ARROWS to move</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -37,16 +42,33 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
+  if (e.code === 'Space') {
+    e.preventDefault()
+  }
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
 
 const player = { x: w / 2, y: h / 2, size: 28, speed: 320 }
 const grid = 48
 
+const boost = {
+  active: false,
+  energy: 100,
+  drain: 70,
+  regen: 34,
+  multiplier: 1.85,
+  cooldown: false,
+}
+let facing = { dx: 0, dy: -1 }
+
 let signalsFound = 0
 const signalEls = {
   count: document.querySelector<HTMLSpanElement>('#signal-count')!,
   complete: document.getElementById('complete')!,
+}
+const boostEls = {
+  fill: document.querySelector<HTMLSpanElement>('#boost-fill')!,
+  state: document.querySelector<HTMLSpanElement>('#boost-state')!,
 }
 
 const signals = Array.from({ length: 3 }, (_, i) => ({
@@ -84,8 +106,31 @@ function frame(now: number) {
     dy += my
   }
   const len = Math.hypot(dx, dy) || 1
-  player.x = Math.max(player.size, Math.min(w - player.size, player.x + (dx / len) * player.speed * dt))
-  player.y = Math.max(player.size, Math.min(h - player.size, player.y + (dy / len) * player.speed * dt))
+  const moving = dx !== 0 || dy !== 0
+
+  const wantBoost = keys.has('Space') && boost.energy > 1 && !boost.cooldown
+  boost.active = wantBoost && moving
+  if (boost.active) {
+    boost.energy = Math.max(0, boost.energy - boost.drain * dt)
+    if (boost.energy <= 0) {
+      boost.cooldown = true
+      boost.active = false
+    }
+  } else {
+    boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * dt))
+    if (boost.cooldown && boost.energy >= 40) boost.cooldown = false
+  }
+
+  const speedNow = player.speed * (boost.active ? boost.multiplier : 1)
+  player.x = Math.max(player.size, Math.min(w - player.size, player.x + (dx / len) * speedNow * dt))
+  player.y = Math.max(player.size, Math.min(h - player.size, player.y + (dy / len) * speedNow * dt))
+  if (moving) facing = { dx: dx / len, dy: dy / len }
+
+  const pct = boost.energy.toFixed(0)
+  boostEls.fill.style.width = `${pct}%`
+  boostEls.state.textContent = boost.active ? 'ACTIVE' : boost.cooldown ? 'RECHARGING' : 'READY'
+  boostEls.fill.classList.toggle('is-active', boost.active)
+  boostEls.fill.classList.toggle('is-cooling', boost.cooldown)
 
   const bg = ctx.createLinearGradient(0, 0, 0, h)
   bg.addColorStop(0, '#0a0325')
@@ -149,13 +194,63 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   })
 
-  const pulse = 18 + Math.sin(now / 300) * 6
-  ctx.fillStyle = '#39ff88'
+  // Neon street-runner: small car with body, windshield, headlights, direction
+  const angle = Math.atan2(facing.dx, -facing.dy)
+  const boostingGlow = boost.active ? 30 : 14
+  ctx.save()
+  ctx.translate(player.x, player.y)
+  ctx.rotate(angle)
+
+  if (boost.active) {
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)'
+    ctx.lineWidth = 2
+    for (const off of [-6, 6]) {
+      ctx.beginPath()
+      ctx.moveTo(off, 18)
+      ctx.lineTo(off, 30 + Math.random() * 14)
+      ctx.stroke()
+    }
+  }
+
+  // headlight beams point along travel direction
+  const beam = ctx.createLinearGradient(0, -17, 0, -60)
+  beam.addColorStop(0, 'rgba(255, 248, 214, 0.5)')
+  beam.addColorStop(1, 'rgba(255, 248, 214, 0)')
+  ctx.fillStyle = beam
+  ctx.beginPath()
+  ctx.moveTo(-9, -15)
+  ctx.lineTo(-22, -58)
+  ctx.lineTo(22, -58)
+  ctx.lineTo(9, -15)
+  ctx.closePath()
+  ctx.fill()
+
+  // body
   ctx.shadowColor = '#39ff88'
-  ctx.shadowBlur = pulse
-  ctx.fillRect(player.x - player.size / 2, player.y - player.size / 2, player.size, player.size)
-  ctx.fillStyle = '#eaffef'
-  ctx.fillRect(player.x - 6, player.y - 6, 12, 12)
+  ctx.shadowBlur = boostingGlow
+  ctx.strokeStyle = '#39ff88'
+  ctx.lineWidth = 2
+  ctx.strokeRect(-10, -16, 20, 32)
+
+  // windshield
+  ctx.fillStyle = '#bfffff'
+  ctx.fillRect(-7, -11, 14, 8)
+  // rear window
+  ctx.fillStyle = 'rgba(191, 255, 255, 0.55)'
+  ctx.fillRect(-6, 6, 12, 5)
+
+  // headlights
+  ctx.shadowColor = '#fff8d6'
+  ctx.shadowBlur = 12
+  ctx.fillStyle = '#fff8d6'
+  ctx.fillRect(-8, -18, 5, 3)
+  ctx.fillRect(3, -18, 5, 3)
+  // taillights
+  ctx.fillStyle = '#ff2d96'
+  ctx.shadowColor = '#ff2d96'
+  ctx.fillRect(-8, 13, 5, 3)
+  ctx.fillRect(3, 13, 5, 3)
+  ctx.restore()
   ctx.shadowBlur = 0
 
   requestAnimationFrame(frame)

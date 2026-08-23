@@ -83,6 +83,49 @@ canvas {
   text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }
 
+.hud-boost {
+  margin: 10px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #39ff88;
+  text-shadow: 0 0 10px rgba(57, 255, 136, 0.6);
+}
+
+.boost-bar {
+  display: inline-block;
+  width: clamp(110px, 16vw, 190px);
+  height: 8px;
+  border: 1px solid rgba(57, 255, 136, 0.7);
+  background: rgba(3, 12, 7, 0.7);
+}
+
+.boost-fill {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #00f0ff, #39ff88);
+  box-shadow: 0 0 8px rgba(57, 255, 136, 0.8);
+  transition: width 80ms linear;
+}
+
+.boost-fill.is-active {
+  background: linear-gradient(90deg, #ffe05a, #ff2d96);
+  box-shadow: 0 0 10px rgba(255, 45, 150, 0.9);
+}
+
+.boost-fill.is-cooling {
+  opacity: 0.45;
+}
+
+.boost-state {
+  min-width: 11ch;
+  color: rgba(0, 240, 255, 0.85);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+}
+
 .complete {
   position: absolute;
   top: 50%;
