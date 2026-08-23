@@ -38,6 +38,7 @@ app.innerHTML = `
       <li>I CHOP SHOP</li>
       <li>N RACE</li>
     </ul>
+    <p style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);">PRESS 1-9 TO CALL</p>
     <p id="phone-status" style="margin:12px 0 0;font-size:11px;letter-spacing:2px;color:#39ff88;text-shadow:0 0 8px rgba(57,255,136,0.55);">CASH $0 / REP 0 / WANTED 0</p>
     <p id="phone-close" style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ff2d96;text-shadow:0 0 8px rgba(255,45,150,0.6);">TAB TOGGLE // ESC CLOSE</p>
   </div>
@@ -102,6 +103,20 @@ window.addEventListener('keydown', e => {
   }
   if (e.code === 'Escape' && !mapOpen && phoneOpen) {
     phoneOpen = false
+  }
+  if (phoneOpen && /^Digit[1-9]$/.test(e.code)) {
+    e.preventDefault()
+    if (e.code === 'Digit1') blackoutRequested = true
+    else if (e.code === 'Digit2') bankRequested = true
+    else if (e.code === 'Digit3') vipRequested = true
+    else if (e.code === 'Digit4') convoyRequested = true
+    else if (e.code === 'Digit5') jJobRequested = true
+    else if (e.code === 'Digit6') turfRequested = true
+    else if (e.code === 'Digit7') smugglerRequested = true
+    else if (e.code === 'Digit8') chopShopRequested = true
+    else if (e.code === 'Digit9') raceRequested = true
+    phoneOpen = false
+    phoneStatusEl.textContent = 'CALL CONNECTED'
   }
   if (e.code === 'KeyQ') jammer.requested = true
   if (e.code === 'KeyF') pulse.requested = true
