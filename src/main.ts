@@ -270,6 +270,7 @@ function frame(now: number) {
     if (Math.hypot(player.x - s.x, player.y - s.y) < player.size + 16) {
       signalsFound++
       signalEls.count.textContent = String(signalsFound)
+      setWanted(wanted + 1)
       if (signalsFound === 3) signalEls.complete.hidden = false
       return
     }
