@@ -71,6 +71,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyF') pulse.requested = true
   if (e.code === 'KeyE') courierToggleRequested = true
   if (e.code === 'KeyH') safehouseRequested = true
+  if (e.code === 'KeyB') blackoutRequested = true
   if (e.code === 'KeyR') restartRequested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
@@ -102,6 +103,17 @@ const SAFEHOUSE_HOLD_MS = 2200
 const SAFEHOUSE_CLEAR_TEXT = 'SAFEHOUSE // HEAT CLEARED'
 let safehouseRequested = false
 let safehouseRestoreAtMs = 0
+
+// Blackout run side mission: accept with B at the safehouse, cut the grid target for cash
+const BLACKOUT_TARGET = { x: WORLD_W * 0.78, y: WORLD_H * 0.72, radius: 95 }
+const BLACKOUT_ACCEPT_RADIUS = 130
+const BLACKOUT_HOLD_MS = 2600
+const BLACKOUT_ACTIVE_TEXT = 'BLACKOUT RUN // REACH GRID TARGET'
+const BLACKOUT_DONE_TEXT = 'BLACKOUT RUN // GRID CUT +$400 // REP +2'
+let blackoutRequested = false
+type BlackoutState = 'available' | 'active' | 'complete'
+let blackoutState: BlackoutState = 'available'
+let blackoutRestoreAtMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -226,6 +238,9 @@ function resetRun(nowMs: number) {
   driving = false
   courierToggleRequested = false
   safehouseRequested = false
+  blackoutRequested = false
+  blackoutState = 'available'
+  blackoutRestoreAtMs = 0
   safehouseRestoreAtMs = 0
   contractState = 'available'
   contractRestoreAtMs = 0
@@ -773,9 +788,32 @@ function frame(now: number) {
       missionEl.textContent = SAFEHOUSE_CLEAR_TEXT
       safehouseRestoreAtMs = now + SAFEHOUSE_HOLD_MS
     }
+
+    // B near the safehouse accepts the blackout run when no courier contract is active
+    const blackoutAcceptable =
+      blackoutState === 'available' &&
+      contractState !== 'active' &&
+      !missionComplete &&
+      Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < BLACKOUT_ACCEPT_RADIUS
+    if (blackoutRequested && blackoutAcceptable) {
+      blackoutState = 'active'
+      setWanted(Math.max(1, wanted))
+      missionEl.textContent = BLACKOUT_ACTIVE_TEXT
+    }
+
+    // Reaching the grid target cuts the power: payout plus a held banner
+    if (blackoutState === 'active' && Math.hypot(player.x - BLACKOUT_TARGET.x, player.y - BLACKOUT_TARGET.y) < BLACKOUT_TARGET.radius) {
+      blackoutState = 'complete'
+      blackoutRestoreAtMs = now + BLACKOUT_HOLD_MS
+      cash += 400
+      rep += 2
+      setWanted(0)
+      missionEl.textContent = BLACKOUT_DONE_TEXT
+    }
   }
   courierToggleRequested = false
   safehouseRequested = false
+  blackoutRequested = false
 
   // Delivery timer: expiring mid-run safely aborts the contract and cools heat
   if (contractState === 'active' && contractDeadlineMs > 0 && now >= contractDeadlineMs) {
@@ -916,12 +954,17 @@ function frame(now: number) {
   if (safehouseRestoreAtMs > 0 && now >= safehouseRestoreAtMs) {
     safehouseRestoreAtMs = 0
   }
+  if (blackoutRestoreAtMs > 0 && now >= blackoutRestoreAtMs) {
+    blackoutRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
+    (blackoutState === 'active') ||
     (contractState === 'complete' && contractRestoreAtMs > 0) ||
     contractFailRestoreAtMs > 0 ||
     trafficHitRestoreAtMs > 0 ||
-    safehouseRestoreAtMs > 0
+    safehouseRestoreAtMs > 0 ||
+    blackoutRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1088,6 +1131,47 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Violet grid target: visible while the blackout run can be accepted or is underway
+  if (blackoutState !== 'complete' || blackoutRestoreAtMs > 0) {
+    const bx = BLACKOUT_TARGET.x
+    const by = BLACKOUT_TARGET.y
+    const breathe = Math.sin(now / 340) * 5
+    const inTarget = Math.hypot(player.x - bx, player.y - by) < BLACKOUT_TARGET.radius
+    ctx.strokeStyle = '#b26bff'
+    ctx.shadowColor = '#b26bff'
+    ctx.shadowBlur = 20 + breathe
+    ctx.lineWidth = inTarget ? 3.5 : 2.5
+    ctx.setLineDash([14, 10])
+    ctx.beginPath()
+    ctx.arc(bx, by, BLACKOUT_TARGET.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 0.08
+    ctx.fillStyle = '#b26bff'
+    ctx.fill()
+    ctx.globalAlpha = 1
+    // inner bolt glyph: the grid cut
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.moveTo(bx + 6, by - 16)
+    ctx.lineTo(bx - 7, by + 2)
+    ctx.lineTo(bx + 2, by + 2)
+    ctx.lineTo(bx - 4, by + 16)
+    ctx.stroke()
+    if (inTarget && blackoutState === 'active') {
+      ctx.fillStyle = '#e3d0ff'
+      ctx.beginPath()
+      ctx.arc(bx, by, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#b26bff'
+    ctx.fillText('BLACKOUT TARGET', bx, by - BLACKOUT_TARGET.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - bx, player.y - by))}M`, bx, by - BLACKOUT_TARGET.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Police search ring: restrained red pulse + heading tick on the nearest active drone
   if (scanDrone) {
     const sdx = scanDrone.x
@@ -1164,6 +1248,17 @@ function frame(now: number) {
   const nearSafehouse = !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius
   if (safehouseEl.style.display !== (nearSafehouse ? '' : 'none')) {
     safehouseEl.style.display = nearSafehouse ? '' : 'none'
+  }
+
+  // Blackout accept hint: on-foot near the safehouse while the run can be taken
+  const blackoutAcceptableNow =
+    !driving &&
+    blackoutState === 'available' &&
+    contractState !== 'active' &&
+    !missionComplete &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < BLACKOUT_ACCEPT_RADIUS
+  if (safehouseEl.textContent !== (blackoutAcceptableNow ? 'SAFEHOUSE // PRESS B FOR BLACKOUT RUN' : SAFEHOUSE_CLEAR_TEXT)) {
+    safehouseEl.textContent = blackoutAcceptableNow ? 'SAFEHOUSE // PRESS B FOR BLACKOUT RUN' : SAFEHOUSE_CLEAR_TEXT
   }
 
   // Police scan readout: nearest active hunter's distance while heat is up
