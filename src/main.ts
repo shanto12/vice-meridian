@@ -18,6 +18,7 @@ app.innerHTML = `
     <p class="hud-courier" id="hud-courier" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff9d3c;text-shadow:0 0 10px rgba(255,157,60,0.6);">COURIER // PRESS E TO DRIVE</p>
     <p class="hud-safehouse" id="hud-safehouse" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 10px rgba(0,240,255,0.6);">SAFEHOUSE // HOLD H TO CLEAR HEAT</p>
     <p class="hud-scan" id="hud-scan" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE SCAN // NEAREST UNIT ---M</p>
+    <p class="hud-pursuit" id="hud-pursuit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE PURSUIT // HEAT 0/3</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
   </div>
@@ -333,6 +334,7 @@ const pulseEls = {
 const courierEl = document.getElementById('hud-courier')!
 const safehouseEl = document.getElementById('hud-safehouse')!
 const scanEl = document.getElementById('hud-scan')!
+const pursuitEl = document.getElementById('hud-pursuit')!
 const walletEl = document.getElementById('hud-wallet')!
 const hullEl = document.getElementById('hud-hull')!
 const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
@@ -1727,6 +1729,13 @@ function frame(now: number) {
     if (scanEl.style.display !== '') scanEl.style.display = ''
   } else if (scanEl.style.display !== 'none') {
     scanEl.style.display = 'none'
+  }
+
+  // Police dispatch readout: mirrors the wanted level while any heat is up
+  const pursuitText = `POLICE PURSUIT // HEAT ${wanted}/3`
+  if (pursuitEl.textContent !== pursuitText) pursuitEl.textContent = pursuitText
+  if (pursuitEl.style.display !== (wanted > 0 ? '' : 'none')) {
+    pursuitEl.style.display = wanted > 0 ? '' : 'none'
   }
 
   // Wallet readout: mirrors the live cash/rep values every frame
