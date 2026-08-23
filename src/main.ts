@@ -116,6 +116,14 @@ const CONTRACT_TIME_LIMIT_MS = 45000
 const CONTRACT_FAIL_HOLD_MS = 2600
 const DELIVERY_FAILED_TEXT = 'DELIVERY FAILED // TIME EXPIRED'
 let contractDeadlineMs = 0
+
+// Traffic collisions while driving: forgiving contact, one registration per cooldown window
+const TRAFFIC_HIT_COOLDOWN_MS = 900
+const TRAFFIC_HIT_HOLD_MS = 1600
+const TRAFFIC_HIT_TEXT = 'TRAFFIC HIT // HEAT +1'
+let trafficHitUntilMs = 0
+let trafficHitCooldownUntilMs = 0
+let trafficHitRestoreAtMs = 0
 let cash = 0
 let rep = 0
 
@@ -223,6 +231,9 @@ function resetRun(nowMs: number) {
   contractRestoreAtMs = 0
   contractFailRestoreAtMs = 0
   contractDeadlineMs = 0
+  trafficHitUntilMs = 0
+  trafficHitCooldownUntilMs = 0
+  trafficHitRestoreAtMs = 0
   cash = 0
   rep = 0
   courierCar.x = WORLD_W / 2 + 90
@@ -700,6 +711,21 @@ function frame(now: number) {
     courierCar.x = Math.max(24, Math.min(WORLD_W - 24, courierCar.x))
     courierCar.y = Math.max(24, Math.min(WORLD_H - 24, courierCar.y))
 
+    // Forgiving traffic contact: sharp slowdown plus heat, one registration per window
+    if (now >= trafficHitCooldownUntilMs) {
+      for (const t of traffic) {
+        if (Math.abs(courierCar.x - t.x) < t.length / 2 + 20 && Math.abs(courierCar.y - t.laneY) < 28) {
+          courierCar.speed *= -0.25
+          setWanted(wanted + 1)
+          trafficHitUntilMs = now + TRAFFIC_HIT_HOLD_MS
+          trafficHitCooldownUntilMs = now + TRAFFIC_HIT_COOLDOWN_MS
+          trafficHitRestoreAtMs = now + TRAFFIC_HIT_HOLD_MS
+          missionEl.textContent = TRAFFIC_HIT_TEXT
+          break
+        }
+      }
+    }
+
     // rider sits in the hull; facing tracks the hood so pulses fire forward
     player.x = courierCar.x
     player.y = courierCar.y
@@ -884,6 +910,9 @@ function frame(now: number) {
   if (contractFailRestoreAtMs > 0 && now >= contractFailRestoreAtMs) {
     contractFailRestoreAtMs = 0
   }
+  if (trafficHitRestoreAtMs > 0 && now >= trafficHitRestoreAtMs) {
+    trafficHitRestoreAtMs = 0
+  }
   if (safehouseRestoreAtMs > 0 && now >= safehouseRestoreAtMs) {
     safehouseRestoreAtMs = 0
   }
@@ -891,9 +920,12 @@ function frame(now: number) {
     (contractState === 'active') ||
     (contractState === 'complete' && contractRestoreAtMs > 0) ||
     contractFailRestoreAtMs > 0 ||
+    trafficHitRestoreAtMs > 0 ||
     safehouseRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
+  } else if (trafficHitRestoreAtMs > 0) {
+    if (missionEl.textContent !== TRAFFIC_HIT_TEXT) missionEl.textContent = TRAFFIC_HIT_TEXT
   } else if (contractState === 'active' && deliveryTimeLeftSec !== null) {
     const liveText = `${HOT_DELIVERY_TEXT} — ${deliveryTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
@@ -1103,6 +1135,18 @@ function frame(now: number) {
   })
 
   // Courier coupe under the signal/traffic layer; HUD prompt tracks proximity and drive state
+  // Restrained amber impact ring while a traffic hit is registering
+  if (driving && now < trafficHitUntilMs) {
+    const hitT = (trafficHitUntilMs - now) / TRAFFIC_HIT_HOLD_MS
+    ctx.strokeStyle = `rgba(255, 157, 60, ${0.35 + hitT * 0.4})`
+    ctx.shadowColor = '#ff9d3c'
+    ctx.shadowBlur = 12
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(courierCar.x, courierCar.y, 30 + (1 - hitT) * 14, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+  }
   drawCourierCar(driving)
   const nearCourier = Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS
   const dropDist = Math.round(Math.hypot(player.x - SKYWAY_DROP_OFF.x, player.y - SKYWAY_DROP_OFF.y))
