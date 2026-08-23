@@ -498,3 +498,35 @@ The slice is visual-only by design: no collision, damage, wanted, mission, timer
 behavior was added or claimed. Existing deeper mission/race/persistence evidence gaps
 from prior sections remain clearly marked as not fully verified, and no claim is made
 that the overall GTA-style game is complete or enterprise-grade.
+
+---
+
+# Police Cruiser Impact Damage — Release Evidence (2026-08-23)
+
+Verification matrix for the police cruiser impact damage slice. Impact is transient by
+design and is not persisted in save data.
+
+| Requirement | Evidence surface | Status |
+| --- | --- | --- |
+| Source/build: gameplay commit 4ccc99edb20ef55e628ee16844db663509f20445 ("Add police cruiser impact damage") pushed to origin/main; src/main.ts only; 57 insertions and one newline-only deletion, with no logic removed; npm run build passed (tsc + Vite, asset index-Dad7n108.js, 36.19 kB); git diff --check clean; no linter errors | Independent diff/build review | PASS |
+| GitHub handoff: commit present on origin/main via Cursor push | git status/log inspection after push | PASS |
+| Netlify deployment: production deploy 6a8b4f9d6e21fe86e86b7947 live at https://vice-meridian.netlify.app/ | Independent production checks: HTTP/2 200 observed | PASS |
+| Live headers: CSP, Permissions-Policy, Referrer-Policy, HSTS with preload, and X-Content-Type-Options nosniff observed on the production origin | Independent production checks | PASS |
+| Live asset: /assets/index-Dad7n108.js contains POLICE IMPACT // VEHICLE DAMAGE, POLICE PURSUIT // HEAT, HULL, REPAIR SHOP, BLACKOUT RUN, and MIDNIGHT SPRINT | Live asset inspection | PASS |
+| Chrome desktop: existing profile, viewport 1440x604, current asset index-Dad7n108.js; core HUD/controls visible; zero console errors; scrollWidth = clientWidth = 1440 | Real Chrome existing profile desktop production check | VERIFIED |
+| Chrome mobile: existing profile, viewport 390x844, current asset index-Dad7n108.js; core HUD/controls visible; zero console errors; scrollWidth = clientWidth = 390 | Real Chrome existing profile mobile production check | VERIFIED |
+| Wanted-state setup for impact testing: entered the courier on the production build and reproduced WANTED 1/3, COURIER RUN // HOT DELIVERY, POLICE SCAN // NEAREST UNIT, and POLICE PURSUIT // HEAT 1/3 with no console errors | Bounded real-Chrome gameplay attempt | VERIFIED (setup only) |
+| Police impact collision itself (cruiser within courier radius → knockback, heat +1 capped, hull −12, banner hold) | Not reproduced in real Chrome: a bounded reverse-drive attempt did not bring the courier into the lower road-band cruiser radius before the 45-second delivery timer expired | NOT FULLY VERIFIED — source/build/live-bundle evidence only |
+| Hull/disabled/repair follow-on after a police impact (hull decrement display, disable-at-zero, $150 repair) | Not reproduced in real Chrome during this pass | NOT FULLY VERIFIED — source/build/live-bundle evidence only |
+| Scope limitations: impact state is transient and not saved; traffic collision, disabled, repair, missions, and save semantics unchanged and source-reviewed; prior race/persistence gaps remain marked | Scope review against prior sections | LIMITATION ACKNOWLEDGED |
+
+## Summary
+
+Source/build review, GitHub handoff, Netlify deployment, headers, live asset content,
+audit, and real-Chrome desktop/mobile gates all passed, including reproducing the full
+wanted-state HUD setup on the production build. However, the police impact collision
+itself — knockback, heat increment, hull decrement, POLICE IMPACT banner — and its
+hull/disabled/repair follow-ons were NOT FULLY VERIFIED end-to-end in real Chrome; only
+source, build, and live-bundle evidence supports them. Impact state is transient and not
+saved. Prior race/persistence gaps remain marked, and no claim is made that the overall
+GTA-style game is complete or enterprise-grade.
