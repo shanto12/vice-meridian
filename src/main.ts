@@ -104,16 +104,20 @@ const SAFEHOUSE_CLEAR_TEXT = 'SAFEHOUSE // HEAT CLEARED'
 let safehouseRequested = false
 let safehouseRestoreAtMs = 0
 
-// Blackout run side mission: accept with B at the safehouse, cut the grid target for cash
+// Blackout run side mission: accept with B at the safehouse, cut the grid target, then escape home
 const BLACKOUT_TARGET = { x: WORLD_W * 0.78, y: WORLD_H * 0.72, radius: 95 }
 const BLACKOUT_ACCEPT_RADIUS = 130
 const BLACKOUT_HOLD_MS = 2600
+const BLACKOUT_ESCAPE_MS = 30000
 const BLACKOUT_ACTIVE_TEXT = 'BLACKOUT RUN // REACH GRID TARGET'
+const BLACKOUT_ESCAPE_BASE_TEXT = 'BLACKOUT RUN // GRID CUT // ESCAPE TO SAFEHOUSE'
 const BLACKOUT_DONE_TEXT = 'BLACKOUT RUN // GRID CUT +$400 // REP +2'
+const BLACKOUT_FAILED_TEXT = 'BLACKOUT RUN // ESCAPE FAILED'
 let blackoutRequested = false
-type BlackoutState = 'available' | 'active' | 'complete'
+type BlackoutState = 'available' | 'active' | 'escaping' | 'complete'
 let blackoutState: BlackoutState = 'available'
 let blackoutRestoreAtMs = 0
+let blackoutEscapeDeadlineMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -249,6 +253,7 @@ function resetRun(nowMs: number) {
   blackoutRequested = false
   blackoutState = 'available'
   blackoutRestoreAtMs = 0
+  blackoutEscapeDeadlineMs = 0
   safehouseRestoreAtMs = 0
   contractState = 'available'
   contractRestoreAtMs = 0
@@ -813,9 +818,20 @@ function frame(now: number) {
       missionEl.textContent = BLACKOUT_ACTIVE_TEXT
     }
 
-    // Reaching the grid target cuts the power: payout plus a held banner
-    if (blackoutState === 'active' && Math.hypot(player.x - BLACKOUT_TARGET.x, player.y - BLACKOUT_TARGET.y) < BLACKOUT_TARGET.radius) {
+    // Reaching the grid target starts the getaway: heat stays up, race back on foot
+    if (
+      blackoutState === 'active' &&
+      Math.hypot(player.x - BLACKOUT_TARGET.x, player.y - BLACKOUT_TARGET.y) < BLACKOUT_TARGET.radius
+    ) {
+      blackoutState = 'escaping'
+      blackoutEscapeDeadlineMs = now + BLACKOUT_ESCAPE_MS
+      setWanted(Math.max(1, wanted))
+      missionEl.textContent = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${Math.ceil(BLACKOUT_ESCAPE_MS / 1000)}S`
+    }
+
+    if (blackoutState === 'escaping' && !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
       blackoutState = 'complete'
+      blackoutEscapeDeadlineMs = 0
       blackoutRestoreAtMs = now + BLACKOUT_HOLD_MS
       cash += 400
       rep += 2
@@ -844,10 +860,26 @@ function frame(now: number) {
     contractFailRestoreAtMs = now + CONTRACT_FAIL_HOLD_MS
   }
 
+  // Escape timer: running out the getaway safely fails the Blackout Run with no payout
+  if (blackoutState === 'escaping' && blackoutEscapeDeadlineMs > 0 && now >= blackoutEscapeDeadlineMs) {
+    blackoutState = 'available'
+    blackoutEscapeDeadlineMs = 0
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = BLACKOUT_FAILED_TEXT
+    blackoutRestoreAtMs = now + BLACKOUT_HOLD_MS
+  }
+
   // Shared countdown readout for the mission line and courier HUD
   const deliveryTimeLeftSec =
     contractState === 'active' && contractDeadlineMs > 0
       ? Math.max(0, Math.ceil((contractDeadlineMs - now) / 1000))
+      : null
+
+  // Shared escape countdown readout for the mission line during the getaway phase
+  const escapeTimeLeftSec =
+    blackoutState === 'escaping' && blackoutEscapeDeadlineMs > 0
+      ? Math.max(0, Math.ceil((blackoutEscapeDeadlineMs - now) / 1000))
       : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
@@ -995,6 +1027,7 @@ function frame(now: number) {
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
+    (blackoutState === 'escaping' && escapeTimeLeftSec !== null) ||
     (contractState === 'complete' && contractRestoreAtMs > 0) ||
     contractFailRestoreAtMs > 0 ||
     trafficHitRestoreAtMs > 0 ||
@@ -1007,6 +1040,9 @@ function frame(now: number) {
     if (missionEl.textContent !== TRAFFIC_HIT_TEXT) missionEl.textContent = TRAFFIC_HIT_TEXT
   } else if (heatCoolRestoreAtMs > 0) {
     if (missionEl.textContent !== HEAT_COOLING_TEXT) missionEl.textContent = HEAT_COOLING_TEXT
+  } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
+    const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (contractState === 'active' && deliveryTimeLeftSec !== null) {
     const liveText = `${HOT_DELIVERY_TEXT} — ${deliveryTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
@@ -1170,8 +1206,8 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
-  // Violet grid target: visible while the blackout run can be accepted or is underway
-  if (blackoutState !== 'complete' || blackoutRestoreAtMs > 0) {
+  // Violet grid target: rendered only during the target phase
+  if (blackoutState === 'active') {
     const bx = BLACKOUT_TARGET.x
     const by = BLACKOUT_TARGET.y
     const breathe = Math.sin(now / 340) * 5
@@ -1289,15 +1325,19 @@ function frame(now: number) {
     safehouseEl.style.display = nearSafehouse ? '' : 'none'
   }
 
-  // Blackout accept hint: on-foot near the safehouse while the run can be taken
+  // Blackout accept hint / escape return hint at the safehouse
   const blackoutAcceptableNow =
     !driving &&
     blackoutState === 'available' &&
     contractState !== 'active' &&
     !missionComplete &&
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < BLACKOUT_ACCEPT_RADIUS
-  if (safehouseEl.textContent !== (blackoutAcceptableNow ? 'SAFEHOUSE // PRESS B FOR BLACKOUT RUN' : SAFEHOUSE_CLEAR_TEXT)) {
-    safehouseEl.textContent = blackoutAcceptableNow ? 'SAFEHOUSE // PRESS B FOR BLACKOUT RUN' : SAFEHOUSE_CLEAR_TEXT
+  const blackoutEscapingNow = blackoutState === 'escaping'
+  let safehouseHint = SAFEHOUSE_CLEAR_TEXT
+  if (blackoutEscapingNow) safehouseHint = 'SAFEHOUSE // RETURN TO BANK BLACKOUT RUN'
+  else if (blackoutAcceptableNow) safehouseHint = 'SAFEHOUSE // PRESS B FOR BLACKOUT RUN'
+  if (safehouseEl.textContent !== safehouseHint) {
+    safehouseEl.textContent = safehouseHint
   }
 
   // Police scan readout: nearest active hunter's distance while heat is up
