@@ -378,3 +378,36 @@ automatic boot restore with changed state, and malformed-storage recovery were N
 independently demonstrated end-to-end in real Chrome; these are flagged NOT FULLY
 VERIFIED rather than assumed, and no enterprise-grade or full persistence verification
 is claimed for this release.
+
+---
+
+# Midnight Sprint — Release Evidence (2026-08-23)
+
+Verification matrix for the Midnight Sprint street-race release. Evidence surfaces refer
+to the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Status |
+| --- | --- | --- |
+| Source change is committed and traceable | Source review: commit `4fee2067c1fd8dc6d48aa78d7d4e891d2d9fdbc9` ("Add Midnight Sprint race mission") on `origin/main` | PASS (source review) |
+| Race logic correctness in code | Source review/build: three mandatory checkpoints, courier-only advancement, 45s deadline, +$300/REP+2 finish, expiry reset to available, transient state excluded from save slot | PASS (source review) |
+| Production build succeeds and tracked changes are clean | Build: `npm run build` (tsc + Vite) passed; `git diff --check` passed; `npm audit --omit=dev` found 0 vulnerabilities | PASS (build) |
+| Production deploy is live with required headers | Live asset/headers: deploy `6a8b4185a299c2ce84d11632` at https://vice-meridian.netlify.app/ returned HTTP 200 with CSP, Permissions-Policy, Referrer-Policy, HSTS, X-Content-Type-Options | PASS (live asset/headers) |
+| Live bundle contains the race strings plus prior systems | Live asset/bundle: contains MIDNIGHT SPRINT, CHECKPOINT, PRESS N TO RACE, BLACKOUT RUN, SAVE // PROGRESS STORED, GARAGE // TURBO TUNE | PASS (live asset) |
+| Desktop browser loads production with N in controls; full key smoke | Real Chrome desktop 1440x604: production URL loaded; body exposed the N race hint and existing controls; M/F/Q/E/B/H/G/N/P/L/R smoke completed | PASS — zero console errors, no horizontal overflow (real Chrome desktop) |
+| Responsive layout on small viewport | Real Chrome mobile 390x844: production URL loaded | PASS — zero console errors, no horizontal overflow (real Chrome mobile) |
+| Race start mission line reproduced on N press at safehouse | A bounded real-Chrome attempt navigated toward the safehouse and pressed N; the race-start mission line was not reproduced | NOT REPRODUCED IN CHROME — source-reviewed/build-verified only |
+| Checkpoint progression under the 45-second timer | Not reproduced in real Chrome during this pass | NOT FULLY VERIFIED — source-reviewed/build-verified only |
+| Finish payout (+$300 / REP +2) and banner | Not reproduced in real Chrome during this pass | NOT FULLY VERIFIED — source-reviewed/build-verified only |
+| Expiry recovery (reset to available, no payout) | Not reproduced in real Chrome during this pass | NOT FULLY VERIFIED — source-reviewed/build-verified only |
+| Race marker rendering during the active race | Not reproduced in real Chrome during this pass | NOT FULLY VERIFIED — source-reviewed/build-verified only |
+
+## Summary
+
+Source review, build, audit, live asset/header, and real-browser load/smoke gates passed
+on desktop and mobile. The race-specific behaviors — race start on N, checkpoint
+progression, finish payout, expiry recovery, and marker rendering — were source-reviewed
+and build-verified but NOT reproduced end-to-end in real Chrome during this pass; a
+bounded attempt at the safehouse did not reproduce the race-start line. They are flagged
+NOT FULLY VERIFIED rather than assumed. Prior evidence for save/garage/Blackout/heat-decay
+remains covered by earlier sections, and no enterprise-grade or full behavior verification
+is claimed for this release.
