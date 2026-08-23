@@ -180,3 +180,38 @@ The 45-second timer logic is verified by source and live bundle only. Full couri
 pickup/drive/deliver, timer expiry E2E, police wanted-state, safehouse H-in-zone, and
 reward delivery were NOT fully verified in this pass and are flagged above rather than
 assumed.
+
+---
+
+# Traffic Collision — Release Evidence (2026-08-23)
+
+Verification matrix for the traffic-collision release. Evidence surfaces refer to
+the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed and traceable | Commit `aa051cc3af43c837547fe4150b796ae260aa842f` ("Add traffic collision consequences") on `origin/main` | PASS | Only `src/main.ts` modified; working tree clean after push |
+| Production deploy is live | Netlify deploy `6a8b33c6330442e783ca1e04` at https://vice-meridian.netlify.app/ | PASS | Deploy ID confirmed against the live site |
+| Production build succeeds | `npm run build` (tsc + Vite) | PASS | No type or build errors blocking output |
+| No whitespace errors in tracked changes | `git diff --check` | PASS | Clean output, no trailing whitespace or conflict markers |
+| No known vulnerabilities in production dependencies | `npm audit --omit=dev` | PASS | 0 vulnerabilities reported for the production dependency tree |
+| App bundle contains the collision strings plus prior feature strings | Fetched live JS bundle; contains "TRAFFIC HIT", "HEAT +1", "HOT DELIVERY", "TIME EXPIRED", "POLICE SCAN", "SAFEHOUSE", wallet "CASH $"/"REP", and "DROP-OFF" strings | PASS | Confirms the deploy serves the updated bundle; hot-delivery, timer, police scan, safehouse, wallet, and courier strings remain intact alongside the new collision code |
+| Security headers present on responses | Live response headers include CSP, Permissions-Policy, Referrer-Policy, HSTS, and `X-Content-Type-Options` | PASS | All expected headers observed on the production origin |
+| Desktop browser loads the deploy and core controls work | Real Chrome profile desktop session at 1440x604: M (map open/close), F (pulse), Q (jammer), R (reset) smoke-exercised | PASS | Zero application console errors during interaction |
+| Responsive layout on small viewport | Real Chrome mobile session at 390x844: page loaded, scrollWidth measured at 390 | PASS | No horizontal overflow; zero application console errors |
+| Traffic collision logic | Verified via source review and live bundle strings only (`TRAFFIC_HIT_COOLDOWN_MS`, speed penalty `speed *= -0.25`, `setWanted(wanted + 1)`, TRAFFIC HIT banner + amber impact ring present in served bundle) | VERIFIED BY SOURCE + BUNDLE, NOT E2E | Contact detection and feedback not driven end-to-end in a browser in this pass |
+| Traffic collision end-to-end path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Driving the courier into civilian traffic to trigger slowdown + heat + banner not driven in this pass |
+| Full courier E pickup / drive / deliver loop | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Enter, drive, and deliver sequence not driven end-to-end in this pass |
+| Timer expiry end-to-end fail path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | 45s elapsing mid-run (exit car, reset contract, clear heat, DELIVERY FAILED banner) not driven end-to-end in this pass |
+| Police wanted-state path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Drone chase, POLICE SCAN readout, and search ring under live wanted state not driven end-to-end in this pass |
+| Safehouse H-in-zone heat-clear path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | H keypress while standing inside the safehouse ring not driven end-to-end in this pass |
+| Reward delivery (+$250 / REP +1 reflected in wallet) | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Delivery reward updating cash/rep and the wallet HUD not driven end-to-end in this pass |
+| Auth / backend / API integration | Static Vite site — no auth, backend, or API surface exists | Not applicable | Nothing to verify beyond static serving and headers |
+
+## Summary
+
+Build, audit, bundle-content, header, desktop-interaction, and mobile-layout gates passed.
+The collision logic is verified by source and live bundle only. Traffic collision E2E,
+full courier pickup/drive/deliver, timer expiry, police wanted-state, safehouse H-in-zone,
+and reward delivery were NOT fully verified in this pass and are flagged above rather than
+assumed.
