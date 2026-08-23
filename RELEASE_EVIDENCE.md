@@ -467,3 +467,34 @@ the wanted>0 dispatch display itself is verified by source, build, and bundle in
 only. Existing deeper mission/race/persistence evidence gaps from prior sections remain
 clearly marked and are not upgraded by this section, and no claim is made that the
 overall GTA-style game is complete or that every gameplay branch is fully verified.
+
+---
+
+# Visible Police Pursuit Cruisers — Release Evidence (2026-08-23)
+
+Verification matrix for the visible police pursuit cruiser slice. The slice adds visual
+cruisers, movement, and blips only; it intentionally adds no police collision, damage,
+wanted, mission, timer, or save behavior.
+
+| Requirement | Evidence surface | Status |
+| --- | --- | --- |
+| Source/build: gameplay commit 51ff75c2644085b3a70ce2cc6d7986872517a56d ("Add visible police pursuit cruisers") pushed to origin/main; src/main.ts only, 111 additive lines, 0 deletions; npm run build passed (tsc + Vite, index-Cbf9BJMU.js 35.39 kB); git diff --check clean; no linter errors | Independent source review + local build | PASS |
+| GitHub handoff: commit present on origin/main via Cursor push; working tree clean after push | git status/log inspection after push | PASS |
+| Netlify deploy: production deploy 6a8b4cf03f3b9751ec139053 live at https://vice-meridian.netlify.app/ | Independent production checks: HTTP/2 200 observed | PASS |
+| Live headers: CSP, Permissions-Policy, Referrer-Policy, HSTS with preload, and X-Content-Type-Options nosniff all observed on the production origin | Independent production checks | PASS |
+| Live asset content: current asset /assets/index-Cbf9BJMU.js confirmed; live inspection found POLICE PURSUIT // HEAT, BLACKOUT RUN, MIDNIGHT SPRINT, HULL, and REPAIR SHOP strings | Live bundle inspection of the current asset | PASS |
+| Chrome desktop wanted>0 behavior: existing-profile desktop 1440x604 on production; manual keyboard path to the courier and E produced WANTED 1/3, COURIER RUN // HOT DELIVERY, POLICE SCAN // NEAREST UNIT, and POLICE PURSUIT // HEAT 1/3; #hud-pursuit display:block with nonzero bounding box; zero console errors; scrollWidth = clientWidth = 1440 | Real Chrome desktop final pass | VERIFIED |
+| Visual cruiser/radar inspection: same active-heat state showed the red police search ring/cruiser contact and a red radar blip alongside existing drone contacts | Real Chrome visual inspection (active-heat state) | VERIFIED |
+| Heat=0 hiding: R reset returned WANTED 0/3 and #hud-pursuit display:none with text POLICE PURSUIT // HEAT 0/3 | Real Chrome reset pass | VERIFIED |
+| Chrome mobile: existing profile, production URL at 390x844 loaded with core HUD/controls, zero console errors, scrollWidth = clientWidth = 390, current asset script index-Cbf9BJMU.js | Real Chrome mobile final pass | VERIFIED |
+| Scope limitations: this slice intentionally adds no police collision, damage, wanted, mission, timer, or save behavior; deeper mission/race/persistence gaps from prior sections remain not fully verified | Scope review against prior sections | LIMITATION ACKNOWLEDGED — gaps remain marked |
+
+## Summary
+
+Source review, build, GitHub handoff, Netlify deployment, header, bundle-content, and
+real-Chrome desktop/mobile gates all passed, including a real wanted>0 state showing the
+dispatch line, search ring/cruiser contact, radar blip, and correct hiding after reset.
+The slice is visual-only by design: no collision, damage, wanted, mission, timer, or save
+behavior was added or claimed. Existing deeper mission/race/persistence evidence gaps
+from prior sections remain clearly marked as not fully verified, and no claim is made
+that the overall GTA-style game is complete or enterprise-grade.
