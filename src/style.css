@@ -126,6 +126,31 @@ canvas {
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
 }
 
+.hud-wanted {
+  margin: 10px 0 0;
+  font-size: clamp(13px, 1.6vw, 17px);
+  letter-spacing: 4px;
+  color: rgba(0, 240, 255, 0.7);
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.hud-wanted.is-hot {
+  color: #ff2d96;
+  text-shadow:
+    0 0 10px rgba(255, 45, 150, 0.9),
+    0 0 26px rgba(255, 45, 150, 0.5);
+  animation: wanted-pulse 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes wanted-pulse {
+  from {
+    opacity: 0.75;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .complete {
   position: absolute;
   top: 50%;

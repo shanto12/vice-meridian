@@ -13,9 +13,10 @@ app.innerHTML = `
       <span class="boost-bar"><span class="boost-fill" id="boost-fill"></span></span>
       <span class="boost-state" id="boost-state">READY</span>
     </p>
+    <p class="hud-wanted" id="hud-wanted">WANTED <span id="wanted-count">0</span>/3</p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -42,14 +43,23 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space') {
+  if (e.code === 'Space' || e.code === 'KeyQ') {
     e.preventDefault()
   }
+  if (e.code === 'KeyQ') jammer.requested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
 
 const player = { x: w / 2, y: h / 2, size: 28, speed: 320 }
 const grid = 48
+
+const jammer = {
+  requested: false,
+  radius: 190,
+  cooldown: 0,
+  duration: 1.6,
+  active: 0,
+}
 
 const boost = {
   active: false,
@@ -70,6 +80,10 @@ const boostEls = {
   fill: document.querySelector<HTMLSpanElement>('#boost-fill')!,
   state: document.querySelector<HTMLSpanElement>('#boost-state')!,
 }
+const wantedEls = {
+  row: document.getElementById('hud-wanted')!,
+  count: document.querySelector<HTMLSpanElement>('#wanted-count')!,
+}
 
 const signals = Array.from({ length: 3 }, (_, i) => ({
   x: ((i * 419 + 211) % (w - 200)) + 100,
@@ -82,6 +96,22 @@ const buildings = Array.from({ length: 14 }, (_, i) => ({
   width: 90 + ((i * 61) % 120),
   height: 70 + ((i * 113) % 140),
 }))
+
+let wanted = 0
+const drones = Array.from({ length: 3 }, (_, i) => ({
+  x: w * (0.22 + i * 0.28),
+  y: h * 0.62 + 70,
+  angle: i * 2.1,
+  radius: 70 + i * 26,
+  speed: 1.4 + i * 0.35,
+  disabledUntil: 0,
+}))
+
+function setWanted(next: number) {
+  wanted = Math.max(0, Math.min(3, next))
+  wantedEls.count.textContent = String(wanted)
+  wantedEls.row.classList.toggle('is-hot', wanted > 0)
+}
 
 function neonRect(x: number, y: number, width: number, height: number, color: string) {
   ctx.strokeStyle = color
@@ -132,6 +162,57 @@ function frame(now: number) {
   boostEls.fill.classList.toggle('is-active', boost.active)
   boostEls.fill.classList.toggle('is-cooling', boost.cooldown)
 
+  if (jammer.cooldown > 0) jammer.cooldown = Math.max(0, jammer.cooldown - dt)
+
+  // Drone patrol/chase + contact
+  let nearestDrone: (typeof drones)[number] | null = null
+  let nearestDist = Infinity
+  for (const d of drones) {
+    const disabled = now < d.disabledUntil
+    const chaseSpeed = 150 + wanted * 22
+    let distToPlayer = Math.hypot(player.x - d.x, player.y - d.y)
+    if (!disabled) {
+      if (wanted > 0 && distToPlayer < 520) {
+        const ang = Math.atan2(player.y - d.y, player.x - d.x)
+        d.x += Math.cos(ang) * chaseSpeed * dt
+        d.y += Math.sin(ang) * chaseSpeed * dt
+        d.angle = ang
+      } else {
+        d.angle += d.speed * dt
+        d.x += Math.cos(d.angle) * 60 * dt
+        d.y += Math.sin(d.angle) * 40 * dt
+      }
+      d.x = Math.max(30, Math.min(w - 30, d.x))
+      d.y = Math.max(h * 0.62, Math.min(h - 30, d.y))
+      distToPlayer = Math.hypot(player.x - d.x, player.y - d.y)
+      if (distToPlayer < 30 && !disabled) {
+        setWanted(wanted - 1)
+        player.x = w / 2
+        player.y = h / 2
+        d.disabledUntil = now + 1200
+        d.x = Math.max(40, d.x - 220)
+      }
+    }
+    if (distToPlayer < nearestDist) {
+      nearestDist = distToPlayer
+      nearestDrone = d
+    }
+  }
+
+  // Jammer pulse on Q: disables nearest drone in range, cools heat by 1
+  if (jammer.requested) {
+    jammer.requested = false
+    if (jammer.cooldown <= 0) {
+      jammer.cooldown = 3.5
+      jammer.active = now + 420
+      if (wanted > 0 && nearestDrone && nearestDist < jammer.radius) {
+        nearestDrone.disabledUntil = now + jammer.duration * 1000
+        setWanted(wanted - 1)
+      }
+    }
+  }
+  const jammerRingVisible = now < jammer.active
+
   const bg = ctx.createLinearGradient(0, 0, 0, h)
   bg.addColorStop(0, '#0a0325')
   bg.addColorStop(0.55, '#12063a')
@@ -170,6 +251,19 @@ function frame(now: number) {
   })
 
   neonRect(0, h * 0.62, w, 4, '#00f0ff')
+
+  // Jammer pulse ring
+  if (jammerRingVisible) {
+    const t = 1 - (jammer.active - now) / 420
+    ctx.strokeStyle = `rgba(0, 240, 255, ${0.8 * (1 - t)})`
+    ctx.lineWidth = 3
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 20
+    ctx.beginPath()
+    ctx.arc(player.x, player.y, jammer.radius * t, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+  }
 
   signals.forEach((s, i) => {
     if (signalsFound > i) return
@@ -252,6 +346,53 @@ function frame(now: number) {
   ctx.fillRect(3, 13, 5, 3)
   ctx.restore()
   ctx.shadowBlur = 0
+
+  // Cyan patrol drones
+  drones.forEach(d => {
+    const disabled = now < d.disabledUntil
+    const hover = Math.sin(now / 240 + d.x) * 3
+    ctx.save()
+    ctx.translate(d.x, d.y + hover)
+
+    // scanning rotor glow / disabled state
+    ctx.strokeStyle = disabled ? 'rgba(120, 130, 150, 0.6)' : '#00f0ff'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = disabled ? 4 : 18
+    ctx.lineWidth = 2
+
+    // rotor arms
+    ctx.beginPath()
+    ctx.moveTo(-16, -10)
+    ctx.lineTo(16, 10)
+    ctx.moveTo(-16, 10)
+    ctx.lineTo(16, -10)
+    ctx.stroke()
+
+    // hull
+    ctx.strokeRect(-8, -8, 16, 16)
+
+    // eye light: red-hot when chasing, dim when disabled
+    if (!disabled) {
+      ctx.fillStyle = wanted > 0 && Math.hypot(player.x - d.x, player.y - d.y) < 520 ? '#ff2d96' : '#bfffff'
+      ctx.shadowColor = ctx.fillStyle as string
+      ctx.beginPath()
+      ctx.arc(0, 0, 4 + Math.sin(now / 90) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    } else {
+      ctx.fillStyle = 'rgba(20, 30, 45, 0.9)'
+      ctx.fillRect(-7, -7, 14, 14)
+      ctx.strokeStyle = 'rgba(120, 130, 150, 0.5)'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(-5, -5)
+      ctx.lineTo(5, 5)
+      ctx.moveTo(5, -5)
+      ctx.lineTo(-5, 5)
+      ctx.stroke()
+    }
+    ctx.restore()
+    ctx.shadowBlur = 0
+  })
 
   requestAnimationFrame(frame)
 }
