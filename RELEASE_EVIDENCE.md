@@ -251,3 +251,33 @@ Build, audit, bundle-content, header, desktop-interaction, and mobile-layout gat
 Blackout Run behavior is verified by source and live bundle only. Safehouse B acceptance,
 target completion, payout, courier, timer, traffic, police, and H-in-zone paths were NOT
 fully verified in this pass and are flagged above rather than assumed.
+
+---
+
+# Heat Decay — Release Evidence (2026-08-23)
+
+Verification matrix for the dynamic wanted heat-decay release. Evidence surfaces refer to
+the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Status |
+| --- | --- | --- |
+| Source change is committed and traceable | Commit `b766c60919c0412dec81c6ff2b5262a37fd42203` (short `b766c60`) "Add passive heat cooling" on `origin/main` | PASS |
+| Production deploy is live | Netlify deploy `6a8b37a8fc9c8834d9e8e96a` at https://vice-meridian.netlify.app/ | PASS |
+| Production build succeeds | Cursor/source + build: `npm run build` (tsc + Vite) | PASS |
+| No whitespace errors in tracked changes | Build: `git diff --check` | PASS |
+| No known vulnerabilities in production dependencies | Build: `npm audit --omit=dev` — 0 vulnerabilities | PASS |
+| Site serves successfully with required security headers | API/headers: HTTP 200; CSP, Permissions-Policy, Referrer-Policy, HSTS, X-Content-Type-Options all present | PASS |
+| Live bundle contains the heat-decay strings plus prior systems | Real Chrome desktop / bundle: contains "POLICE SCAN // HEAT COOLING -1" plus Blackout Run, Traffic Hit, and Hot Delivery system strings | PASS |
+| Cooling logic correctness | Cursor/source review: non-disabled scan check (`now >= d.disabledUntil`), 7-second continuous-clear cadence, cancellation on active re-entry, temporary banner restore, explicit reset/cancel paths on every wanted-reduction route | PASS |
+| Desktop browser loads production and core controls work | Real Chrome desktop 1440x604: loaded production, body HUD present, M/F/Q/R key smoke completed | PASS — zero console errors, no horizontal overflow |
+| Responsive layout on small viewport | Real Chrome mobile 390x844: loaded production, scrollWidth equals 390 | PASS — zero console errors |
+| Direct 7-second heat-decay transition observed in browser | Not reproduced end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| All mission branches under decay (HOT DELIVERY countdown restore, BLACKOUT RUN hold, campaign text) exercised in browser | Not independently reproduced in real Chrome during this pass | NOT FULLY VERIFIED |
+
+## Summary
+
+Source, build, audit, header, bundle-content, and real-browser load/smoke gates passed.
+The heat-decay logic itself is verified by source review and live bundle content. The
+direct 7-second decay transition and every mission branch were NOT independently
+reproduced in real Chrome; these are flagged NOT FULLY VERIFIED rather than assumed, and
+no enterprise-grade or full behavior verification is claimed for this release.
