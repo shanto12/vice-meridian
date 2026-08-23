@@ -26,7 +26,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — R to restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — R to restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -57,7 +57,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -72,6 +72,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyE') courierToggleRequested = true
   if (e.code === 'KeyH') safehouseRequested = true
   if (e.code === 'KeyB') blackoutRequested = true
+  if (e.code === 'KeyG') garageRequested = true
   if (e.code === 'KeyR') restartRequested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
@@ -103,6 +104,18 @@ const SAFEHOUSE_HOLD_MS = 2200
 const SAFEHOUSE_CLEAR_TEXT = 'SAFEHOUSE // HEAT CLEARED'
 let safehouseRequested = false
 let safehouseRestoreAtMs = 0
+
+// Safehouse garage tune: one-time $250 sprint kit for the courier coupe (KeyG)
+const GARAGE_TUNE_COST = 250
+const GARAGE_TUNE_MAX_SPEED_BONUS = 60
+const GARAGE_TUNE_ACCEL_BONUS = 80
+const GARAGE_HOLD_MS = 2600
+const GARAGE_AFFORD_TEXT = 'GARAGE // SPRINT KIT INSTALLED -$250'
+const GARAGE_POOR_TEXT = 'GARAGE // TUNE KIT COSTS $250'
+let garageRequested = false
+let garageTuneInstalled = false
+let garageRestoreAtMs = 0
+let garageBannerAfford = true
 
 // Blackout run side mission: accept with B at the safehouse, cut the grid target, then escape home
 const BLACKOUT_TARGET = { x: WORLD_W * 0.78, y: WORLD_H * 0.72, radius: 95 }
@@ -250,6 +263,11 @@ function resetRun(nowMs: number) {
   driving = false
   courierToggleRequested = false
   safehouseRequested = false
+  garageRequested = false
+  garageTuneInstalled = false
+  garageRestoreAtMs = 0
+  courierCar.maxSpeed = 360
+  courierCar.accel = 420
   blackoutRequested = false
   blackoutState = 'available'
   blackoutRestoreAtMs = 0
@@ -806,6 +824,22 @@ function frame(now: number) {
       safehouseRestoreAtMs = now + SAFEHOUSE_HOLD_MS
     }
 
+    // G inside the safehouse buys the one-time sprint kit: faster top end and acceleration
+    if (garageRequested && !garageTuneInstalled && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
+      garageBannerAfford = cash >= GARAGE_TUNE_COST
+      if (garageBannerAfford) {
+        cash -= GARAGE_TUNE_COST
+        garageTuneInstalled = true
+        courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
+        courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
+        missionEl.textContent = GARAGE_AFFORD_TEXT
+      } else {
+        missionEl.textContent = GARAGE_POOR_TEXT
+      }
+      garageRestoreAtMs = now + GARAGE_HOLD_MS
+    }
+    garageRequested = false
+
     // B near the safehouse accepts the blackout run when no courier contract is active
     const blackoutAcceptable =
       blackoutState === 'available' &&
@@ -1018,6 +1052,9 @@ function frame(now: number) {
   if (safehouseRestoreAtMs > 0 && now >= safehouseRestoreAtMs) {
     safehouseRestoreAtMs = 0
   }
+  if (garageRestoreAtMs > 0 && now >= garageRestoreAtMs) {
+    garageRestoreAtMs = 0
+  }
   if (blackoutRestoreAtMs > 0 && now >= blackoutRestoreAtMs) {
     blackoutRestoreAtMs = 0
   }
@@ -1033,6 +1070,7 @@ function frame(now: number) {
     trafficHitRestoreAtMs > 0 ||
     safehouseRestoreAtMs > 0 ||
     blackoutRestoreAtMs > 0 ||
+    garageRestoreAtMs > 0 ||
     heatCoolRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
@@ -1040,6 +1078,9 @@ function frame(now: number) {
     if (missionEl.textContent !== TRAFFIC_HIT_TEXT) missionEl.textContent = TRAFFIC_HIT_TEXT
   } else if (heatCoolRestoreAtMs > 0) {
     if (missionEl.textContent !== HEAT_COOLING_TEXT) missionEl.textContent = HEAT_COOLING_TEXT
+  } else if (garageRestoreAtMs > 0) {
+    const garageText = garageBannerAfford ? GARAGE_AFFORD_TEXT : GARAGE_POOR_TEXT
+    if (missionEl.textContent !== garageText) missionEl.textContent = garageText
   } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
     const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
@@ -1333,9 +1374,22 @@ function frame(now: number) {
     !missionComplete &&
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < BLACKOUT_ACCEPT_RADIUS
   const blackoutEscapingNow = blackoutState === 'escaping'
-  let safehouseHint = SAFEHOUSE_CLEAR_TEXT
-  if (blackoutEscapingNow) safehouseHint = 'SAFEHOUSE // RETURN TO BANK BLACKOUT RUN'
-  else if (blackoutAcceptableNow) safehouseHint = 'SAFEHOUSE // PRESS B FOR BLACKOUT RUN'
+  // Garage status composes onto every safehouse line so H, B, and G all stay visible
+  const garageStatusHint = garageTuneInstalled
+    ? 'SPRINT KIT INSTALLED'
+    : cash >= GARAGE_TUNE_COST
+      ? 'PRESS G TO TUNE ($250)'
+      : `EARN $${GARAGE_TUNE_COST} FOR TUNE`
+  let safehouseHint: string
+  if (blackoutEscapingNow) {
+    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${garageStatusHint}`
+  } else if (blackoutAcceptableNow) {
+    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // H CLEAR HEAT // ${garageStatusHint}`
+  } else if (nearSafehouse) {
+    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // ${garageStatusHint}`
+  } else {
+    safehouseHint = SAFEHOUSE_CLEAR_TEXT
+  }
   if (safehouseEl.textContent !== safehouseHint) {
     safehouseEl.textContent = safehouseHint
   }
