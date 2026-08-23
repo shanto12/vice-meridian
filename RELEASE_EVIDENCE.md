@@ -831,3 +831,42 @@ run to safehouse; it is flagged above rather than assumed and must not be claime
 end-to-end. VICE//MERIDIAN remains an evolving vertical slice built feature-by-feature —
 not complete GTA 7 and not an enterprise-grade product. Prior evidence sections remain
 intact and their gaps still stand.
+
+---
+
+# Chop Shop - Release Evidence (2026-08-23)
+
+Verification matrix for the Chop Shop slice: press I on foot at the safehouse to accept,
+drive to the target vehicle and press I to strip it, then return to the safehouse and press
+I to deliver inside the shared deadline for +$1400 / REP +5; expiring mid-run resets to
+available with no payout and shows JOB LOST. Acceptance is gated on being on foot
+(!driving), and dashed target rings mark the chop site while a shared countdown runs in the
+mission line and courier HUD.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit `5c75b5b2aa0587113fda19c1ee7b6d9078ba15a0` equals origin/main; source change is src/main.ts only (verification source: local build/git) | git log/rev-parse comparison of HEAD and origin/main after push | PASS | Working tree clean post-push; src/main.ts is the only feature surface changed |
+| Build gate: npm run build passed with tsc + Vite (verification source: local build) | Local build run against the source commit | PASS | Produced assets/index-Cy7TDCJr.js at 57.86 kB JS (15.55 kB gzip); zero TypeScript errors |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities (verification source: npm audit) | Local audit against the package manifest | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed (verification source: build hygiene check) | Local check against the tracked diff | PASS | No trailing whitespace or conflict markers |
+| Netlify production deploy `6a8b759a3c117ae2deed3ef2` at https://vice-meridian.netlify.app/ serves assets/index-Cy7TDCJr.js (verification source: live curl/deploy record) | Live asset fetch matched against build output | PASS | Hash match confirms the deploy serves this release's bundle |
+| Bundle markers: CHOP SHOP // REACH THE TARGET VEHICLE, CHOP SHOP // VEHICLE STRIPPED // RETURN TO SAFEHOUSE, CHOP SHOP // VEHICLE DELIVERED +$1400 // REP +5, CHOP SHOP // JOB LOST, CHOP SHOP, and I CHOP SHOP confirmed (verification source: live bundle markers) | Live bundle inspection of assets/index-Cy7TDCJr.js | PASS | Live asset exact match confirms the deploy serves this release's bundle |
+| Security headers observed on production HTML: CSP self-only with frame-ancestors none, HSTS max-age=31536000 includeSubDomains preload, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera=(), microphone=(), geolocation=() (verification source: live curl/headers) | Live header observation of the production origin | PASS | Expected policy directives observed |
+| Real Chrome desktop: production tab at 1440x660, canvas true, scrollWidth 1440, exact live asset; Y toggled Night Shift city lights on and off; I/F/Q/Space/R exercised (verification source: real Chrome) | Real Chrome desktop pass on the production deploy | PASS | Console errors empty; no horizontal overflow |
+| Real Chrome mobile: production tab at 390x844, canvas true, scrollWidth 390, exact live asset, viewport reset afterward (verification source: real Chrome) | Real Chrome mobile pass on the production deploy | PASS | Console errors empty; no horizontal overflow on the small viewport |
+| Interactive DOM surface: visible DOM control count is 0 because the page is Canvas plus keyboard controls (verification source: real Chrome DOM inspection) | DOM inspection of the production page | PASS (by design) | Absence of visible DOM controls is intentional architecture, not a defect |
+| Chop Shop end-to-end runtime transition: safehouse accept → target vehicle I strip → return safehouse I deliver (+$1400 / REP +5 success path) or timeout fail path driven in real Chrome | This pass did not reliably navigate from spawn to the safehouse; source/build/live-bundle evidence only | NOT FULLY VERIFIED | Explicitly flagged rather than assumed — do not claim it as end-to-end; prior sections' deeper gaps remain marked |
+| Project scope statement: this release documents an evolving VICE//MERIDIAN vertical slice — it is not complete GTA 7 and no enterprise-grade claim is made (verification source: release scope review) | Release scope review | LIMITATION ACKNOWLEDGED | Built feature-by-feature; each slice ships its own evidence matrix and carries forward prior gaps |
+
+## Summary
+
+Source handoff, build (tsc + Vite), dependency audit (npm audit), whitespace hygiene,
+live-bundle marker confirmation, production security headers (live curl/headers), and
+real-Chrome desktop/mobile passes all succeeded with zero console errors and no
+horizontal overflow. The full Chop Shop runtime transition — safehouse accept, target
+vehicle strip, return delivery/payout, or timeout failure — was NOT FULLY VERIFIED in
+real Chrome during this pass because this pass did not reliably navigate from spawn to
+the safehouse; it is flagged above rather than assumed and must not be claimed as
+end-to-end. VICE//MERIDIAN remains an evolving vertical slice built feature-by-feature —
+not complete GTA 7 and not an enterprise-grade product. Prior evidence sections remain
+intact and their gaps still stand.
