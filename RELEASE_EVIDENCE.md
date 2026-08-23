@@ -567,3 +567,38 @@ live asset markers, and real-Chrome desktop/mobile gates all PASSED. The Bank Ru
 acceptance/loot/escape/payout flow is NOT FULLY VERIFIED end-to-end and is flagged above
 rather than assumed; auth/backend/forms/API rows are explicitly not applicable to this
 client-only Canvas game.
+
+---
+
+# VIP Extraction Mission — Release Evidence (2026-08-23)
+
+Verification matrix for the VIP Extraction slice: accept the job at the safehouse,
+pick up the VIP client, return to the safehouse for the payout, with a failure path if
+the client is lost.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit b21a2d5a23dd9fca3a29bbc8d8cd7778973a626e ("Add VIP extraction mission") pushed to origin/main and independently confirmed clean | git log/rev-parse + git status inspection after push | PASS | Working tree clean post-push; src/main.ts is the feature surface |
+| Build gate: npm run build passed (tsc + Vite) | Local build run against the source commit | PASS | Produced assets/index-BBxsSJhU.js at 40.93 kB JS |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the package manifest | PASS | Production dependencies only |
+| Netlify production deploy 6a8b57c4a8f15208eba37f8f live at https://vice-meridian.netlify.app/ | Production URL observation | PASS | HTTP/2 200 observed |
+| Live asset: assets/index-BBxsSJhU.js served by production | Live asset fetch matched against build output | PASS | Hash match confirms the deploy serves this commit's bundle |
+| Security headers observed on production HTML: CSP default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; Permissions-Policy camera=(), microphone=(), geolocation=(); Referrer-Policy strict-origin-when-cross-origin; HSTS max-age=31536000; includeSubDomains; preload; X-Content-Type-Options nosniff | Live header observation of the production origin | PASS | All directives observed as stated above |
+| Real Chrome desktop: fresh production tab at 1440x660 loaded the live asset, core HUD visible, no horizontal overflow, zero console errors | Real Chrome desktop pass on the production deploy | PASS | Current asset script index-BBxsSJhU.js confirmed loaded |
+| Real Chrome mobile: fresh production tab at 390x844 loaded the live asset, core HUD visible, no horizontal overflow, zero console errors | Real Chrome mobile pass on the production deploy | PASS | Same fresh-tab session |
+| Interactive DOM surface: no HTML buttons/links/forms present because all controls are Canvas/keyboard | DOM inspection of the production page | PASS (by design) | Absence of form controls is intentional architecture, not a defect |
+| Bundle markers: VIP EXTRACTION, VIP CLIENT, CLIENT SECURED +$500, CLIENT LOST, BANK RUN, MIDNIGHT SPRINT, POLICE PURSUIT confirmed | Live bundle inspection of assets/index-BBxsSJhU.js | PASS | Prior-slice markers persist alongside the new VIP strings |
+| VIP end-to-end runtime transition: accept → pickup → return → payout (+$500 success path / CLIENT LOST failure path) driven in real Chrome | Bounded real-Chrome keyboard attempt did not drive the full state machine; source/build/live-bundle evidence only | NOT FULLY VERIFIED | Explicitly flagged rather than assumed; prior sections' deeper gaps remain marked |
+| Project scope statement | Release scope review | LIMITATION ACKNOWLEDGED | The project remains an evolving GTA-style vertical slice built feature-by-feature — not a complete "GTA 7" or an enterprise-grade game |
+
+## Summary
+
+Source/build, dependency audit, GitHub handoff, Netlify deployment (HTTP/2 200),
+production security headers, live asset verification, bundle marker confirmation, and
+real-Chrome fresh-tab desktop (1440x660)/mobile (390x844) passes all succeeded with zero
+console errors and no horizontal overflow. The VIP end-to-end runtime transition —
+accept, pickup, return, payout/failure — is NOT FULLY VERIFIED in real Chrome during
+this pass and is flagged above rather than assumed; source review, the passing build,
+and the live-bundle strings are the supporting evidence. Prior evidence sections remain
+intact and their gaps still stand, and no claim is made that the overall GTA-style game
+is complete or enterprise-grade.
