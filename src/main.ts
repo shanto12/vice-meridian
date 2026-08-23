@@ -111,12 +111,21 @@ const MISSION_SWEEP_TEXT = 'MISSION // Sweep the grid — recover 3 relay signal
 const HOT_DELIVERY_TEXT = 'COURIER RUN // HOT DELIVERY — REACH SKYWAY DROP-OFF'
 let contractState: 'available' | 'active' | 'complete' = 'available'
 let contractRestoreAtMs = 0
+let contractFailRestoreAtMs = 0
+const CONTRACT_TIME_LIMIT_MS = 45000
+const CONTRACT_FAIL_HOLD_MS = 2600
+const DELIVERY_FAILED_TEXT = 'DELIVERY FAILED // TIME EXPIRED'
+let contractDeadlineMs = 0
 let cash = 0
 let rep = 0
 
 // Standing mission text used when temporary banners (courier/safehouse) hand the line back
 function campaignMissionText(): string {
-  if (contractState === 'active') return HOT_DELIVERY_TEXT
+  if (contractState === 'active') {
+    return contractDeadlineMs > 0
+      ? `${HOT_DELIVERY_TEXT} — ${Math.max(0, Math.ceil((contractDeadlineMs - performance.now()) / 1000))}S`
+      : HOT_DELIVERY_TEXT
+  }
   if (contractState === 'complete' && contractRestoreAtMs > 0) return 'COURIER RUN // DELIVERED +$250 // REP +1'
   return signalsFound === 3 ? missionPhase2 : MISSION_SWEEP_TEXT
 }
@@ -212,6 +221,8 @@ function resetRun(nowMs: number) {
   safehouseRestoreAtMs = 0
   contractState = 'available'
   contractRestoreAtMs = 0
+  contractFailRestoreAtMs = 0
+  contractDeadlineMs = 0
   cash = 0
   rep = 0
   courierCar.x = WORLD_W / 2 + 90
@@ -707,6 +718,7 @@ function frame(now: number) {
       courierCar.speed = 0
       if (stoppedAtDrop) {
         contractState = 'complete'
+        contractDeadlineMs = 0
         contractRestoreAtMs = now + CONTRACT_DELIVER_HOLD_MS
         cash += 250
         rep += 1
@@ -723,6 +735,7 @@ function frame(now: number) {
       driving = true
       if (contractState === 'available') {
         contractState = 'active'
+        contractDeadlineMs = now + CONTRACT_TIME_LIMIT_MS
         setWanted(Math.max(1, wanted))
         missionEl.textContent = HOT_DELIVERY_TEXT
       }
@@ -737,6 +750,27 @@ function frame(now: number) {
   }
   courierToggleRequested = false
   safehouseRequested = false
+
+  // Delivery timer: expiring mid-run safely aborts the contract and cools heat
+  if (contractState === 'active' && contractDeadlineMs > 0 && now >= contractDeadlineMs) {
+    if (driving) {
+      driving = false
+      player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
+      player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
+      courierCar.speed = 0
+    }
+    contractState = 'available'
+    contractDeadlineMs = 0
+    setWanted(0)
+    missionEl.textContent = DELIVERY_FAILED_TEXT
+    contractFailRestoreAtMs = now + CONTRACT_FAIL_HOLD_MS
+  }
+
+  // Shared countdown readout for the mission line and courier HUD
+  const deliveryTimeLeftSec =
+    contractState === 'active' && contractDeadlineMs > 0
+      ? Math.max(0, Math.ceil((contractDeadlineMs - now) / 1000))
+      : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
   camera.y = Math.max(0, Math.min(Math.max(0, WORLD_H - h), player.y - h / 2))
@@ -847,15 +881,22 @@ function frame(now: number) {
   if (contractState === 'complete' && contractRestoreAtMs > 0 && now >= contractRestoreAtMs) {
     contractRestoreAtMs = 0
   }
+  if (contractFailRestoreAtMs > 0 && now >= contractFailRestoreAtMs) {
+    contractFailRestoreAtMs = 0
+  }
   if (safehouseRestoreAtMs > 0 && now >= safehouseRestoreAtMs) {
     safehouseRestoreAtMs = 0
   }
   const bannerActive =
     (contractState === 'active') ||
     (contractState === 'complete' && contractRestoreAtMs > 0) ||
+    contractFailRestoreAtMs > 0 ||
     safehouseRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
+  } else if (contractState === 'active' && deliveryTimeLeftSec !== null) {
+    const liveText = `${HOT_DELIVERY_TEXT} — ${deliveryTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   }
 
   // Restart on R
@@ -1067,7 +1108,7 @@ function frame(now: number) {
   const dropDist = Math.round(Math.hypot(player.x - SKYWAY_DROP_OFF.x, player.y - SKYWAY_DROP_OFF.y))
   const courierText = driving
     ? contractState === 'active'
-      ? `COURIER RUN // HOT DELIVERY — ${dropDist}M — STOP + E TO DELIVER`
+      ? `COURIER RUN // HOT DELIVERY — ${dropDist}M — ${deliveryTimeLeftSec ?? 45}S LEFT — STOP + E TO DELIVER`
       : `COURIER // DRIVING ${Math.round(Math.abs(courierCar.speed) * 0.6)} KMH — SPACE BOOST — SLOWS UNDER 80 FOR E`
     : nearCourier
       ? 'COURIER // PRESS E TO DRIVE'
