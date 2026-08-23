@@ -673,3 +673,41 @@ VERIFIED in real Chrome during this pass and is flagged above rather than assume
 source review, the passing build, and the live-bundle strings are the supporting
 evidence. Prior evidence sections remain intact and their gaps still stand, and no claim
 is made that the overall GTA-style game is complete or enterprise-grade.
+
+---
+
+# District Takeover + City Districts — Release Evidence (2026-08-23)
+
+Verification matrix for the District Takeover slice plus the purely visual city-districts
+overlay: accept the takeover at the safehouse, reach the district site and press X to take
+it, return to the safehouse for the payout, with a failure path if the deadline expires;
+CITY_DISTRICTS adds subtle dashed boundaries, colored labels, and center coordinate lines
+for MIDTOWN, INDUSTRIAL, OLD MARKET, and HARBOR with no new input or state.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit 07bd50f88e79c9553bce56188ca5f3de431ed0bf ("Add district takeover and city districts") pushed to origin/main and confirmed clean | git log/rev-parse + git status inspection after push | PASS | Working tree clean post-push; src/main.ts is the only feature surface changed |
+| Build gate: npm run build passed (tsc + Vite) | Local build run against the source commit | PASS | Produced assets/index-B0OQyR7y.js |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the package manifest | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed before commit | Local check against the staged diff | PASS | No trailing whitespace or conflict markers |
+| Netlify production deploy 6a8b63462f9c4a8ab2b3dbe9 live at https://vice-meridian.netlify.app/ | Production URL observation | PASS | HTTP/2 200 observed |
+| Live asset: assets/index-B0OQyR7y.js served by production | Live asset fetch matched against build output | PASS | Hash match confirms the deploy serves this commit's bundle |
+| Security headers observed on production HTML: CSP, HSTS, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy | Live header observation of the production origin | PASS | All expected headers observed as previously configured |
+| Bundle markers: DISTRICT TAKEOVER, DISTRICT SITE, DISTRICT SECURED +$1200, DISTRICT LOST, MIDTOWN, INDUSTRIAL, OLD MARKET, HARBOR, plus prior JUNCTION JOB, ARMORED CONVOY, VIP EXTRACTION, BANK RUN, MIDNIGHT SPRINT, POLICE PURSUIT confirmed | Live bundle inspection of assets/index-B0OQyR7y.js | PASS | Prior-slice markers persist alongside the new district strings |
+| Real Chrome desktop: production tab at 1440x604 loaded the live asset, Canvas HUD visible, scrollWidth 1440, zero console errors; screenshot visual pass showed the neon city/district overlay | Real Chrome desktop pass on the production deploy | PASS | Current asset script index-B0OQyR7y.js confirmed loaded |
+| Real Chrome mobile: production tab at 390x844 loaded the same asset, Canvas HUD visible, scrollWidth 390, zero console errors, then viewport reset | Real Chrome mobile pass on the production deploy | PASS | Same session returned to the desktop viewport afterward |
+| Interactive DOM surface: visible DOM control count is 0 because the page is Canvas plus keyboard controls | DOM inspection of the production page | PASS (by design) | Absence of visible DOM controls is intentional architecture, not a defect |
+| District Takeover end-to-end runtime transition: accept at safehouse → walk to site → press X to take it → return to safehouse payout (+$1200 success path / DISTRICT LOST failure path) driven in real Chrome | Bounded real-Chrome keyboard attempt did not drive the full state machine; source/build/live-bundle evidence only | NOT FULLY VERIFIED | Explicitly flagged rather than assumed; prior sections' deeper gaps remain marked |
+| Project scope statement | Release scope review | LIMITATION ACKNOWLEDGED | The project remains an evolving GTA-style vertical slice built feature-by-feature — not a complete "GTA 7" or an enterprise-grade product |
+
+## Summary
+
+Source/build, dependency audit, whitespace hygiene, GitHub handoff, Netlify deployment,
+production security headers, live asset verification, bundle marker confirmation, and
+real-Chrome desktop (1440x604)/mobile (390x844) passes all succeeded with zero console
+errors and no horizontal overflow. The District Takeover end-to-end runtime transition —
+accept at safehouse, walk to the site, press X, return payout/failure — is NOT FULLY
+VERIFIED in real Chrome during this pass and is flagged above rather than assumed;
+source review, the passing build, and the live-bundle strings are the supporting
+evidence. Prior evidence sections remain intact and their gaps still stand, and no claim
+is made that the overall GTA-style game is complete or enterprise-grade.
