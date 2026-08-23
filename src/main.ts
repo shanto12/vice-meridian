@@ -59,7 +59,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -78,6 +78,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyT') repairRequested = true
   if (e.code === 'KeyK') bankRequested = true
   if (e.code === 'KeyV') vipRequested = true
+  if (e.code === 'KeyC') convoyRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
@@ -202,6 +203,21 @@ type VipState = 'available' | 'pickup' | 'escaping' | 'complete'
 let vipState: VipState = 'available'
 let vipDeadlineMs = 0
 let vipRestoreAtMs = 0
+
+// Armored Convoy: C at the safehouse, drive to the ambush site, secure the cargo, then bring it home
+const CONVOY_SITE = { x: WORLD_W * 0.56, y: WORLD_H * 0.76, radius: 105 }
+const CONVOY_ACCEPT_RADIUS = 130
+const CONVOY_TIME_LIMIT_MS = 65000
+const CONVOY_HOLD_MS = 2600
+const CONVOY_ACTIVE_TEXT = 'ARMORED CONVOY // REACH THE AMBUSH SITE'
+const CONVOY_ESCAPE_TEXT = 'ARMORED CONVOY // CARGO SECURED // RETURN TO SAFEHOUSE'
+const CONVOY_DONE_TEXT = 'ARMORED CONVOY // CARGO SECURED +$750 // REP +3'
+const CONVOY_FAILED_TEXT = 'ARMORED CONVOY // CARGO LOST'
+let convoyRequested = false
+type ConvoyState = 'available' | 'active' | 'escaping' | 'complete'
+let convoyState: ConvoyState = 'available'
+let convoyDeadlineMs = 0
+let convoyRestoreAtMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -448,6 +464,10 @@ function resetRun(nowMs: number) {
   vipState = 'available'
   vipDeadlineMs = 0
   vipRestoreAtMs = 0
+  convoyRequested = false
+  convoyState = 'available'
+  convoyDeadlineMs = 0
+  convoyRestoreAtMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1282,6 +1302,62 @@ function frame(now: number) {
     vipRestoreAtMs = now + VIP_HOLD_MS
   }
 
+  // C at the safehouse accepts the convoy job when no other mission is running
+  const convoyAcceptable =
+    convoyState === 'available' &&
+    contractState !== 'active' &&
+    blackoutState === 'available' &&
+    raceState === 'available' &&
+    bankState === 'available' &&
+    vipState === 'available' &&
+    !missionComplete &&
+    !driving &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < CONVOY_ACCEPT_RADIUS
+  if (convoyRequested && convoyAcceptable) {
+    convoyState = 'active'
+    convoyDeadlineMs = now + CONVOY_TIME_LIMIT_MS
+    setWanted(Math.max(2, wanted))
+    missionEl.textContent = CONVOY_ACTIVE_TEXT
+  }
+  // Driving the courier into the ambush site and pressing C secures the cargo, starting the getaway with heat kept up
+  if (
+    convoyState === 'active' &&
+    driving &&
+    convoyRequested &&
+    Math.hypot(courierCar.x - CONVOY_SITE.x, courierCar.y - CONVOY_SITE.y) < CONVOY_SITE.radius
+  ) {
+    convoyState = 'escaping'
+    setWanted(Math.max(2, wanted))
+    missionEl.textContent = `${CONVOY_ESCAPE_TEXT} — ${Math.ceil((convoyDeadlineMs - now) / 1000)}S`
+  }
+  convoyRequested = false
+
+  // Escaping: deliver the cargo home by driving the courier into the safehouse radius
+  if (
+    convoyState === 'escaping' &&
+    driving &&
+    Math.hypot(courierCar.x - SAFEHOUSE.x, courierCar.y - SAFEHOUSE.y) < SAFEHOUSE.radius
+  ) {
+    convoyState = 'complete'
+    convoyDeadlineMs = 0
+    convoyRestoreAtMs = now + CONVOY_HOLD_MS
+    cash += 750
+    rep += 3
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = CONVOY_DONE_TEXT
+  }
+
+  // Convoy timer: expiring mid-mission safely resets to available with no payout
+  if ((convoyState === 'active' || convoyState === 'escaping') && convoyDeadlineMs > 0 && now >= convoyDeadlineMs) {
+    convoyState = 'available'
+    convoyDeadlineMs = 0
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = CONVOY_FAILED_TEXT
+    convoyRestoreAtMs = now + CONVOY_HOLD_MS
+  }
+
   // Bank Run timer: expiring mid-escape safely resets to available with no payout
   if (bankState === 'escaping' && bankEscapeDeadlineMs > 0 && now >= bankEscapeDeadlineMs) {
     bankState = 'available'
@@ -1401,6 +1477,12 @@ function frame(now: number) {
   const vipTimeLeftSec =
     (vipState === 'pickup' || vipState === 'escaping') && vipDeadlineMs > 0
       ? Math.max(0, Math.ceil((vipDeadlineMs - now) / 1000))
+      : null
+
+  // Shared convoy countdown readout (approach + getaway share one 65s deadline)
+  const convoyTimeLeftSec =
+    (convoyState === 'active' || convoyState === 'escaping') && convoyDeadlineMs > 0
+      ? Math.max(0, Math.ceil((convoyDeadlineMs - now) / 1000))
       : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
@@ -1639,7 +1721,8 @@ function frame(now: number) {
     repairPoorRestoreAtMs > 0 ||
     policeHitRestoreAtMs > 0 ||
     bankRestoreAtMs > 0 ||
-    vipRestoreAtMs > 0
+    vipRestoreAtMs > 0 ||
+    convoyRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1666,6 +1749,9 @@ function frame(now: number) {
   } else if (vipRestoreAtMs > 0) {
     const vipBannerText = vipState === 'complete' ? VIP_DONE_TEXT : VIP_FAILED_TEXT
     if (missionEl.textContent !== vipBannerText) missionEl.textContent = vipBannerText
+  } else if (convoyRestoreAtMs > 0) {
+    const convoyBannerText = convoyState === 'complete' ? CONVOY_DONE_TEXT : CONVOY_FAILED_TEXT
+    if (missionEl.textContent !== convoyBannerText) missionEl.textContent = convoyBannerText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -1676,6 +1762,12 @@ function frame(now: number) {
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if ((vipState === 'pickup' || vipState === 'escaping') && vipTimeLeftSec !== null) {
     const liveText = `${vipState === 'pickup' ? VIP_ACTIVE_TEXT : VIP_ESCAPE_TEXT} — ${vipTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if (convoyState === 'active' && convoyTimeLeftSec !== null) {
+    const liveText = `${CONVOY_ACTIVE_TEXT} — ${convoyTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if (convoyState === 'escaping' && convoyTimeLeftSec !== null) {
+    const liveText = `${CONVOY_ESCAPE_TEXT} — ${convoyTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
     const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
@@ -1962,6 +2054,77 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Armored three-car convoy at the ambush site: dark hulls, amber light bars, cargo glow while escaping
+  if (convoyState === 'active' || convoyState === 'escaping') {
+    const cx2 = CONVOY_SITE.x
+    const cy2 = CONVOY_SITE.y
+    const refX = driving ? courierCar.x : player.x
+    const refY = driving ? courierCar.y : player.y
+    const breathe = Math.sin(now / 300) * 5
+    const inSite = Math.hypot(refX - cx2, refY - cy2) < CONVOY_SITE.radius
+    ctx.strokeStyle = '#00f0ff'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 22 + breathe
+    ctx.lineWidth = inSite ? 3.5 : 3
+    ctx.setLineDash([14, 10])
+    ctx.beginPath()
+    ctx.arc(cx2, cy2, CONVOY_SITE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 0.08
+    ctx.fillStyle = '#00f0ff'
+    ctx.fill()
+    ctx.globalAlpha = 1
+
+    // three armored cars: heavy dark bodies with amber roof light bars
+    const convoyCars = [
+      { x: cx2 - 46, y: cy2 + 26, angle: Math.PI },
+      { x: cx2 + 4, y: cy2 - 30, angle: Math.PI / 2 },
+      { x: cx2 + 44, y: cy2 + 30, angle: -Math.PI / 4 },
+    ]
+    for (const car of convoyCars) {
+      ctx.save()
+      ctx.translate(car.x, car.y)
+      ctx.rotate(car.angle)
+      ctx.strokeStyle = '#2a2f45'
+      ctx.shadowColor = now % 400 < 200 ? '#ffb347' : '#ffe05a'
+      ctx.shadowBlur = 12
+      ctx.lineWidth = 3
+      ctx.strokeRect(-15, -9, 30, 18)
+      // armored cabin slit
+      ctx.fillStyle = 'rgba(191, 255, 255, 0.35)'
+      ctx.fillRect(-5, -5, 8, 10)
+      // amber light bar cells
+      ctx.fillStyle = '#ffb347'
+      ctx.fillRect(-6, -2.5, 5, 5)
+      ctx.fillStyle = '#ffe05a'
+      ctx.fillRect(1, -2.5, 5, 5)
+      // headlights
+      ctx.shadowColor = '#fff8d6'
+      ctx.shadowBlur = 7
+      ctx.fillStyle = '#fff8d6'
+      ctx.fillRect(-11, -10, 4, 3)
+      ctx.fillRect(7, -10, 4, 3)
+      ctx.restore()
+      ctx.shadowBlur = 0
+    }
+
+    // cargo secured beacon while running the getaway
+    if (inSite && convoyState === 'escaping') {
+      ctx.fillStyle = '#eaffff'
+      ctx.beginPath()
+      ctx.arc(cx2, cy2, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#00f0ff'
+    ctx.fillText('CONVOY SITE', cx2, cy2 - CONVOY_SITE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(refX - cx2, refY - cy2))}M`, cx2, cy2 - CONVOY_SITE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Midnight Sprint checkpoint: distinctive green gate for the current mandatory target
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[raceCheckpointIndex]
@@ -2126,6 +2289,9 @@ function frame(now: number) {
     !missionComplete &&
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < VIP_ACCEPT_RADIUS
   const vipEscapingNow = vipState === 'escaping'
+  const convoyEscapingNow = convoyState === 'escaping'
+  // Advertise the convoy offer wherever it is still open without displacing the standing hints
+  const convoyOfferHint = convoyState === 'available' ? 'PRESS C FOR ARMORED CONVOY // ' : ''
   // Garage status composes onto every safehouse line so H, B, G, T, N, K, and V all stay visible
   const garageStatusHint = garageTuneInstalled
     ? 'SPRINT KIT INSTALLED'
@@ -2138,22 +2304,24 @@ function frame(now: number) {
       : `EARN $${REPAIR_COST} FOR REPAIR`
     : 'HULL OK'
   let safehouseHint: string
-  if (blackoutEscapingNow) {
-    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+  if (convoyEscapingNow) {
+    safehouseHint = `SAFEHOUSE // ARMORED CONVOY // RETURN TO SAFEHOUSE // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (blackoutEscapingNow) {
+    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${convoyOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (vipEscapingNow) {
-    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${convoyOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (bankEscapingNow) {
-    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${convoyOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (vipAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (bankAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (raceAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS V FOR VIP EXTRACTION // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // PRESS V FOR VIP EXTRACTION // H CLEAR HEAT // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // ${garageStatusHint} // ${repairStatusHint}`
   } else if (nearSafehouse) {
-    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${convoyOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else {
     safehouseHint = SAFEHOUSE_CLEAR_TEXT
   }
