@@ -59,7 +59,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -76,6 +76,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyB') blackoutRequested = true
   if (e.code === 'KeyG') garageRequested = true
   if (e.code === 'KeyT') repairRequested = true
+  if (e.code === 'KeyK') bankRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
@@ -170,6 +171,21 @@ type BlackoutState = 'available' | 'active' | 'escaping' | 'complete'
 let blackoutState: BlackoutState = 'available'
 let blackoutRestoreAtMs = 0
 let blackoutEscapeDeadlineMs = 0
+
+// Bank Run heist: K at the safehouse, loot the vault on foot, then escape home before time runs out
+const BANK_VAULT = { x: WORLD_W * 0.48, y: WORLD_H * 0.30, radius: 85 }
+const BANK_ACCEPT_RADIUS = 130
+const BANK_ESCAPE_MS = 40000
+const BANK_HOLD_MS = 2600
+const BANK_ACTIVE_TEXT = 'BANK RUN // REACH THE VAULT'
+const BANK_ESCAPE_BASE_TEXT = 'BANK RUN // LOOT SECURED // ESCAPE TO SAFEHOUSE'
+const BANK_DONE_TEXT = 'BANK RUN // VAULT JOB +$600 // REP +3'
+const BANK_FAILED_TEXT = 'BANK RUN // ESCAPE FAILED'
+let bankRequested = false
+type BankState = 'available' | 'active' | 'escaping' | 'complete'
+let bankState: BankState = 'available'
+let bankEscapeDeadlineMs = 0
+let bankRestoreAtMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -408,6 +424,10 @@ function resetRun(nowMs: number) {
   raceCheckpointIndex = 0
   raceDeadlineMs = 0
   raceRestoreAtMs = 0
+  bankRequested = false
+  bankState = 'available'
+  bankEscapeDeadlineMs = 0
+  bankRestoreAtMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1144,11 +1164,59 @@ function frame(now: number) {
       heatCoolStartMs = 0
       missionEl.textContent = BLACKOUT_DONE_TEXT
     }
+
+    // K near the safehouse starts the Bank Run when nothing else is running
+    const bankAcceptable =
+      bankState === 'available' &&
+      contractState !== 'active' &&
+      blackoutState === 'available' &&
+      raceState === 'available' &&
+      !missionComplete &&
+      Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < BANK_ACCEPT_RADIUS
+    if (bankRequested && bankAcceptable) {
+      bankState = 'active'
+      setWanted(Math.max(1, wanted))
+      missionEl.textContent = BANK_ACTIVE_TEXT
+    }
+
+    // On foot inside the vault: loot secured, start the escape deadline
+    if (
+      bankState === 'active' &&
+      !driving &&
+      Math.hypot(player.x - BANK_VAULT.x, player.y - BANK_VAULT.y) < BANK_VAULT.radius
+    ) {
+      bankState = 'escaping'
+      bankEscapeDeadlineMs = now + BANK_ESCAPE_MS
+      setWanted(Math.max(1, wanted))
+      missionEl.textContent = `${BANK_ESCAPE_BASE_TEXT} — ${Math.ceil(BANK_ESCAPE_MS / 1000)}S`
+    }
+
+    if (bankState === 'escaping' && !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
+      bankState = 'complete'
+      bankEscapeDeadlineMs = 0
+      bankRestoreAtMs = now + BANK_HOLD_MS
+      cash += 600
+      rep += 3
+      setWanted(0)
+      heatCoolStartMs = 0
+      missionEl.textContent = BANK_DONE_TEXT
+    }
   }
   courierToggleRequested = false
   safehouseRequested = false
   blackoutRequested = false
   raceRequested = false
+  bankRequested = false
+
+  // Bank Run timer: expiring mid-escape safely resets to available with no payout
+  if (bankState === 'escaping' && bankEscapeDeadlineMs > 0 && now >= bankEscapeDeadlineMs) {
+    bankState = 'available'
+    bankEscapeDeadlineMs = 0
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = BANK_FAILED_TEXT
+    bankRestoreAtMs = now + BANK_HOLD_MS
+  }
 
   // Race timer: expiring mid-race safely resets to available with no payout
   if (raceState === 'active' && raceDeadlineMs > 0 && now >= raceDeadlineMs) {
@@ -1247,6 +1315,12 @@ function frame(now: number) {
   const raceTimeLeftSec =
     raceState === 'active' && raceDeadlineMs > 0
       ? Math.max(0, Math.ceil((raceDeadlineMs - now) / 1000))
+      : null
+
+  // Shared Bank Run escape countdown readout for the mission line
+  const bankEscapeTimeLeftSec =
+    bankState === 'escaping' && bankEscapeDeadlineMs > 0
+      ? Math.max(0, Math.ceil((bankEscapeDeadlineMs - now) / 1000))
       : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
@@ -1448,6 +1522,9 @@ function frame(now: number) {
   if (raceRestoreAtMs > 0 && now >= raceRestoreAtMs) {
     raceRestoreAtMs = 0
   }
+  if (bankRestoreAtMs > 0 && now >= bankRestoreAtMs) {
+    bankRestoreAtMs = 0
+  }
   if (repairRestoreAtMs > 0 && now >= repairRestoreAtMs) {
     repairRestoreAtMs = 0
   }
@@ -1477,7 +1554,8 @@ function frame(now: number) {
     repairRestoreAtMs > 0 ||
     vehicleDisabledRestoreAtMs > 0 ||
     repairPoorRestoreAtMs > 0 ||
-    policeHitRestoreAtMs > 0
+    policeHitRestoreAtMs > 0 ||
+    bankRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1498,10 +1576,16 @@ function frame(now: number) {
     if (missionEl.textContent !== REPAIR_POOR_TEXT) missionEl.textContent = REPAIR_POOR_TEXT
   } else if (policeHitRestoreAtMs > 0) {
     if (missionEl.textContent !== POLICE_IMPACT_TEXT) missionEl.textContent = POLICE_IMPACT_TEXT
+  } else if (bankRestoreAtMs > 0) {
+    const bankBannerText = bankState === 'complete' ? BANK_DONE_TEXT : BANK_FAILED_TEXT
+    if (missionEl.textContent !== bankBannerText) missionEl.textContent = bankBannerText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
     const liveText = `MIDNIGHT SPRINT // CHECKPOINT ${Math.min(raceCheckpointIndex + 1, RACE_CHECKPOINTS.length)}/${RACE_CHECKPOINTS.length} — ${raceTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if (bankState === 'escaping' && bankEscapeTimeLeftSec !== null) {
+    const liveText = `${BANK_ESCAPE_BASE_TEXT} — ${bankEscapeTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
     const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
@@ -1710,6 +1794,44 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Gold vault: distinctive ring/dial glyph while the Bank Run is active or escaping
+  if (bankState === 'active' || bankState === 'escaping') {
+    const vx = BANK_VAULT.x
+    const vy = BANK_VAULT.y
+    const breathe = Math.sin(now / 300) * 5
+    const inVault = Math.hypot(player.x - vx, player.y - vy) < BANK_VAULT.radius
+    ctx.strokeStyle = '#ffd700'
+    ctx.shadowColor = '#ffd700'
+    ctx.shadowBlur = 22 + breathe
+    ctx.lineWidth = inVault ? 3.5 : 3
+    ctx.setLineDash([12, 9])
+    ctx.beginPath()
+    ctx.arc(vx, vy, BANK_VAULT.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    // inner vault dial glyph
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.arc(vx, vy, 16, 0, Math.PI * 2)
+    ctx.moveTo(vx, vy - 16)
+    ctx.lineTo(vx, vy + 16)
+    ctx.moveTo(vx - 16, vy)
+    ctx.lineTo(vx + 16, vy)
+    ctx.stroke()
+    if (bankState === 'escaping') {
+      ctx.fillStyle = '#fff3c4'
+      ctx.beginPath()
+      ctx.arc(vx, vy, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ffd700'
+    ctx.fillText('BANK VAULT', vx, vy - BANK_VAULT.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - vx, player.y - vy))}M`, vx, vy - BANK_VAULT.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Midnight Sprint checkpoint: distinctive green gate for the current mandatory target
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[raceCheckpointIndex]
@@ -1855,7 +1977,16 @@ function frame(now: number) {
     blackoutState === 'available' &&
     !missionComplete &&
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < RACE_ACCEPT_RADIUS
-  // Garage status composes onto every safehouse line so H, B, G, T, and N all stay visible
+  const bankAcceptableNow =
+    !driving &&
+    bankState === 'available' &&
+    contractState !== 'active' &&
+    blackoutState === 'available' &&
+    raceState === 'available' &&
+    !missionComplete &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < BANK_ACCEPT_RADIUS
+  const bankEscapingNow = bankState === 'escaping'
+  // Garage status composes onto every safehouse line so H, B, G, T, N, and K all stay visible
   const garageStatusHint = garageTuneInstalled
     ? 'SPRINT KIT INSTALLED'
     : cash >= GARAGE_TUNE_COST
@@ -1869,6 +2000,10 @@ function frame(now: number) {
   let safehouseHint: string
   if (blackoutEscapingNow) {
     safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (bankEscapingNow) {
+    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (bankAcceptableNow) {
+    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (raceAcceptableNow) {
     safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutAcceptableNow) {
