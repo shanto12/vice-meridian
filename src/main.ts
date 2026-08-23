@@ -99,6 +99,8 @@ const CONTRACT_DELIVER_HOLD_MS = 2600
 const MISSION_SWEEP_TEXT = 'MISSION // Sweep the grid — recover 3 relay signals'
 let contractState: 'available' | 'active' | 'complete' = 'available'
 let contractRestoreAtMs = 0
+let cash = 0
+let rep = 0
 
 let mapOpen = false
 
@@ -186,6 +188,8 @@ function resetRun(nowMs: number) {
   courierToggleRequested = false
   contractState = 'available'
   contractRestoreAtMs = 0
+  cash = 0
+  rep = 0
   courierCar.x = WORLD_W / 2 + 90
   courierCar.y = WORLD_H / 2 + 40
   courierCar.angle = -Math.PI / 4
@@ -680,8 +684,10 @@ function frame(now: number) {
       if (stoppedAtDrop) {
         contractState = 'complete'
         contractRestoreAtMs = now + CONTRACT_DELIVER_HOLD_MS
+        cash += 250
+        rep += 1
         setWanted(0)
-        missionEl.textContent = 'COURIER RUN // DELIVERED'
+        missionEl.textContent = 'COURIER RUN // DELIVERED +$250 // REP +1'
       }
     }
   } else {
