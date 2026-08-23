@@ -215,3 +215,39 @@ The collision logic is verified by source and live bundle only. Traffic collisio
 full courier pickup/drive/deliver, timer expiry, police wanted-state, safehouse H-in-zone,
 and reward delivery were NOT fully verified in this pass and are flagged above rather than
 assumed.
+
+---
+
+# Blackout Run — Release Evidence (2026-08-23)
+
+Verification matrix for the blackout-run side mission release. Evidence surfaces refer to
+the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed and traceable | Commit `6c668c75ec77222d4bf376dfd8ddc55674bbdad3` ("Add Blackout Run side mission") on `origin/main` | PASS | Only `src/main.ts` modified; working tree clean after push |
+| Production deploy is live | Netlify deploy `6a8b35510407f6469dea451e` at https://vice-meridian.netlify.app/ | PASS | Deploy ID confirmed against the live site |
+| Production build succeeds | `npm run build` (tsc + Vite) | PASS | No type or build errors blocking output |
+| No whitespace errors in tracked changes | `git diff --check` | PASS | Clean output, no trailing whitespace or conflict markers |
+| No known vulnerabilities in production dependencies | `npm audit --omit=dev` | PASS | 0 vulnerabilities reported for the production dependency tree |
+| App bundle contains the blackout strings plus prior feature strings | Fetched live JS bundle; contains "BLACKOUT RUN", "BLACKOUT TARGET", "SAFEHOUSE // PRESS B FOR BLACKOUT RUN", "GRID CUT +$400 // REP +2", "TRAFFIC HIT", "HOT DELIVERY", "POLICE SCAN", and "DROP-OFF" strings | PASS | Confirms the deploy serves the updated bundle; traffic, hot-delivery, police scan, safehouse, wallet, and courier strings remain intact alongside the new side mission code |
+| Security headers present on responses | Live response headers include CSP, Permissions-Policy, Referrer-Policy, HSTS, and `X-Content-Type-Options` | PASS | All expected headers observed on the production origin |
+| Desktop browser loads the deploy and core controls work | Real Chrome profile desktop session at 1440x604: M (map open/close), F (pulse), Q (jammer), R (reset) smoke-exercised | PASS | Zero application console errors during interaction |
+| Responsive layout on small viewport | Real Chrome mobile session at 390x844: page loaded, scrollWidth measured at 390 | PASS | No horizontal overflow; zero application console errors |
+| Blackout Run behavior | Verified via source review and live bundle strings only (`blackoutState` machine, B acceptance gated on contract state, violet target ring + label, `cash += 400` / `rep += 2` payout present in served bundle) | VERIFIED BY SOURCE + BUNDLE, NOT E2E | Side mission loop not driven end-to-end in a browser in this pass |
+| Safehouse B acceptance path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | On-foot B press near the safehouse starting the run not driven end-to-end in this pass |
+| Grid target completion path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Reaching the violet target and triggering completion not driven end-to-end in this pass |
+| Payout (+$400 / REP +2 reflected in wallet) | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Reward updating cash/rep and the wallet HUD not driven end-to-end in this pass |
+| Full courier E pickup / drive / deliver loop | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Enter, drive, and deliver sequence not driven end-to-end in this pass |
+| Timer expiry end-to-end fail path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | 45s elapsing mid-run not driven end-to-end in this pass |
+| Traffic collision end-to-end path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Courier-traffic contact feedback not driven end-to-end in this pass |
+| Police wanted-state path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Drone chase and scan readouts under live wanted state not driven end-to-end in this pass |
+| Safehouse H-in-zone heat-clear path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | H keypress while standing inside the safehouse ring not driven end-to-end in this pass |
+| Auth / backend / API integration | Static Vite site — no auth, backend, or API surface exists | Not applicable | Nothing to verify beyond static serving and headers |
+
+## Summary
+
+Build, audit, bundle-content, header, desktop-interaction, and mobile-layout gates passed.
+Blackout Run behavior is verified by source and live bundle only. Safehouse B acceptance,
+target completion, payout, courier, timer, traffic, police, and H-in-zone paths were NOT
+fully verified in this pass and are flagged above rather than assumed.
