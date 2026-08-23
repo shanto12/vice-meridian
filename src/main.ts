@@ -97,26 +97,25 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Escape' && mapOpen) {
     mapOpen = false
   }
+  if (/^Digit[1-9]$/.test(e.code) && phoneOpen) {
+    e.preventDefault()
+    const job = PHONE_DIGIT_JOBS[Number(e.code.slice('Digit'.length)) - 1]
+    if (!job.isAvailable()) {
+      phoneStatusBusy = true
+      return
+    }
+    phoneStatusBusy = false
+    job.request()
+    phoneOpen = false
+    return
+  }
   if (e.code === 'Tab') {
     e.preventDefault()
+    if (!phoneOpen) phoneStatusBusy = false
     phoneOpen = !phoneOpen
   }
   if (e.code === 'Escape' && !mapOpen && phoneOpen) {
     phoneOpen = false
-  }
-  if (phoneOpen && /^Digit[1-9]$/.test(e.code)) {
-    e.preventDefault()
-    if (e.code === 'Digit1') blackoutRequested = true
-    else if (e.code === 'Digit2') bankRequested = true
-    else if (e.code === 'Digit3') vipRequested = true
-    else if (e.code === 'Digit4') convoyRequested = true
-    else if (e.code === 'Digit5') jJobRequested = true
-    else if (e.code === 'Digit6') turfRequested = true
-    else if (e.code === 'Digit7') smugglerRequested = true
-    else if (e.code === 'Digit8') chopShopRequested = true
-    else if (e.code === 'Digit9') raceRequested = true
-    phoneOpen = false
-    phoneStatusEl.textContent = 'CALL CONNECTED'
   }
   if (e.code === 'KeyQ') jammer.requested = true
   if (e.code === 'KeyF') pulse.requested = true
@@ -486,6 +485,22 @@ function campaignMissionText(): string {
 let mapOpen = false
 let phoneOpen = false
 
+// Phone dialing: 1-9 ring the nine contacts in listed order; digits reuse the same
+// one-shot mission request flags as the letter keys so acceptance rules stay identical
+const PHONE_DIGIT_JOBS: { label: string; request: () => void; isAvailable: () => boolean }[] = [
+  { label: 'B BLACKOUT', request: () => { blackoutRequested = true }, isAvailable: () => blackoutState === 'available' && contractState !== 'active' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
+  { label: 'K BANK', request: () => { bankRequested = true }, isAvailable: () => bankState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
+  { label: 'V VIP', request: () => { vipRequested = true }, isAvailable: () => vipState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
+  { label: 'C CONVOY', request: () => { convoyRequested = true }, isAvailable: () => convoyState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
+  { label: 'J JUNCTION', request: () => { jJobRequested = true }, isAvailable: () => jJobState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
+  { label: 'X TAKEOVER', request: () => { turfRequested = true }, isAvailable: () => turfState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
+  { label: 'O SMUGGLER', request: () => { smugglerRequested = true }, isAvailable: () => smugglerState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && chopShopState === 'available' },
+  { label: 'I CHOP SHOP', request: () => { chopShopRequested = true }, isAvailable: () => chopShopState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' },
+  { label: 'N RACE', request: () => { raceRequested = true }, isAvailable: () => raceState === 'available' && contractState !== 'active' && blackoutState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
+]
+const PHONE_BUSY_TEXT = 'CONTACT BUSY // JOB UNAVAILABLE'
+let phoneStatusBusy = false
+
 let restartRequested = false
 let missionComplete = false
 let runStartMs = performance.now()
@@ -644,6 +659,7 @@ function resetRun(nowMs: number) {
   rep = 0
   crewNetworkRequested = false
   crewCoverUntilMs = 0
+  phoneStatusBusy = false
   courierCar.maxSpeed = 360
   courierCar.accel = 420
   courierCar.x = WORLD_W / 2 + 90
@@ -1120,8 +1136,13 @@ function frame(now: number) {
 
   if (phoneOpen) {
     phoneEl.style.display = 'block'
-    const phoneText = `CASH $${cash} / REP ${rep} / WANTED ${wanted}`
-    if (phoneStatusEl.textContent !== phoneText) phoneStatusEl.textContent = phoneText
+    if (phoneStatusBusy) {
+      const busyText = `CASH $${cash} / REP ${rep} / WANTED ${wanted} // ${PHONE_BUSY_TEXT}`
+      if (phoneStatusEl.textContent !== busyText) phoneStatusEl.textContent = busyText
+    } else {
+      const phoneText = `CASH $${cash} / REP ${rep} / WANTED ${wanted}`
+      if (phoneStatusEl.textContent !== phoneText) phoneStatusEl.textContent = phoneText
+    }
     requestAnimationFrame(frame)
     return
   }
