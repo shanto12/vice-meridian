@@ -53,3 +53,64 @@ canvas {
   pointer-events: none;
   z-index: 1;
 }
+
+.hud {
+  position: absolute;
+  top: 18px;
+  left: 20px;
+  margin: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hud-count {
+  margin: 0;
+  font-size: clamp(15px, 2vw, 20px);
+  letter-spacing: 4px;
+  color: #ffe05a;
+  text-shadow:
+    0 0 10px rgba(255, 224, 90, 0.8),
+    0 0 26px rgba(255, 224, 90, 0.45);
+}
+
+.hud-mission {
+  margin: 8px 0 0;
+  max-width: 46vw;
+  font-size: 12px;
+  letter-spacing: 2px;
+  line-height: 1.6;
+  color: rgba(0, 240, 255, 0.85);
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+}
+
+.complete {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  padding: 16px 28px;
+  border: 1px solid rgba(57, 255, 136, 0.9);
+  background: rgba(3, 12, 7, 0.82);
+  font-size: clamp(14px, 2.4vw, 24px);
+  letter-spacing: 4px;
+  color: #39ff88;
+  text-shadow:
+    0 0 10px rgba(57, 255, 136, 0.9),
+    0 0 30px rgba(57, 255, 136, 0.5);
+  box-shadow:
+    0 0 18px rgba(57, 255, 136, 0.35),
+    inset 0 0 18px rgba(57, 255, 136, 0.15);
+  animation: complete-flicker 1.4s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes complete-flicker {
+  from {
+    opacity: 0.86;
+  }
+  to {
+    opacity: 1;
+  }
+}

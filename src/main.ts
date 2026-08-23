@@ -5,6 +5,11 @@ const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
   <h1 class="title">VICE//MERIDIAN</h1>
   <canvas id="game"></canvas>
+  <div class="hud">
+    <p class="hud-count">SIGNALS <span id="signal-count">0</span>/3</p>
+    <p class="hud-mission">MISSION // Sweep the grid — recover 3 relay signals</p>
+  </div>
+  <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <p class="hint">WASD / ARROWS to move</p>
 `
 
@@ -37,6 +42,17 @@ window.addEventListener('keyup', e => keys.delete(e.code))
 
 const player = { x: w / 2, y: h / 2, size: 28, speed: 320 }
 const grid = 48
+
+let signalsFound = 0
+const signalEls = {
+  count: document.querySelector<HTMLSpanElement>('#signal-count')!,
+  complete: document.getElementById('complete')!,
+}
+
+const signals = Array.from({ length: 3 }, (_, i) => ({
+  x: ((i * 419 + 211) % (w - 200)) + 100,
+  y: h * 0.62 + 60 + ((i * 173) % Math.max(1, h - h * 0.62 - 140)),
+}))
 
 const buildings = Array.from({ length: 14 }, (_, i) => ({
   x: ((i * 137) % (w - 160)) + 40,
@@ -109,6 +125,29 @@ function frame(now: number) {
   })
 
   neonRect(0, h * 0.62, w, 4, '#00f0ff')
+
+  signals.forEach((s, i) => {
+    if (signalsFound > i) return
+    if (Math.hypot(player.x - s.x, player.y - s.y) < player.size + 16) {
+      signalsFound++
+      signalEls.count.textContent = String(signalsFound)
+      if (signalsFound === 3) signalEls.complete.hidden = false
+      return
+    }
+    const bob = Math.sin(now / 260 + i * 2.1) * 5
+    ctx.strokeStyle = '#ffe05a'
+    ctx.lineWidth = 3
+    ctx.shadowColor = '#ffe05a'
+    ctx.shadowBlur = 22 + Math.sin(now / 180 + i) * 10
+    ctx.beginPath()
+    ctx.arc(s.x, s.y + bob, 12, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.arc(s.x, s.y + bob, 4, 0, Math.PI * 2)
+    ctx.fillStyle = '#fff8d6'
+    ctx.fill()
+    ctx.shadowBlur = 0
+  })
 
   const pulse = 18 + Math.sin(now / 300) * 6
   ctx.fillStyle = '#39ff88'
