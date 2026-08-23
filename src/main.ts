@@ -136,6 +136,14 @@ const TRAFFIC_HIT_TEXT = 'TRAFFIC HIT // HEAT +1'
 let trafficHitUntilMs = 0
 let trafficHitCooldownUntilMs = 0
 let trafficHitRestoreAtMs = 0
+
+// Passive heat cooling: 7s continuously clear of every hunter's scan radius sheds one wanted level
+const POLICE_SCAN_RADIUS = 520
+const HEAT_COOL_MS = 7000
+const HEAT_COOL_HOLD_MS = 2200
+const HEAT_COOLING_TEXT = 'POLICE SCAN // HEAT COOLING -1'
+let heatCoolStartMs = 0
+let heatCoolRestoreAtMs = 0
 let cash = 0
 let rep = 0
 
@@ -249,6 +257,8 @@ function resetRun(nowMs: number) {
   trafficHitUntilMs = 0
   trafficHitCooldownUntilMs = 0
   trafficHitRestoreAtMs = 0
+  heatCoolStartMs = 0
+  heatCoolRestoreAtMs = 0
   cash = 0
   rep = 0
   courierCar.x = WORLD_W / 2 + 90
@@ -764,6 +774,7 @@ function frame(now: number) {
         cash += 250
         rep += 1
         setWanted(0)
+        heatCoolStartMs = 0
         missionEl.textContent = 'COURIER RUN // DELIVERED +$250 // REP +1'
       }
     }
@@ -785,6 +796,7 @@ function frame(now: number) {
     // H inside the safehouse zone clears police heat; banner holds, then the mission line restores
     if (safehouseRequested && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
       setWanted(0)
+      heatCoolStartMs = 0
       missionEl.textContent = SAFEHOUSE_CLEAR_TEXT
       safehouseRestoreAtMs = now + SAFEHOUSE_HOLD_MS
     }
@@ -808,6 +820,7 @@ function frame(now: number) {
       cash += 400
       rep += 2
       setWanted(0)
+      heatCoolStartMs = 0
       missionEl.textContent = BLACKOUT_DONE_TEXT
     }
   }
@@ -826,6 +839,7 @@ function frame(now: number) {
     contractState = 'available'
     contractDeadlineMs = 0
     setWanted(0)
+    heatCoolStartMs = 0
     missionEl.textContent = DELIVERY_FAILED_TEXT
     contractFailRestoreAtMs = now + CONTRACT_FAIL_HOLD_MS
   }
@@ -871,6 +885,7 @@ function frame(now: number) {
       distToPlayer = Math.hypot(player.x - d.x, player.y - d.y)
       if (distToPlayer < 30 && !disabled && !missionComplete) {
         setWanted(wanted - 1)
+        heatCoolStartMs = 0
         player.x = WORLD_W / 2
         player.y = WORLD_H / 2
         d.disabledUntil = now + 1200
@@ -897,6 +912,21 @@ function frame(now: number) {
     }
   }
 
+  // Heat cooling: after 7s continuously clear of all active hunters' scan range, shed one level
+  const hunterInRange =
+    wanted > 0 &&
+    drones.some(d => now >= d.disabledUntil && Math.hypot(player.x - d.x, player.y - d.y) < POLICE_SCAN_RADIUS)
+  if (wanted <= 0 || hunterInRange) {
+    heatCoolStartMs = 0
+  } else if (heatCoolStartMs === 0) {
+    heatCoolStartMs = now
+  } else if (now - heatCoolStartMs >= HEAT_COOL_MS) {
+    setWanted(wanted - 1)
+    heatCoolStartMs = wanted > 0 ? now : 0
+    heatCoolRestoreAtMs = now + HEAT_COOL_HOLD_MS
+    missionEl.textContent = HEAT_COOLING_TEXT
+  }
+
   // Jammer pulse on Q: disables nearest drone in range, cools heat by 1
   if (jammer.requested) {
     jammer.requested = false
@@ -906,6 +936,7 @@ function frame(now: number) {
       if (wanted > 0 && nearestDrone && nearestDist < jammer.radius) {
         nearestDrone.disabledUntil = now + jammer.duration * 1000
         setWanted(wanted - 1)
+        heatCoolStartMs = 0
       }
     }
   }
@@ -933,6 +964,7 @@ function frame(now: number) {
       if (now >= d.disabledUntil && Math.hypot(b.x - d.x, b.y - d.y) < 18) {
         d.disabledUntil = now + jammer.duration * 1000
         setWanted(wanted - 1)
+        heatCoolStartMs = 0
         pulse.bolts.splice(i, 1)
         break
       }
@@ -957,6 +989,9 @@ function frame(now: number) {
   if (blackoutRestoreAtMs > 0 && now >= blackoutRestoreAtMs) {
     blackoutRestoreAtMs = 0
   }
+  if (heatCoolRestoreAtMs > 0 && now >= heatCoolRestoreAtMs) {
+    heatCoolRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -964,11 +999,14 @@ function frame(now: number) {
     contractFailRestoreAtMs > 0 ||
     trafficHitRestoreAtMs > 0 ||
     safehouseRestoreAtMs > 0 ||
-    blackoutRestoreAtMs > 0
+    blackoutRestoreAtMs > 0 ||
+    heatCoolRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
     if (missionEl.textContent !== TRAFFIC_HIT_TEXT) missionEl.textContent = TRAFFIC_HIT_TEXT
+  } else if (heatCoolRestoreAtMs > 0) {
+    if (missionEl.textContent !== HEAT_COOLING_TEXT) missionEl.textContent = HEAT_COOLING_TEXT
   } else if (contractState === 'active' && deliveryTimeLeftSec !== null) {
     const liveText = `${HOT_DELIVERY_TEXT} — ${deliveryTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
@@ -987,6 +1025,7 @@ function frame(now: number) {
     runStatsEl.textContent = `TIME ${runTimeSec.toFixed(1)}s // SCORE ${Math.max(500, Math.round(5000 - runTimeSec * 40))}`
     runCompleteEl.hidden = false
     setWanted(0)
+    heatCoolStartMs = 0
   }
 
   const bg = ctx.createLinearGradient(0, 0, 0, h)
