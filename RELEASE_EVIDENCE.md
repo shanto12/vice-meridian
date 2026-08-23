@@ -146,3 +146,37 @@ The hot-heat behavior itself is verified by source and live bundle but not end-t
 Full courier E pickup/drive/deliver, the police wanted-state path, safehouse H-in-zone,
 and reward delivery were NOT fully verified in this pass and are flagged above rather
 than assumed.
+
+---
+
+# Timed Hot Delivery — Release Evidence (2026-08-23)
+
+Verification matrix for the timed hot-delivery release. Evidence surfaces refer to
+the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed and traceable | Commit `5581c5e8804210ae1808c00a68710c2226c27976` ("Add timed hot delivery") on `origin/main` | PASS | Only `src/main.ts` modified; working tree clean after push |
+| Production deploy is live | Netlify deploy `6a8b321bc5b97ce20f17c7d8` at https://vice-meridian.netlify.app/ | PASS | Deploy ID confirmed against the live site |
+| Production build succeeds | `npm run build` (tsc + Vite) | PASS | No type or build errors blocking output |
+| No whitespace errors in tracked changes | `git diff --check` | PASS | Clean output, no trailing whitespace or conflict markers |
+| No known vulnerabilities in production dependencies | `npm audit --omit=dev` | PASS | 0 vulnerabilities reported for the production dependency tree |
+| App bundle contains the timer strings plus prior feature strings | Fetched live JS bundle; contains "S LEFT", "DELIVERY FAILED // TIME EXPIRED", "HOT DELIVERY", "POLICE SCAN", "SAFEHOUSE", wallet "CASH $"/"REP", and courier "COURIER RUN" / "DROP-OFF" strings | PASS | Confirms the deploy serves the updated bundle; hot-delivery, police scan, safehouse, wallet, and courier strings remain intact alongside the new timer code |
+| Security headers present on responses | Live response headers include CSP, Permissions-Policy, Referrer-Policy, HSTS, and `X-Content-Type-Options` | PASS | All expected headers observed on the production origin |
+| Desktop browser loads the deploy and core controls work | Real Chrome profile desktop session at 1440x604: M (map open/close), F (pulse), Q (jammer), R (reset) smoke-exercised | PASS | Zero application console errors during interaction |
+| Responsive layout on small viewport | Real Chrome mobile session at 390x844: page loaded, scrollWidth measured at 390 | PASS | No horizontal overflow; zero application console errors |
+| 45-second delivery timer logic | Verified via source review and live bundle strings only (`contractDeadlineMs = now + CONTRACT_TIME_LIMIT_MS` on entry; countdown in mission line and courier HUD) | VERIFIED BY SOURCE + BUNDLE, NOT E2E | Timer expiry fail path not driven end-to-end in a browser in this pass |
+| Full courier E pickup / drive / deliver loop | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Enter, drive, and deliver sequence not driven end-to-end in this pass |
+| Timer expiry end-to-end fail path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | 45s elapsing mid-run (exit car, reset contract to available, clear heat, DELIVERY FAILED banner) not driven end-to-end in this pass |
+| Police wanted-state path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Drone chase, POLICE SCAN readout, and search ring under live wanted state not driven end-to-end in this pass |
+| Safehouse H-in-zone heat-clear path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | H keypress while standing inside the safehouse ring not driven end-to-end in this pass |
+| Reward delivery (+$250 / REP +1 reflected in wallet) | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Delivery reward updating cash/rep and the wallet HUD not driven end-to-end in this pass |
+| Auth / backend / API integration | Static Vite site — no auth, backend, or API surface exists | Not applicable | Nothing to verify beyond static serving and headers |
+
+## Summary
+
+Build, audit, bundle-content, header, desktop-interaction, and mobile-layout gates passed.
+The 45-second timer logic is verified by source and live bundle only. Full courier
+pickup/drive/deliver, timer expiry E2E, police wanted-state, safehouse H-in-zone, and
+reward delivery were NOT fully verified in this pass and are flagged above rather than
+assumed.
