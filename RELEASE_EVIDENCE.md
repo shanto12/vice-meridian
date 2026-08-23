@@ -870,3 +870,29 @@ the safehouse; it is flagged above rather than assumed and must not be claimed a
 end-to-end. VICE//MERIDIAN remains an evolving vertical slice built feature-by-feature —
 not complete GTA 7 and not an enterprise-grade product. Prior evidence sections remain
 intact and their gaps still stand.
+
+---
+
+# Safehouse Job Board HUD - Release Evidence (2026-08-23)
+
+Verification matrix for the safehouse job-board onboarding HUD.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit a89cdc7 Add safehouse job board HUD is on origin/main | Cursor Git push verification | PASS | Working tree clean; source commit changed src/main.ts only |
+| Netlify production deploy 6a8b7b7a2098cdabc00956b1 is live at https://vice-meridian.netlify.app/ | Netlify CLI deploy output | PASS | Production URL live |
+| Build gate npm run build passed | Local build and Netlify build | PASS | assets/index-1Khxl3aq.js, 58.28 kB JS / 15.64 kB gzip |
+| Dependency hygiene npm audit --omit=dev | Local audit | PASS | 0 vulnerabilities |
+| Whitespace hygiene git diff --check | Local check | PASS | Clean |
+| Live root and asset serve | curl production checks | PASS | GET / HTTP 200; assets/index-1Khxl3aq.js HTTP 200; bundle contains the exact JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // N RACE marker |
+| Security headers | curl production headers | PASS | CSP self-only with frame-ancestors none; HSTS max-age=31536000 includeSubDomains preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy camera=(), microphone=(), geolocation=() |
+| Real Chrome desktop production pass | Real Chrome at 1440x660 | PASS | Canvas true; scrollWidth 1440; exact live asset; Night Shift on; M map open then Escape close; F/Q/Space/E/G/T/U/N/B/K/V/C/J/X/O/I/P/L/R/Y exercised; zero console errors |
+| Real Chrome mobile production pass | Real Chrome at 390x844 | PASS | Canvas true; scrollWidth 390; exact live asset; zero console errors; viewport reset afterward |
+| Job-board source behavior | Source and live bundle inspection | PASS | HUD text is hidden by default and the source condition is exactly !driving && nearSafehouse |
+| Job-board safehouse visibility transition end to end | Real Chrome gameplay navigation | NOT FULLY VERIFIED | Chrome did not reach the safehouse during this bounded pass; runtime transition is not inferred from source or bundle markers |
+| Auth, backend, and API integration | Static Vite architecture review | NOT APPLICABLE | No auth, backend, or API surface exists |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | This is an evolving GTA-style vertical slice, not a complete GTA 7 and not an enterprise-grade product |
+
+## Summary
+
+The source commit, GitHub push, local/Netlify build, dependency audit, live asset, headers, real Chrome desktop/mobile layout, keyboard smoke pass, and zero-console-error checks passed. The job-board safehouse visibility transition itself remains NOT FULLY VERIFIED because the bounded Chrome pass did not reach the safehouse. The project remains an incomplete evolving GTA-style vertical slice rather than a complete GTA 7 or enterprise-grade product.
