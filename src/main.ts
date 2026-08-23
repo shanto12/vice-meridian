@@ -21,6 +21,7 @@ app.innerHTML = `
     <p class="hud-pursuit" id="hud-pursuit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE PURSUIT // HEAT 0/3</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
+    <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <div class="run-complete" id="run-complete" hidden>
@@ -28,7 +29,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — N race — P save — L load — R restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — N race — Y night shift — P save — L load — R restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -90,11 +91,18 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyJ') jJobRequested = true
   if (e.code === 'KeyX') turfRequested = true
   if (e.code === 'KeyN') raceRequested = true
+  if (e.code === 'KeyY') nightShiftEnabled = !nightShiftEnabled
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
   if (e.code === 'KeyR') restartRequested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
+
+// Night Shift (Y): cosmetic-only toggle that darkens the city and boosts neon glow
+const NIGHT_SHIFT_ON_TEXT = 'NIGHT SHIFT // CITY LIGHTS ON'
+const NIGHT_SHIFT_OFF_TEXT = 'NIGHT SHIFT // CITY LIGHTS OFF'
+let nightShiftEnabled = false
+let nightShiftHideAtMs = 0
 
 const player = { x: WORLD_W / 2, y: WORLD_H / 2, size: 28, speed: 320 }
 const grid = 48
@@ -450,6 +458,7 @@ const hullEl = document.getElementById('hud-hull')!
 const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
 const hullFillEl = document.querySelector<HTMLSpanElement>('#hull-fill')!
 const missionEl = document.getElementById('mission-line')!
+const nightEl = document.getElementById('hud-night')!
 const runCompleteEl = document.getElementById('run-complete')!
 const runStatsEl = document.getElementById('run-stats')!
 
@@ -1974,6 +1983,19 @@ function frame(now: number) {
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   }
 
+  // Night Shift HUD banner: temporary notice that fades after the toggle, independent of mission banners
+  const nightBannerText = nightShiftEnabled ? NIGHT_SHIFT_ON_TEXT : NIGHT_SHIFT_OFF_TEXT
+  if (nightEl.dataset.state !== nightShiftEnabled.toString()) {
+    nightEl.dataset.state = nightShiftEnabled.toString()
+    nightEl.textContent = nightBannerText
+    nightEl.style.display = ''
+    nightShiftHideAtMs = now + 2200
+  }
+  if (nightShiftHideAtMs > 0 && now >= nightShiftHideAtMs) {
+    nightShiftHideAtMs = 0
+    nightEl.style.display = 'none'
+  }
+
   // Restart on R
   if (restartRequested) {
     restartRequested = false
@@ -1991,11 +2013,36 @@ function frame(now: number) {
   }
 
   const bg = ctx.createLinearGradient(0, 0, 0, h)
-  bg.addColorStop(0, '#0a0325')
-  bg.addColorStop(0.55, '#12063a')
-  bg.addColorStop(1, '#05010f')
+  if (nightShiftEnabled) {
+    bg.addColorStop(0, '#04010f')
+    bg.addColorStop(0.55, '#08021c')
+    bg.addColorStop(1, '#020008')
+  } else {
+    bg.addColorStop(0, '#0a0325')
+    bg.addColorStop(0.55, '#12063a')
+    bg.addColorStop(1, '#05010f')
+  }
   ctx.fillStyle = bg
   ctx.fillRect(0, 0, w, h)
+
+  // Night Shift street-light pools: soft warm ellipses along the road band under the horizon
+  if (nightShiftEnabled) {
+    ctx.save()
+    ctx.translate(-camera.x, -camera.y)
+    for (let i = 0; i < 7; i++) {
+      const poolX = ((i * 613) % (WORLD_W - 240)) + 120
+      const poolY = WORLD_H * 0.62 + 90 + ((i * 331) % (WORLD_H - WORLD_H * 0.62 - 200))
+      const flicker = 0.1 + (i % 2 === 0 ? Math.sin(now / 700 + i) : 0) * 0.02
+      const pool = ctx.createRadialGradient(poolX, poolY, 4, poolX, poolY, 110)
+      pool.addColorStop(0, `rgba(255, 224, 90, ${flicker})`)
+      pool.addColorStop(1, 'rgba(255, 224, 90, 0)')
+      ctx.fillStyle = pool
+      ctx.beginPath()
+      ctx.ellipse(poolX, poolY, 110, 62, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.restore()
+  }
 
   ctx.strokeStyle = 'rgba(255, 45, 150, 0.12)'
   ctx.lineWidth = 1
@@ -2018,9 +2065,9 @@ function frame(now: number) {
   ctx.translate(-camera.x, -camera.y)
   buildings.forEach((b, i) => {
     neonRect(b.x, b.y, b.width, b.height, i % 3 === 0 ? '#00f0ff' : '#ff2d96')
-    ctx.fillStyle = 'rgba(255, 240, 90, 0.85)'
-    ctx.shadowColor = '#ffe05a'
-    ctx.shadowBlur = 8
+    ctx.fillStyle = nightShiftEnabled ? 'rgba(255, 248, 160, 0.95)' : 'rgba(255, 240, 90, 0.85)'
+    ctx.shadowColor = nightShiftEnabled ? '#fff8d6' : '#ffe05a'
+    ctx.shadowBlur = nightShiftEnabled ? 14 : 8
     for (let wx = b.x + 10; wx < b.x + b.width - 8; wx += 18) {
       for (let wy = b.y + 10; wy < b.y + b.height - 8; wy += 22) {
         if ((wx + wy + i) % 3 !== 0) ctx.fillRect(wx, wy, 5, 7)
@@ -2039,11 +2086,19 @@ function frame(now: number) {
     const left = d.x - half
     const top = d.y - half
     ctx.strokeStyle = d.color
-    ctx.globalAlpha = 0.28
+    ctx.globalAlpha = nightShiftEnabled ? 0.55 : 0.28
     ctx.lineWidth = 1
     ctx.setLineDash([10, 8])
     ctx.strokeRect(left, top, half * 2, half * 2)
     ctx.setLineDash([])
+    if (nightShiftEnabled) {
+      ctx.shadowColor = d.color
+      ctx.shadowBlur = 14
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(left, top, half * 2, half * 2)
+      ctx.shadowBlur = 0
+      ctx.lineWidth = 1
+    }
     ctx.globalAlpha = 0.75
     ctx.fillStyle = d.color
     ctx.fillText(d.name, left + 6, top - 6)
