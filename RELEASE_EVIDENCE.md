@@ -431,8 +431,6 @@ surfaces refer to the Netlify production deploy of this repository.
 | Insufficient-cash banner (REPAIR SHOP // NEED $150) held for banner duration | Source review + build verification only | SOURCE/BUILD VERIFIED but NOT FULLY REPRODUCED IN CHROME | Poor-repair banner path not independently exercised in real Chrome |
 | Finite/clamped carHealth persistence in the save slot | Source review + build verification only | SOURCE/BUILD VERIFIED but NOT FULLY REPRODUCED IN CHROME | Save/load round-trip of damaged hull not independently demonstrated in real Chrome |
 
-## Summary
-
 Build, audit, header, bundle-content, and real-browser load/smoke gates passed on desktop
 and mobile. The damage/repair mechanics themselves — collision damage application,
 disable-at-zero behavior, successful repair, insufficient-cash banner hold, and hull
@@ -440,3 +438,32 @@ persistence — are SOURCE/BUILD VERIFIED but were NOT FULLY REPRODUCED IN CHROM
 this pass. Prior evidence sections remain intact and applicable, the Midnight Sprint
 end-to-end gap noted there still stands, and no claim is made that the GTA-style project
 is complete or enterprise-grade.
+
+---
+
+# Wanted Heat Dispatch HUD — Release Evidence (2026-08-23)
+
+Verification matrix for the wanted-heat dispatch HUD slice. The HUD line is intentionally
+hidden at wanted 0 and shows "POLICE PURSUIT // HEAT <wanted>/3" only when heat is up.
+
+| Requirement | Evidence method | Status |
+| --- | --- | --- |
+| Source/build: app commit d204780d775cbc96fa2a9893ca075873520d7d6a ("Add wanted heat dispatch HUD") pushed to origin/main; `npm run build` passed (tsc + Vite; bundle index-Y2vwaxeN.js, 33.75 kB); `git diff --check` clean; working tree clean after push | Independent local verification before deploy | PASS |
+| GitHub handoff: commit present as HEAD of origin/main with only src/main.ts changed (9 insertions, 0 deletions) | git status/log inspection after push | PASS |
+| Netlify deployment: production deploy 6a8b4a7ebb8cef30380a50c1 live at https://vice-meridian.netlify.app/ | curl to production URL returned HTTP/2 200 | PASS |
+| Live headers: CSP default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; Permissions-Policy camera=(), microphone=(), geolocation=(); Referrer-Policy strict-origin-when-cross-origin; Strict-Transport-Security max-age=31536000; includeSubDomains; preload; X-Content-Type-Options nosniff | Production header observation | PASS |
+| Production asset content: live bundle contains POLICE PURSUIT // HEAT plus HULL, REPAIR SHOP, MIDNIGHT SPRINT, BLACKOUT RUN, SAVE // PROGRESS STORED | Live bundle inspection | PASS |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Independent production verification | PASS |
+| Chrome desktop: production URL at 1440x604 showed VICE//MERIDIAN, SIGNALS 0/3, WANTED 0/3, PULSE F READY, CASH $0 // REP 0, HULL 100%, and controls; R/M/F/Q/E/B/H/G/N/P/L/T smoke completed with zero console errors, scrollWidth = clientWidth = 1440, no horizontal overflow; final visible feedback SAVE // PROGRESS LOADED | Real Chrome desktop final pass | PASS |
+| Chrome mobile: production URL at 390x844 loaded with core HUD and controls visible, zero console errors, scrollWidth = clientWidth = 390 | Real Chrome mobile final pass | PASS |
+| Conditional wanted>0 behavior: pursuit line hidden at wanted 0 (verified live), conditional code and string verified by source/build/bundle inspection; a wanted>0 state was NOT reproduced in real Chrome this pass | Source/build/bundle inspection + explicit limitation review | PARTIAL — live surface verified; wanted>0 display NOT REPRODUCED IN CHROME |
+
+## Summary
+
+Independent local build, GitHub handoff, Netlify deployment, header, bundle-content,
+audit, and real-Chrome desktop/mobile gates all passed. Because the session ended at
+wanted 0, the real-Chrome pass verified the live app and its no-error responsive surface;
+the wanted>0 dispatch display itself is verified by source, build, and bundle inspection
+only. Existing deeper mission/race/persistence evidence gaps from prior sections remain
+clearly marked and are not upgraded by this section, and no claim is made that the
+overall GTA-style game is complete or that every gameplay branch is fully verified.
