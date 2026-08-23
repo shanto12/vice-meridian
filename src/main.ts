@@ -26,7 +26,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — R to restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — P save — L load — R restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -57,7 +57,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyP' || e.code === 'KeyL') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -73,6 +73,8 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyH') safehouseRequested = true
   if (e.code === 'KeyB') blackoutRequested = true
   if (e.code === 'KeyG') garageRequested = true
+  if (e.code === 'KeyP') saveRequested = true
+  if (e.code === 'KeyL') loadRequested = true
   if (e.code === 'KeyR') restartRequested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
@@ -163,6 +165,70 @@ let heatCoolStartMs = 0
 let heatCoolRestoreAtMs = 0
 let cash = 0
 let rep = 0
+
+// Local browser save slot: durable campaign progress only; transient state never persists
+const SAVE_KEY = 'vice-meridian-save-v1'
+const SAVE_HOLD_MS = 2600
+const SAVE_STORED_TEXT = 'SAVE // PROGRESS STORED'
+const SAVE_LOADED_TEXT = 'SAVE // PROGRESS LOADED'
+const SAVE_NO_SLOT_TEXT = 'SAVE // NO SLOT FOUND'
+let saveRequested = false
+let loadRequested = false
+let saveRestoreAtMs = 0
+let saveBannerText = SAVE_STORED_TEXT
+
+interface SaveData {
+  signalsFound: number
+  cash: number
+  rep: number
+  missionComplete: boolean
+  garageTuneInstalled: boolean
+  blackoutCompleted: boolean
+  carX?: number
+  carY?: number
+  carAngle?: number
+}
+
+function writeSave(): boolean {
+  try {
+    const data: SaveData = {
+      signalsFound,
+      cash,
+      rep,
+      missionComplete,
+      garageTuneInstalled,
+      blackoutCompleted: blackoutState === 'complete',
+      carX: courierCar.x,
+      carY: courierCar.y,
+      carAngle: courierCar.angle,
+    }
+    window.localStorage.setItem(SAVE_KEY, JSON.stringify(data))
+    return true
+  } catch {
+    return false
+  }
+}
+
+function readSave(): SaveData | null {
+  try {
+    const raw = window.localStorage.getItem(SAVE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw) as Partial<SaveData>
+    if (
+      typeof data.signalsFound !== 'number' ||
+      typeof data.cash !== 'number' ||
+      typeof data.rep !== 'number' ||
+      typeof data.missionComplete !== 'boolean' ||
+      typeof data.garageTuneInstalled !== 'boolean' ||
+      typeof data.blackoutCompleted !== 'boolean'
+    ) {
+      return null
+    }
+    return data as SaveData
+  } catch {
+    return null
+  }
+}
 
 // Standing mission text used when temporary banners (courier/safehouse) hand the line back
 function campaignMissionText(): string {
@@ -266,8 +332,9 @@ function resetRun(nowMs: number) {
   garageRequested = false
   garageTuneInstalled = false
   garageRestoreAtMs = 0
-  courierCar.maxSpeed = 360
-  courierCar.accel = 420
+  saveRequested = false
+  loadRequested = false
+  saveRestoreAtMs = 0
   blackoutRequested = false
   blackoutState = 'available'
   blackoutRestoreAtMs = 0
@@ -284,6 +351,8 @@ function resetRun(nowMs: number) {
   heatCoolRestoreAtMs = 0
   cash = 0
   rep = 0
+  courierCar.maxSpeed = 360
+  courierCar.accel = 420
   courierCar.x = WORLD_W / 2 + 90
   courierCar.y = WORLD_H / 2 + 40
   courierCar.angle = -Math.PI / 4
@@ -878,6 +947,47 @@ function frame(now: number) {
   safehouseRequested = false
   blackoutRequested = false
 
+  // P stores durable campaign progress; L restores it (transient state always resets)
+  if (saveRequested) {
+    saveBannerText = writeSave() ? SAVE_STORED_TEXT : SAVE_NO_SLOT_TEXT
+    saveRestoreAtMs = now + SAVE_HOLD_MS
+    missionEl.textContent = saveBannerText
+  }
+  if (loadRequested) {
+    const data = readSave()
+    if (data) {
+      resetRun(now)
+      signalsFound = Math.max(0, Math.min(signals.length, data.signalsFound))
+      signalEls.count.textContent = String(signalsFound)
+      signalEls.complete.hidden = signalsFound < signals.length
+      cash = Number.isFinite(data.cash) ? data.cash : 0
+      rep = Number.isFinite(data.rep) ? data.rep : 0
+      missionComplete = data.missionComplete
+      runCompleteEl.hidden = !missionComplete
+      blackoutState = data.blackoutCompleted ? 'complete' : 'available'
+      garageTuneInstalled = data.garageTuneInstalled
+      if (garageTuneInstalled) {
+        courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
+        courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
+      }
+      if (
+        typeof data.carX === 'number' && Number.isFinite(data.carX) &&
+        typeof data.carY === 'number' && Number.isFinite(data.carY)
+      ) {
+        courierCar.x = Math.max(24, Math.min(WORLD_W - 24, data.carX))
+        courierCar.y = Math.max(24, Math.min(WORLD_H - 24, data.carY))
+      }
+      if (typeof data.carAngle === 'number' && Number.isFinite(data.carAngle)) courierCar.angle = data.carAngle
+      saveBannerText = SAVE_LOADED_TEXT
+    } else {
+      saveBannerText = SAVE_NO_SLOT_TEXT
+    }
+    saveRestoreAtMs = now + SAVE_HOLD_MS
+    missionEl.textContent = saveBannerText
+  }
+  saveRequested = false
+  loadRequested = false
+
   // Delivery timer: expiring mid-run safely aborts the contract and cools heat
   if (contractState === 'active' && contractDeadlineMs > 0 && now >= contractDeadlineMs) {
     if (driving) {
@@ -1061,6 +1171,9 @@ function frame(now: number) {
   if (heatCoolRestoreAtMs > 0 && now >= heatCoolRestoreAtMs) {
     heatCoolRestoreAtMs = 0
   }
+  if (saveRestoreAtMs > 0 && now >= saveRestoreAtMs) {
+    saveRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -1071,13 +1184,16 @@ function frame(now: number) {
     safehouseRestoreAtMs > 0 ||
     blackoutRestoreAtMs > 0 ||
     garageRestoreAtMs > 0 ||
-    heatCoolRestoreAtMs > 0
+    heatCoolRestoreAtMs > 0 ||
+    saveRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
     if (missionEl.textContent !== TRAFFIC_HIT_TEXT) missionEl.textContent = TRAFFIC_HIT_TEXT
   } else if (heatCoolRestoreAtMs > 0) {
     if (missionEl.textContent !== HEAT_COOLING_TEXT) missionEl.textContent = HEAT_COOLING_TEXT
+  } else if (saveRestoreAtMs > 0) {
+    if (missionEl.textContent !== saveBannerText) missionEl.textContent = saveBannerText
   } else if (garageRestoreAtMs > 0) {
     const garageText = garageBannerAfford ? GARAGE_AFFORD_TEXT : GARAGE_POOR_TEXT
     if (missionEl.textContent !== garageText) missionEl.textContent = garageText
@@ -1601,6 +1717,34 @@ function frame(now: number) {
   drawRadar(now)
 
   requestAnimationFrame(frame)
+}
+
+// Best-effort auto-load on boot: a page reload picks the saved slot back up; malformed data is ignored
+{
+  const bootData = readSave()
+  if (bootData) {
+    signalsFound = Math.max(0, Math.min(signals.length, bootData.signalsFound))
+    signalEls.count.textContent = String(signalsFound)
+    signalEls.complete.hidden = signalsFound < signals.length
+    cash = Number.isFinite(bootData.cash) ? bootData.cash : 0
+    rep = Number.isFinite(bootData.rep) ? bootData.rep : 0
+    missionComplete = bootData.missionComplete
+    runCompleteEl.hidden = !missionComplete
+    blackoutState = bootData.blackoutCompleted ? 'complete' : 'available'
+    garageTuneInstalled = bootData.garageTuneInstalled
+    if (garageTuneInstalled) {
+      courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
+      courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
+    }
+    if (
+      typeof bootData.carX === 'number' && Number.isFinite(bootData.carX) &&
+      typeof bootData.carY === 'number' && Number.isFinite(bootData.carY)
+    ) {
+      courierCar.x = Math.max(24, Math.min(WORLD_W - 24, bootData.carX))
+      courierCar.y = Math.max(24, Math.min(WORLD_H - 24, bootData.carY))
+    }
+    if (typeof bootData.carAngle === 'number' && Number.isFinite(bootData.carAngle)) courierCar.angle = bootData.carAngle
+  }
 }
 
 requestAnimationFrame(frame)
