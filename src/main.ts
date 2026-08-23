@@ -108,6 +108,7 @@ const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
 const DROP_OFF_RADIUS = 95
 const CONTRACT_DELIVER_HOLD_MS = 2600
 const MISSION_SWEEP_TEXT = 'MISSION // Sweep the grid — recover 3 relay signals'
+const HOT_DELIVERY_TEXT = 'COURIER RUN // HOT DELIVERY — REACH SKYWAY DROP-OFF'
 let contractState: 'available' | 'active' | 'complete' = 'available'
 let contractRestoreAtMs = 0
 let cash = 0
@@ -115,7 +116,7 @@ let rep = 0
 
 // Standing mission text used when temporary banners (courier/safehouse) hand the line back
 function campaignMissionText(): string {
-  if (contractState === 'active') return 'COURIER RUN // REACH SKYWAY DROP-OFF'
+  if (contractState === 'active') return HOT_DELIVERY_TEXT
   if (contractState === 'complete' && contractRestoreAtMs > 0) return 'COURIER RUN // DELIVERED +$250 // REP +1'
   return signalsFound === 3 ? missionPhase2 : MISSION_SWEEP_TEXT
 }
@@ -717,12 +718,13 @@ function frame(now: number) {
     player.x = Math.max(player.size, Math.min(WORLD_W - player.size, player.x + (dx / len) * speedNow * dt))
     player.y = Math.max(player.size, Math.min(WORLD_H - player.size, player.y + (dy / len) * speedNow * dt))
 
-    // E hops in when close to the parked courier; first pickup starts the courier run
+    // E hops in when close to the parked courier; first pickup starts a hot delivery that draws police heat
     if (courierToggleRequested && Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS) {
       driving = true
       if (contractState === 'available') {
         contractState = 'active'
-        missionEl.textContent = 'COURIER RUN // REACH SKYWAY DROP-OFF'
+        setWanted(Math.max(1, wanted))
+        missionEl.textContent = HOT_DELIVERY_TEXT
       }
     }
 
@@ -1065,7 +1067,7 @@ function frame(now: number) {
   const dropDist = Math.round(Math.hypot(player.x - SKYWAY_DROP_OFF.x, player.y - SKYWAY_DROP_OFF.y))
   const courierText = driving
     ? contractState === 'active'
-      ? `COURIER RUN // REACH SKYWAY DROP-OFF — ${dropDist}M — STOP + E TO DELIVER`
+      ? `COURIER RUN // HOT DELIVERY — ${dropDist}M — STOP + E TO DELIVER`
       : `COURIER // DRIVING ${Math.round(Math.abs(courierCar.speed) * 0.6)} KMH — SPACE BOOST — SLOWS UNDER 80 FOR E`
     : nearCourier
       ? 'COURIER // PRESS E TO DRIVE'
