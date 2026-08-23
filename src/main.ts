@@ -15,6 +15,7 @@ app.innerHTML = `
     </p>
     <p class="hud-wanted" id="hud-wanted">WANTED <span id="wanted-count">0</span>/3</p>
     <p class="hud-pulse">PULSE F <span class="pulse-state" id="pulse-state">READY</span></p>
+    <p class="hud-courier" id="hud-courier" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff9d3c;text-shadow:0 0 10px rgba(255,157,60,0.6);">COURIER // PRESS E TO DRIVE</p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <div class="run-complete" id="run-complete" hidden>
@@ -22,7 +23,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — R to restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — R to restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -53,7 +54,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -65,12 +66,31 @@ window.addEventListener('keydown', e => {
   }
   if (e.code === 'KeyQ') jammer.requested = true
   if (e.code === 'KeyF') pulse.requested = true
+  if (e.code === 'KeyE') courierToggleRequested = true
   if (e.code === 'KeyR') restartRequested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
 
 const player = { x: WORLD_W / 2, y: WORLD_H / 2, size: 28, speed: 320 }
 const grid = 48
+
+// Drivable neon courier coupe parked beside spawn; E enters/exits
+const courierCar = {
+  x: WORLD_W / 2 + 90,
+  y: WORLD_H / 2 + 40,
+  angle: -Math.PI / 4,
+  speed: 0,
+  maxSpeed: 360,
+  boostSpeed: 560,
+  reverseSpeed: 150,
+  accel: 420,
+  brake: 560,
+  friction: 240,
+  turnRate: 2.6,
+}
+const COURIER_ENTER_RADIUS = 70
+let driving = false
+let courierToggleRequested = false
 
 let mapOpen = false
 
@@ -123,6 +143,7 @@ const wantedEls = {
 const pulseEls = {
   state: document.querySelector<HTMLSpanElement>('#pulse-state')!,
 }
+const courierEl = document.getElementById('hud-courier')!
 const missionEl = document.getElementById('mission-line')!
 const runCompleteEl = document.getElementById('run-complete')!
 const runStatsEl = document.getElementById('run-stats')!
@@ -153,6 +174,12 @@ function resetRun(nowMs: number) {
   })
   missionEl.textContent = 'MISSION // Sweep the grid — recover 3 relay signals'
   runCompleteEl.hidden = true
+  driving = false
+  courierToggleRequested = false
+  courierCar.x = WORLD_W / 2 + 90
+  courierCar.y = WORLD_H / 2 + 40
+  courierCar.angle = -Math.PI / 4
+  courierCar.speed = 0
 }
 
 const signals = Array.from({ length: 3 }, (_, i) => ({
@@ -214,6 +241,72 @@ function neonRect(x: number, y: number, width: number, height: number, color: st
   ctx.shadowColor = color
   ctx.shadowBlur = 16
   ctx.strokeRect(x, y, width, height)
+  ctx.shadowBlur = 0
+}
+
+// Amber neon coupe with cyan glass and a two-cell roof light bar — distinct from green runner and traffic
+function drawCourierCar(isDriving: boolean) {
+  ctx.save()
+  ctx.translate(courierCar.x, courierCar.y)
+  ctx.rotate(courierCar.angle)
+
+  // speed streaks while driving fast
+  if (isDriving && Math.abs(courierCar.speed) > 120) {
+    const tail = Math.abs(courierCar.speed) > courierCar.maxSpeed * 0.9 ? 36 : 28
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)'
+    ctx.lineWidth = 2
+    for (const off of [-7, 7]) {
+      ctx.beginPath()
+      ctx.moveTo(off, 18)
+      ctx.lineTo(off, tail + Math.random() * 12)
+      ctx.stroke()
+    }
+  }
+
+  // headlight beams along the heading
+  const beam = ctx.createLinearGradient(0, -18, 0, -58)
+  beam.addColorStop(0, 'rgba(255, 157, 60, 0.4)')
+  beam.addColorStop(1, 'rgba(255, 157, 60, 0)')
+  ctx.fillStyle = beam
+  ctx.beginPath()
+  ctx.moveTo(-9, -16)
+  ctx.lineTo(-20, -56)
+  ctx.lineTo(20, -56)
+  ctx.lineTo(9, -16)
+  ctx.closePath()
+  ctx.fill()
+
+  // body
+  ctx.shadowColor = '#ff9d3c'
+  ctx.shadowBlur = isDriving ? 26 : 18
+  ctx.strokeStyle = '#ff9d3c'
+  ctx.lineWidth = 2.5
+  ctx.strokeRect(-11, -17, 22, 34)
+
+  // windshield + rear window
+  ctx.fillStyle = 'rgba(191, 255, 255, 0.5)'
+  ctx.fillRect(-7, -12, 14, 8)
+  ctx.fillStyle = 'rgba(191, 255, 255, 0.35)'
+  ctx.fillRect(-6, 6, 12, 5)
+
+  // roof light bar: amber/cyan cells
+  ctx.shadowBlur = 10
+  ctx.fillStyle = '#ffe05a'
+  ctx.fillRect(-7, -3, 6, 4)
+  ctx.fillStyle = '#00f0ff'
+  ctx.fillRect(1, -3, 6, 4)
+
+  // headlights / taillights
+  ctx.shadowColor = '#fff8d6'
+  ctx.shadowBlur = 10
+  ctx.fillStyle = '#fff8d6'
+  ctx.fillRect(-9, -19, 5, 3)
+  ctx.fillRect(4, -19, 5, 3)
+  ctx.fillStyle = '#ff2d96'
+  ctx.shadowColor = '#ff2d96'
+  ctx.fillRect(-9, 14, 5, 3)
+  ctx.fillRect(4, 14, 5, 3)
+  ctx.restore()
   ctx.shadowBlur = 0
 }
 
@@ -500,25 +593,91 @@ function frame(now: number) {
   const len = Math.hypot(dx, dy) || 1
   const moving = dx !== 0 || dy !== 0
 
-  const wantBoost = keys.has('Space') && boost.energy > 1 && !boost.cooldown
-  boost.active = wantBoost && moving
-  if (boost.active) {
-    boost.energy = Math.max(0, boost.energy - boost.drain * dt)
-    if (boost.energy <= 0) {
-      boost.cooldown = true
-      boost.active = false
+  if (!driving) {
+    const wantBoost = keys.has('Space') && boost.energy > 1 && !boost.cooldown
+    boost.active = wantBoost && moving
+    if (boost.active) {
+      boost.energy = Math.max(0, boost.energy - boost.drain * dt)
+      if (boost.energy <= 0) {
+        boost.cooldown = true
+        boost.active = false
+      }
+    } else {
+      boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * dt))
+      if (boost.cooldown && boost.energy >= 40) boost.cooldown = false
     }
-  } else {
-    boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * dt))
-    if (boost.cooldown && boost.energy >= 40) boost.cooldown = false
   }
 
   const speedNow = player.speed * (boost.active ? boost.multiplier : 1)
-  player.x = Math.max(player.size, Math.min(WORLD_W - player.size, player.x + (dx / len) * speedNow * dt))
-  player.y = Math.max(player.size, Math.min(WORLD_H - player.size, player.y + (dy / len) * speedNow * dt))
+  if (driving) {
+    // arcade car physics: steering authority scales with roll speed
+    let throttle = 0
+    for (const code of keys) {
+      const [kx, ky] = MOVE_KEYS[code]
+      if (ky < 0) throttle = 1
+      else if (ky > 0) throttle = -1
+      if (kx !== 0) {
+        const turnEff = 0.35 + 0.65 * Math.min(1, Math.abs(courierCar.speed) / 160)
+        courierCar.angle += kx * courierCar.turnRate * dt * (courierCar.speed < 0 ? -1 : 1) * turnEff
+      }
+    }
+    if (throttle > 0) {
+      courierCar.speed = Math.min(courierCar.maxSpeed, courierCar.speed + courierCar.accel * dt)
+    } else if (throttle < 0) {
+      const rate = courierCar.speed > 0 ? courierCar.brake : courierCar.accel
+      courierCar.speed = Math.max(-courierCar.reverseSpeed, courierCar.speed - rate * dt)
+    } else {
+      const drop = courierCar.friction * dt
+      courierCar.speed = courierCar.speed > 0 ? Math.max(0, courierCar.speed - drop) : Math.min(0, courierCar.speed + drop)
+    }
+
+    // Space boosts forward, sharing the runner's energy pool
+    const carBoost = keys.has('Space') && boost.energy > 1 && !boost.cooldown && courierCar.speed > 0
+    boost.active = carBoost
+    if (carBoost) {
+      boost.energy = Math.max(0, boost.energy - boost.drain * dt)
+      if (boost.energy <= 0) {
+        boost.cooldown = true
+        boost.active = false
+      }
+    } else {
+      boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * dt))
+      if (boost.cooldown && boost.energy >= 40) boost.cooldown = false
+    }
+    if (carBoost) courierCar.speed = Math.min(courierCar.boostSpeed, courierCar.speed)
+
+    courierCar.x += Math.sin(courierCar.angle) * courierCar.speed * dt
+    courierCar.y -= Math.cos(courierCar.angle) * courierCar.speed * dt
+    courierCar.x = Math.max(24, Math.min(WORLD_W - 24, courierCar.x))
+    courierCar.y = Math.max(24, Math.min(WORLD_H - 24, courierCar.y))
+
+    // rider sits in the hull; facing tracks the hood so pulses fire forward
+    player.x = courierCar.x
+    player.y = courierCar.y
+    facing.dx = Math.sin(courierCar.angle)
+    facing.dy = -Math.cos(courierCar.angle)
+
+    // E steps out beside the door once nearly stopped
+    if (courierToggleRequested && Math.abs(courierCar.speed) <= 80) {
+      driving = false
+      player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
+      player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
+      courierCar.speed = 0
+    }
+  } else {
+    player.x = Math.max(player.size, Math.min(WORLD_W - player.size, player.x + (dx / len) * speedNow * dt))
+    player.y = Math.max(player.size, Math.min(WORLD_H - player.size, player.y + (dy / len) * speedNow * dt))
+
+    // E hops in when close to the parked courier
+    if (courierToggleRequested && Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS) {
+      driving = true
+    }
+  }
+  courierToggleRequested = false
+
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
   camera.y = Math.max(0, Math.min(Math.max(0, WORLD_H - h), player.y - h / 2))
-  if (moving) facing = { dx: dx / len, dy: dy / len }
+  if (!driving && moving) facing = { dx: dx / len, dy: dy / len }
 
   const pct = boost.energy.toFixed(0)
   boostEls.fill.style.width = `${pct}%`
@@ -717,6 +876,17 @@ function frame(now: number) {
     if (t.dir < 0 && t.x < -t.length) t.x = WORLD_W + t.length
   })
 
+  // Courier coupe under the signal/traffic layer; HUD prompt tracks proximity and drive state
+  drawCourierCar(driving)
+  const nearCourier = Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS
+  const courierText = driving
+    ? `COURIER // DRIVING ${Math.round(Math.abs(courierCar.speed) * 0.6)} KMH — SPACE BOOST — SLOWS UNDER 80 FOR E`
+    : nearCourier
+      ? 'COURIER // PRESS E TO DRIVE'
+      : ''
+  if (courierEl.textContent !== courierText) courierEl.textContent = courierText
+  courierEl.style.display = courierText ? '' : 'none'
+
   signals.forEach((s, i) => {
     if (signalsFound > i) return
     if (Math.hypot(player.x - s.x, player.y - s.y) < player.size + 16) {
@@ -772,6 +942,7 @@ function frame(now: number) {
   })
 
   // Neon street-runner: small car with body, windshield, headlights, direction
+  // hidden while driving the courier so only the coupe renders
   const angle = Math.atan2(facing.dx, -facing.dy)
   const boostingGlow = boost.active ? 30 : 14
   ctx.save()
