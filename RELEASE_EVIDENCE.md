@@ -13,7 +13,7 @@ Netlify production deploy of this repository.
 | Site serves successfully over HTTPS | Live `GET /` at https://vice-meridian.netlify.app/ returned HTTP 200 | PASS | Root document reachable without redirects to error states |
 | App bundle actually contains the new game code | Fetched live JS bundle; contains COURIER HUD/driving strings | PASS | Confirms deploy serves the updated bundle, not a stale one |
 | Security headers present on responses | Live response headers include CSP, HSTS, `X-Content-Type-Options: nosniff`, Referrer-Policy, Permissions-Policy | PASS | All expected headers observed on the production origin |
-| Core gameplay controls work in a real browser | Real Chrome desktop session: M (mute), F (fullscreen), Q/R exercised | PASS | No application console errors during interaction |
+| Core gameplay controls work in a real browser | Real Chrome desktop session: M (map open/close), F (pulse), Q (jammer), R (reset) exercised | PASS | No application console errors during interaction |
 | Responsive layout on small viewport | Real Chrome at 390x844: no horizontal overflow, no errors | PASS | Layout contained within viewport width |
 | Auth / backend / API integration | Static Vite site — no auth, backend, or API surface exists | Not applicable | Nothing to verify beyond static serving and headers |
 | E key enter/exit vehicle behavior | Not exercised end-to-end in the real Chrome session | Not fully verified | Control implemented in code but not explicitly driven in the browser check |
