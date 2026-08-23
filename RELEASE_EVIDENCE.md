@@ -929,3 +929,21 @@ Contacts phone menu is live and verified on desktop/mobile Chrome; simulation-fr
 ## Summary
 
 The Cursor-authored phone-call slice is live and verified for the desktop production interaction. Mobile re-check for this exact commit and full mission completion remain NOT FULLY VERIFIED. VICE//MERIDIAN remains an evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product.
+
+# Contacts Phone Mission Control - Release Evidence (2026-08-23)
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Cursor source commit fd7916751b7aaca95b93f3e3c88476d97855cf4c Restore phone call confirmation is on origin/main | Cursor Git | PASS | src/main.ts only; HEAD equals origin/main; clean tree |
+| Netlify production deploy 6a8b86852098cde525095602 | Netlify CLI | PASS | https://vice-meridian.netlify.app/ live; asset index-BdgLyBs-.js |
+| Build and dependency audit | npm run build; npm audit --omit=dev | PASS | tsc + Vite build passed; 62.50 kB JS / 16.53 kB gzip; 0 vulnerabilities |
+| Live bundle and security headers | curl | PASS | Root and asset HTTP 200; bundle contains CONTACT BUSY, JOB UNAVAILABLE, CALL CONNECTED, PRESS 1-9 TO CALL; CSP/HSTS/nosniff/Referrer-Policy/Permissions-Policy present |
+| Real Chrome desktop phone flow | Chrome production at 1440x660 | PASS | One phone hint rendered; all nine contacts visible; Digit1 closed the phone and set CALL CONNECTED; scrollWidth 1440; zero console errors |
+| Real Chrome mobile re-check for this commit | Prior 390x844 baseline | NOT FULLY VERIFIED | Prior phone release passed at 390x844; this exact mission-control commit was not rerun at that viewport |
+| Busy/unavailable and full mission acceptance | Source plus bounded production smoke | NOT FULLY VERIFIED | Busy markers and the single request gate are present; the bounded pass verified the accepted call UI, not safehouse mission completion or the unavailable branch end to end |
+| Auth, backend, and API | Static Vite architecture | NOT APPLICABLE | No auth, backend, or API surface exists |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product |
+
+## Summary
+
+The Cursor-authored mission-control phone slice is live and desktop-verified in real Chrome. Mobile re-check for this exact commit, unavailable-branch execution, and full safehouse mission completion remain NOT FULLY VERIFIED. VICE//MERIDIAN remains an evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product.
