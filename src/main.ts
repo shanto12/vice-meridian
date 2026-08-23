@@ -23,6 +23,7 @@ app.innerHTML = `
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
+    <p class="hud-jobboard" id="hud-jobboard" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff6bd6;text-shadow:0 0 10px rgba(255,107,214,0.6);">JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // N RACE</p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <div class="run-complete" id="run-complete" hidden>
@@ -506,6 +507,7 @@ const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
 const hullFillEl = document.querySelector<HTMLSpanElement>('#hull-fill')!
 const missionEl = document.getElementById('mission-line')!
 const nightEl = document.getElementById('hud-night')!
+const jobboardEl = document.getElementById('hud-jobboard')!
 const runCompleteEl = document.getElementById('run-complete')!
 const runStatsEl = document.getElementById('run-stats')!
 
@@ -3040,6 +3042,12 @@ function frame(now: number) {
   const nearSafehouse = !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius
   if (safehouseEl.style.display !== (nearSafehouse ? '' : 'none')) {
     safehouseEl.style.display = nearSafehouse ? '' : 'none'
+  }
+
+  // Job board legend: static neon line, visible only on foot inside the safehouse
+  const jobboardVisible = !driving && nearSafehouse
+  if (jobboardEl.style.display !== (jobboardVisible ? '' : 'none')) {
+    jobboardEl.style.display = jobboardVisible ? '' : 'none'
   }
 
   // Crew Cover HUD countdown: compact cyan readout only while the temporary effect is live
