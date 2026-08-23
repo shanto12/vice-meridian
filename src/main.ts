@@ -69,7 +69,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'KeyU') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'KeyU' || e.code === 'KeyO') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -91,6 +91,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyC') convoyRequested = true
   if (e.code === 'KeyJ') jJobRequested = true
   if (e.code === 'KeyX') turfRequested = true
+  if (e.code === 'KeyO') smugglerRequested = true
   if (e.code === 'KeyU') crewNetworkRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyY') nightShiftEnabled = !nightShiftEnabled
@@ -268,6 +269,23 @@ type TurfState = 'available' | 'active' | 'escaping' | 'complete'
 let turfState: TurfState = 'available'
 let turfDeadlineMs = 0
 let turfRestoreAtMs = 0
+
+// Smuggler Run: O at the safehouse accepts; drive to the pickup, press O to secure the package,
+// drive to the drop site and press O to deliver before the run expires
+const SMUGGLER_PICKUP_SITE = { x: WORLD_W * 0.80, y: WORLD_H * 0.36, radius: 100 }
+const SMUGGLER_DROP_SITE = { x: WORLD_W * 0.68, y: WORLD_H * 0.84, radius: 100 }
+const SMUGGLER_ACCEPT_RADIUS = 130
+const SMUGGLER_TIME_LIMIT_MS = 80000
+const SMUGGLER_HOLD_MS = 2600
+const SMUGGLER_ACTIVE_TEXT = 'SMUGGLER RUN // REACH THE PICKUP SITE'
+const SMUGGLER_PICKUP_TEXT = 'SMUGGLER RUN // PACKAGE SECURED // REACH THE DROP SITE'
+const SMUGGLER_DONE_TEXT = 'SMUGGLER RUN // PACKAGE DELIVERED +$900 // REP +4'
+const SMUGGLER_LOST_TEXT = 'SMUGGLER RUN // RUN LOST'
+let smugglerRequested = false
+type SmugglerState = 'available' | 'pickup' | 'drop' | 'complete'
+let smugglerState: SmugglerState = 'available'
+let smugglerDeadlineMs = 0
+let smugglerRestoreAtMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -537,6 +555,10 @@ function resetRun(nowMs: number) {
   turfState = 'available'
   turfDeadlineMs = 0
   turfRestoreAtMs = 0
+  smugglerRequested = false
+  smugglerState = 'available'
+  smugglerDeadlineMs = 0
+  smugglerRestoreAtMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1556,6 +1578,64 @@ function frame(now: number) {
     turfRestoreAtMs = now + TURF_HOLD_MS
   }
 
+  // O at the safehouse accepts Smuggler Run when no other contract or mission is running
+  const smugglerAcceptable =
+    smugglerState === 'available' &&
+    contractState !== 'active' &&
+    blackoutState === 'available' &&
+    raceState === 'available' &&
+    bankState === 'available' &&
+    vipState === 'available' &&
+    convoyState === 'available' &&
+    jJobState === 'available' &&
+    turfState === 'available' &&
+    !missionComplete &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SMUGGLER_ACCEPT_RADIUS
+  if (smugglerRequested && smugglerAcceptable) {
+    smugglerState = 'pickup'
+    smugglerDeadlineMs = now + SMUGGLER_TIME_LIMIT_MS
+    missionEl.textContent = `${SMUGGLER_ACTIVE_TEXT} — ${Math.ceil(SMUGGLER_TIME_LIMIT_MS / 1000)}S`
+  }
+
+  // Drive the courier into the pickup site and press O to secure the package; heat rises to at least 2
+  if (
+    smugglerState === 'pickup' &&
+    driving &&
+    smugglerRequested &&
+    Math.hypot(courierCar.x - SMUGGLER_PICKUP_SITE.x, courierCar.y - SMUGGLER_PICKUP_SITE.y) < SMUGGLER_PICKUP_SITE.radius
+  ) {
+    smugglerState = 'drop'
+    setWanted(Math.max(2, wanted))
+    missionEl.textContent = `${SMUGGLER_PICKUP_TEXT} — ${Math.ceil((smugglerDeadlineMs - now) / 1000)}S`
+  }
+
+  // Drive the courier into the drop site and press O to deliver: +$900 / +REP 4
+  if (
+    smugglerState === 'drop' &&
+    driving &&
+    smugglerRequested &&
+    Math.hypot(courierCar.x - SMUGGLER_DROP_SITE.x, courierCar.y - SMUGGLER_DROP_SITE.y) < SMUGGLER_DROP_SITE.radius
+  ) {
+    smugglerState = 'complete'
+    smugglerDeadlineMs = 0
+    smugglerRestoreAtMs = now + SMUGGLER_HOLD_MS
+    cash += 900
+    rep += 4
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = SMUGGLER_DONE_TEXT
+  }
+  smugglerRequested = false
+
+  // Smuggler Run timer: expiring mid-run safely returns to available with no payout
+  if ((smugglerState === 'pickup' || smugglerState === 'drop') && smugglerDeadlineMs > 0 && now >= smugglerDeadlineMs) {
+    smugglerState = 'available'
+    smugglerDeadlineMs = 0
+    heatCoolStartMs = 0
+    missionEl.textContent = SMUGGLER_LOST_TEXT
+    smugglerRestoreAtMs = now + SMUGGLER_HOLD_MS
+  }
+
   // Bank Run timer: expiring mid-escape safely resets to available with no payout
   if (bankState === 'escaping' && bankEscapeDeadlineMs > 0 && now >= bankEscapeDeadlineMs) {
     bankState = 'available'
@@ -1693,6 +1773,12 @@ function frame(now: number) {
   const turfTimeLeftSec =
     (turfState === 'active' || turfState === 'escaping') && turfDeadlineMs > 0
       ? Math.max(0, Math.ceil((turfDeadlineMs - now) / 1000))
+      : null
+
+  // Shared Smuggler Run countdown readout (pickup + delivery share one 80s deadline)
+  const smugglerTimeLeftSec =
+    (smugglerState === 'pickup' || smugglerState === 'drop') && smugglerDeadlineMs > 0
+      ? Math.max(0, Math.ceil((smugglerDeadlineMs - now) / 1000))
       : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
@@ -1920,6 +2006,9 @@ function frame(now: number) {
   if (turfRestoreAtMs > 0 && now >= turfRestoreAtMs) {
     turfRestoreAtMs = 0
   }
+  if (smugglerRestoreAtMs > 0 && now >= smugglerRestoreAtMs) {
+    smugglerRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -1942,7 +2031,8 @@ function frame(now: number) {
     vipRestoreAtMs > 0 ||
     convoyRestoreAtMs > 0 ||
     jJobRestoreAtMs > 0 ||
-    turfRestoreAtMs > 0
+    turfRestoreAtMs > 0 ||
+    smugglerRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1978,6 +2068,9 @@ function frame(now: number) {
   } else if (turfRestoreAtMs > 0) {
     const turfBannerText = turfState === 'complete' ? TURF_DONE_TEXT : TURF_FAILED_TEXT
     if (missionEl.textContent !== turfBannerText) missionEl.textContent = turfBannerText
+  } else if (smugglerRestoreAtMs > 0) {
+    const smugglerBannerText = smugglerState === 'complete' ? SMUGGLER_DONE_TEXT : SMUGGLER_LOST_TEXT
+    if (missionEl.textContent !== smugglerBannerText) missionEl.textContent = smugglerBannerText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -2006,6 +2099,9 @@ function frame(now: number) {
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (turfState === 'escaping' && turfTimeLeftSec !== null) {
     const liveText = `${TURF_ESCAPE_TEXT} — ${turfTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if ((smugglerState === 'pickup' || smugglerState === 'drop') && smugglerTimeLeftSec !== null) {
+    const liveText = `${smugglerState === 'pickup' ? SMUGGLER_ACTIVE_TEXT : SMUGGLER_PICKUP_TEXT} — ${smugglerTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
     const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
@@ -2631,6 +2727,88 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Smuggler Run pickup site: green dashed ring with a crate glyph while awaiting the package
+  if (smugglerState === 'pickup') {
+    const sx2 = SMUGGLER_PICKUP_SITE.x
+    const sy2 = SMUGGLER_PICKUP_SITE.y
+    const breathe = Math.sin(now / 300) * 5
+    const inPickup = driving && Math.hypot(courierCar.x - sx2, courierCar.y - sy2) < SMUGGLER_PICKUP_SITE.radius
+    ctx.strokeStyle = '#39ff88'
+    ctx.shadowColor = '#39ff88'
+    ctx.shadowBlur = 22 + breathe
+    ctx.lineWidth = inPickup ? 3.5 : 3
+    ctx.setLineDash([12, 9])
+    ctx.beginPath()
+    ctx.arc(sx2, sy2, SMUGGLER_PICKUP_SITE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 0.08
+    ctx.fillStyle = '#39ff88'
+    ctx.fill()
+    ctx.globalAlpha = 1
+    // inner crate glyph: slatted box with a center strap
+    ctx.lineWidth = 2.5
+    ctx.strokeRect(sx2 - 14, sy2 - 11, 28, 22)
+    ctx.beginPath()
+    ctx.moveTo(sx2 - 14, sy2)
+    ctx.lineTo(sx2 + 14, sy2)
+    ctx.moveTo(sx2, sy2 - 11)
+    ctx.lineTo(sx2, sy2 + 11)
+    ctx.stroke()
+    if (inPickup) {
+      ctx.fillStyle = '#bfffff'
+      ctx.beginPath()
+      ctx.arc(sx2, sy2, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#39ff88'
+    ctx.fillText('SMUGGLER PICKUP', sx2, sy2 - SMUGGLER_PICKUP_SITE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - sx2, player.y - sy2))}M`, sx2, sy2 - SMUGGLER_PICKUP_SITE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
+  // Smuggler Run drop site: amber dashed drop-off pad once the package is secured
+  if (smugglerState === 'drop') {
+    const dxs = SMUGGLER_DROP_SITE.x
+    const dys = SMUGGLER_DROP_SITE.y
+    const breathe = Math.sin(now / 300) * 6
+    const inDrop = driving && Math.hypot(courierCar.x - dxs, courierCar.y - dys) < SMUGGLER_DROP_SITE.radius
+    ctx.strokeStyle = '#ff9d3c'
+    ctx.shadowColor = '#ff9d3c'
+    ctx.shadowBlur = 22 + breathe
+    ctx.lineWidth = inDrop ? 3.5 : 3
+    ctx.setLineDash([16, 12])
+    ctx.beginPath()
+    ctx.arc(dxs, dys, SMUGGLER_DROP_SITE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 0.1
+    ctx.fillStyle = '#ff9d3c'
+    ctx.fill()
+    ctx.globalAlpha = 1
+    // inner down-chevron glyph pointing at the pad
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(dxs - 13, dys - 9)
+    ctx.lineTo(dxs, dys + 9)
+    ctx.lineTo(dxs + 13, dys - 9)
+    ctx.stroke()
+    if (inDrop) {
+      ctx.fillStyle = '#fff3c4'
+      ctx.beginPath()
+      ctx.arc(dxs, dys, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ff9d3c'
+    ctx.fillText('SMUGGLER DROP', dxs, dys - SMUGGLER_DROP_SITE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - dxs, player.y - dys))}M`, dxs, dys - SMUGGLER_DROP_SITE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Police search ring: restrained red pulse + heading tick on the nearest active drone
   if (scanDrone) {
     const sdx = scanDrone.x
@@ -2771,8 +2949,11 @@ function frame(now: number) {
   const convoyEscapingNow = convoyState === 'escaping'
   const jJobEscapingNow = jJobState === 'escaping'
   const turfEscapingNow = turfState === 'escaping'
+  const smugglerRunningNow = smugglerState === 'pickup' || smugglerState === 'drop'
   // Advertise the takeover offer wherever it is still open without displacing the standing hints
   const turfOfferHint = turfState === 'available' ? 'PRESS X FOR DISTRICT TAKEOVER // ' : ''
+  // Advertise the smuggler offer wherever it is still open without displacing the standing hints
+  const smugglerOfferHint = smugglerState === 'available' ? 'PRESS O FOR SMUGGLER RUN // ' : ''
   // Advertise the convoy offer wherever it is still open without displacing the standing hints
   const convoyOfferHint = convoyState === 'available' ? 'PRESS C FOR ARMORED CONVOY // ' : ''
   // Advertise the junction offer wherever it is still open without displacing the standing hints
@@ -2789,28 +2970,30 @@ function frame(now: number) {
       : `EARN $${REPAIR_COST} FOR REPAIR`
     : 'HULL OK'
   let safehouseHint: string
-  if (turfEscapingNow) {
-    safehouseHint = `SAFEHOUSE // DISTRICT TAKEOVER // RETURN TO SAFEHOUSE // ${garageStatusHint} // ${repairStatusHint}`
+  if (smugglerRunningNow) {
+    safehouseHint = `SAFEHOUSE // SMUGGLER RUN // ${smugglerState === 'pickup' ? 'REACH THE PICKUP SITE' : 'REACH THE DROP SITE'} // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (turfEscapingNow) {
+    safehouseHint = `SAFEHOUSE // DISTRICT TAKEOVER // RETURN TO SAFEHOUSE // ${smugglerOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (jJobEscapingNow) {
-    safehouseHint = `SAFEHOUSE // JUNCTION JOB // RETURN TO SAFEHOUSE // ${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // JUNCTION JOB // RETURN TO SAFEHOUSE // ${smugglerOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (convoyEscapingNow) {
-    safehouseHint = `SAFEHOUSE // ARMORED CONVOY // RETURN TO SAFEHOUSE // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // ARMORED CONVOY // RETURN TO SAFEHOUSE // ${smugglerOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutEscapingNow) {
-    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${smugglerOfferHint}${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (vipEscapingNow) {
-    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${smugglerOfferHint}${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (bankEscapingNow) {
-    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${smugglerOfferHint}${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (vipAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${turfOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${turfOfferHint}${jJobOfferHint}${smugglerOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (bankAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${turfOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${turfOfferHint}${jJobOfferHint}${smugglerOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (raceAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${jJobOfferHint}${turfOfferHint}${smugglerOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // ${jJobOfferHint}${turfOfferHint}${smugglerOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (nearSafehouse) {
-    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${smugglerOfferHint}${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else {
     safehouseHint = SAFEHOUSE_CLEAR_TEXT
   }
