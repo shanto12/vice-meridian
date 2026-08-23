@@ -637,3 +637,39 @@ accept at safehouse, drive to the site, press C, return payout/failure — is NO
 VERIFIED in real Chrome during this pass and is flagged above rather than assumed; this
 is surface/deploy evidence, not proof of a complete GTA 7 or enterprise-grade product.
 Prior evidence sections remain intact and their gaps still stand.
+
+---
+
+# Junction Job Mission — Release Evidence (2026-08-23)
+
+Verification matrix for the Junction Job slice: accept the job at the safehouse, drive to
+the junction target and press J to secure it, return to the safehouse for the payout, with
+a failure path if the 70-second deadline expires.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit afa1bfcd3a6adae7049e8bb966862300acb99b3d ("Add junction job mission") pushed to origin/main and confirmed clean | git log/rev-parse + git status inspection after push | PASS | Working tree clean post-push; src/main.ts is the only feature surface changed |
+| Build gate: npm run build passed (tsc + Vite) | Local build run against the source commit | PASS | Produced assets/index-qNy7GYaw.js at 46.58 kB JS (13.12 kB gzip) |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the package manifest | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed before commit | Local check against the staged diff | PASS | No trailing whitespace or conflict markers |
+| Netlify production deploy 6a8b5fcec99824918a6980db live at https://vice-meridian.netlify.app/ | Production URL observation | PASS | HTTP/2 200 observed |
+| Live asset: assets/index-qNy7GYaw.js served by production | Live asset fetch matched against build output | PASS | Hash match confirms the deploy serves this commit's bundle |
+| Security headers observed on production HTML: CSP, HSTS, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy | Live header observation of the production origin | PASS | All expected headers observed as previously configured |
+| Bundle markers: JUNCTION JOB, JUNCTION TARGET, TARGET SECURED +$1000, TARGET LOST, plus prior ARMORED CONVOY, CONVOY SITE, CARGO SECURED +$750, VIP EXTRACTION, BANK RUN, MIDNIGHT SPRINT, POLICE PURSUIT confirmed | Live bundle inspection of assets/index-qNy7GYaw.js | PASS | Prior-slice markers persist alongside the new junction strings |
+| Real Chrome desktop: production tab at 1440x660 loaded the live asset, Canvas HUD visible, scrollWidth 1440, zero console errors | Real Chrome desktop pass on the production deploy | PASS | Current asset script index-qNy7GYaw.js confirmed loaded |
+| Real Chrome mobile: production tab at 390x844 loaded the live asset, Canvas HUD visible, scrollWidth 390, zero console errors, then viewport reset | Real Chrome mobile pass on the production deploy | PASS | Same session returned to the desktop viewport afterward |
+| Interactive DOM surface: visible DOM control count is 0 because the page is Canvas plus keyboard controls | DOM inspection of the production page | PASS (by design) | Absence of visible DOM controls is intentional architecture, not a defect |
+| Junction Job end-to-end runtime transition: accept at safehouse → drive to junction target → press J to secure the target → return to safehouse payout (+$1000 success path / TARGET LOST failure path) driven in real Chrome | Bounded real-Chrome keyboard attempt did not drive the full state machine; source/build/live-bundle evidence only | NOT FULLY VERIFIED | Explicitly flagged rather than assumed; prior sections' deeper gaps remain marked |
+| Project scope statement | Release scope review | LIMITATION ACKNOWLEDGED | The project remains an evolving GTA-style vertical slice built feature-by-feature — not a complete "GTA 7" or an enterprise-grade product |
+
+## Summary
+
+Source/build, dependency audit, whitespace hygiene, GitHub handoff, Netlify deployment,
+production security headers, live asset verification, bundle marker confirmation, and
+real-Chrome desktop (1440x660)/mobile (390x844) passes all succeeded with zero console
+errors and no horizontal overflow. The Junction Job end-to-end runtime transition —
+accept at safehouse, drive to the target, press J, return payout/failure — is NOT FULLY
+VERIFIED in real Chrome during this pass and is flagged above rather than assumed;
+source review, the passing build, and the live-bundle strings are the supporting
+evidence. Prior evidence sections remain intact and their gaps still stand, and no claim
+is made that the overall GTA-style game is complete or enterprise-grade.
