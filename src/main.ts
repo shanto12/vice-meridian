@@ -19,6 +19,7 @@ app.innerHTML = `
     <p class="hud-safehouse" id="hud-safehouse" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 10px rgba(0,240,255,0.6);">SAFEHOUSE // HOLD H TO CLEAR HEAT</p>
     <p class="hud-scan" id="hud-scan" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE SCAN // NEAREST UNIT ---M</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
+    <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <div class="run-complete" id="run-complete" hidden>
@@ -26,7 +27,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — N race — P save — L load — R restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — N race — P save — L load — R restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -57,7 +58,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -73,6 +74,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyH') safehouseRequested = true
   if (e.code === 'KeyB') blackoutRequested = true
   if (e.code === 'KeyG') garageRequested = true
+  if (e.code === 'KeyT') repairRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
@@ -137,6 +139,21 @@ let garageRequested = false
 let garageTuneInstalled = false
 let garageRestoreAtMs = 0
 let garageBannerAfford = true
+
+// Vehicle damage: collisions wear the hull down; the safehouse repair shop restores it (KeyT)
+const VEHICLE_HIT_DAMAGE = 18
+const REPAIR_COST = 150
+const REPAIR_HOLD_MS = 2600
+const VEHICLE_DISABLED_TEXT = 'VEHICLE DISABLED // REPAIR AT SAFEHOUSE'
+const REPAIR_DONE_TEXT = 'REPAIR SHOP // VEHICLE RESTORED -$150'
+const REPAIR_POOR_TEXT = 'REPAIR SHOP // NEED $150'
+let carHealth = 100
+let repairRequested = false
+let repairRestoreAtMs = 0
+let repairBannerAfford = true
+let repairPoorRestoreAtMs = 0
+const VEHICLE_DISABLED_HOLD_MS = 2600
+let vehicleDisabledRestoreAtMs = 0
 
 // Blackout run side mission: accept with B at the safehouse, cut the grid target, then escape home
 const BLACKOUT_TARGET = { x: WORLD_W * 0.78, y: WORLD_H * 0.72, radius: 95 }
@@ -203,6 +220,7 @@ interface SaveData {
   missionComplete: boolean
   garageTuneInstalled: boolean
   blackoutCompleted: boolean
+  carHealth?: number
   carX?: number
   carY?: number
   carAngle?: number
@@ -217,6 +235,7 @@ function writeSave(): boolean {
       missionComplete,
       garageTuneInstalled,
       blackoutCompleted: blackoutState === 'complete',
+      carHealth,
       carX: courierCar.x,
       carY: courierCar.y,
       carAngle: courierCar.angle,
@@ -315,6 +334,9 @@ const courierEl = document.getElementById('hud-courier')!
 const safehouseEl = document.getElementById('hud-safehouse')!
 const scanEl = document.getElementById('hud-scan')!
 const walletEl = document.getElementById('hud-wallet')!
+const hullEl = document.getElementById('hud-hull')!
+const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
+const hullFillEl = document.querySelector<HTMLSpanElement>('#hull-fill')!
 const missionEl = document.getElementById('mission-line')!
 const runCompleteEl = document.getElementById('run-complete')!
 const runStatsEl = document.getElementById('run-stats')!
@@ -351,6 +373,9 @@ function resetRun(nowMs: number) {
   garageRequested = false
   garageTuneInstalled = false
   garageRestoreAtMs = 0
+  repairRequested = false
+  repairRestoreAtMs = 0
+  carHealth = 100
   saveRequested = false
   loadRequested = false
   saveRestoreAtMs = 0
@@ -852,7 +877,7 @@ function frame(now: number) {
     courierCar.x = Math.max(24, Math.min(WORLD_W - 24, courierCar.x))
     courierCar.y = Math.max(24, Math.min(WORLD_H - 24, courierCar.y))
 
-    // Forgiving traffic contact: sharp slowdown plus heat, one registration per window
+    // Forgiving traffic contact: sharp slowdown plus heat and hull damage, one registration per window
     if (now >= trafficHitCooldownUntilMs) {
       for (const t of traffic) {
         if (Math.abs(courierCar.x - t.x) < t.length / 2 + 20 && Math.abs(courierCar.y - t.laneY) < 28) {
@@ -861,7 +886,16 @@ function frame(now: number) {
           trafficHitUntilMs = now + TRAFFIC_HIT_HOLD_MS
           trafficHitCooldownUntilMs = now + TRAFFIC_HIT_COOLDOWN_MS
           trafficHitRestoreAtMs = now + TRAFFIC_HIT_HOLD_MS
-          missionEl.textContent = TRAFFIC_HIT_TEXT
+          carHealth = Math.max(0, carHealth - VEHICLE_HIT_DAMAGE)
+          missionEl.textContent = `VEHICLE DAMAGE // ${carHealth}%`
+          if (carHealth <= 0) {
+            driving = false
+            player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
+            player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
+            courierCar.speed = 0
+            missionEl.textContent = VEHICLE_DISABLED_TEXT
+            vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+          }
           break
         }
       }
@@ -916,8 +950,12 @@ function frame(now: number) {
     player.x = Math.max(player.size, Math.min(WORLD_W - player.size, player.x + (dx / len) * speedNow * dt))
     player.y = Math.max(player.size, Math.min(WORLD_H - player.size, player.y + (dy / len) * speedNow * dt))
 
-    // E hops in when close to the parked courier; first pickup starts a hot delivery that draws police heat
-    if (courierToggleRequested && Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS) {
+    // E hops in when close and the courier is not disabled; first pickup starts a hot delivery
+    if (
+      courierToggleRequested &&
+      carHealth > 0 &&
+      Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS
+    ) {
       driving = true
       if (contractState === 'available') {
         contractState = 'active'
@@ -950,6 +988,21 @@ function frame(now: number) {
       garageRestoreAtMs = now + GARAGE_HOLD_MS
     }
     garageRequested = false
+
+    // T inside the safehouse repairs the courier hull when damaged: $150 flat
+    if (repairRequested && carHealth < 100 && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
+      repairBannerAfford = cash >= REPAIR_COST
+      if (repairBannerAfford) {
+        cash -= REPAIR_COST
+        carHealth = 100
+        missionEl.textContent = REPAIR_DONE_TEXT
+      } else {
+        repairPoorRestoreAtMs = now + REPAIR_HOLD_MS
+        missionEl.textContent = REPAIR_POOR_TEXT
+      }
+      repairRestoreAtMs = now + REPAIR_HOLD_MS
+    }
+    repairRequested = false
 
     // B near the safehouse accepts the blackout run when no courier contract is active
     const blackoutAcceptable =
@@ -1038,6 +1091,9 @@ function frame(now: number) {
       if (garageTuneInstalled) {
         courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
         courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
+      }
+      if (typeof data.carHealth === 'number' && Number.isFinite(data.carHealth)) {
+        carHealth = Math.max(0, Math.min(100, data.carHealth))
       }
       if (
         typeof data.carX === 'number' && Number.isFinite(data.carX) &&
@@ -1252,6 +1308,15 @@ function frame(now: number) {
   if (raceRestoreAtMs > 0 && now >= raceRestoreAtMs) {
     raceRestoreAtMs = 0
   }
+  if (repairRestoreAtMs > 0 && now >= repairRestoreAtMs) {
+    repairRestoreAtMs = 0
+  }
+  if (vehicleDisabledRestoreAtMs > 0 && now >= vehicleDisabledRestoreAtMs) {
+    vehicleDisabledRestoreAtMs = 0
+  }
+  if (repairPoorRestoreAtMs > 0 && now >= repairPoorRestoreAtMs) {
+    repairPoorRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -1265,7 +1330,10 @@ function frame(now: number) {
     garageRestoreAtMs > 0 ||
     heatCoolRestoreAtMs > 0 ||
     saveRestoreAtMs > 0 ||
-    raceRestoreAtMs > 0
+    raceRestoreAtMs > 0 ||
+    repairRestoreAtMs > 0 ||
+    vehicleDisabledRestoreAtMs > 0 ||
+    repairPoorRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1280,6 +1348,12 @@ function frame(now: number) {
   } else if (garageRestoreAtMs > 0) {
     const garageText = garageBannerAfford ? GARAGE_AFFORD_TEXT : GARAGE_POOR_TEXT
     if (missionEl.textContent !== garageText) missionEl.textContent = garageText
+  } else if (vehicleDisabledRestoreAtMs > 0) {
+    if (missionEl.textContent !== VEHICLE_DISABLED_TEXT) missionEl.textContent = VEHICLE_DISABLED_TEXT
+  } else if (repairPoorRestoreAtMs > 0) {
+    if (missionEl.textContent !== REPAIR_POOR_TEXT) missionEl.textContent = REPAIR_POOR_TEXT
+  } else if (repairRestoreAtMs > 0) {
+    if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
     const liveText = `MIDNIGHT SPRINT // CHECKPOINT ${Math.min(raceCheckpointIndex + 1, RACE_CHECKPOINTS.length)}/${RACE_CHECKPOINTS.length} — ${raceTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
@@ -1619,21 +1693,26 @@ function frame(now: number) {
     blackoutState === 'available' &&
     !missionComplete &&
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < RACE_ACCEPT_RADIUS
-  // Garage status composes onto every safehouse line so H, B, G, and N all stay visible
+  // Garage status composes onto every safehouse line so H, B, G, T, and N all stay visible
   const garageStatusHint = garageTuneInstalled
     ? 'SPRINT KIT INSTALLED'
     : cash >= GARAGE_TUNE_COST
       ? 'PRESS G TO TUNE ($250)'
       : `EARN $${GARAGE_TUNE_COST} FOR TUNE`
+  const repairStatusHint = carHealth < 100
+    ? cash >= REPAIR_COST
+      ? 'PRESS T TO REPAIR ($150)'
+      : `EARN $${REPAIR_COST} FOR REPAIR`
+    : 'HULL OK'
   let safehouseHint: string
   if (blackoutEscapingNow) {
-    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${garageStatusHint}`
+    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (raceAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint}`
+    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // H CLEAR HEAT // ${garageStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // H CLEAR HEAT // ${garageStatusHint} // ${repairStatusHint}`
   } else if (nearSafehouse) {
-    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // ${garageStatusHint}`
+    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // ${garageStatusHint} // ${repairStatusHint}`
   } else {
     safehouseHint = SAFEHOUSE_CLEAR_TEXT
   }
@@ -1653,6 +1732,14 @@ function frame(now: number) {
   // Wallet readout: mirrors the live cash/rep values every frame
   const walletText = `CASH $${cash} // REP ${rep}`
   if (walletEl.textContent !== walletText) walletEl.textContent = walletText
+
+  // Hull readout: health percentage plus a compact bar that shifts color as damage accrues
+  const hullPct = Math.max(0, Math.min(100, Math.round(carHealth)))
+  const hullPctText = String(hullPct)
+  if (hullPctEl.textContent !== hullPctText) hullPctEl.textContent = hullPctText
+  hullFillEl.style.width = `${hullPct}%`
+  hullFillEl.style.background = carHealth > 60 ? '#39ff88' : carHealth > 30 ? '#ffe05a' : '#ff3c3c'
+  hullEl.style.color = carHealth > 60 ? '#39ff88' : carHealth > 30 ? '#ffe05a' : '#ff3c3c'
 
   signals.forEach((s, i) => {
     if (signalsFound > i) return
@@ -1866,6 +1953,9 @@ function frame(now: number) {
     if (garageTuneInstalled) {
       courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
       courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
+    }
+    if (typeof bootData.carHealth === 'number' && Number.isFinite(bootData.carHealth)) {
+      carHealth = Math.max(0, Math.min(100, bootData.carHealth))
     }
     if (
       typeof bootData.carX === 'number' && Number.isFinite(bootData.carX) &&
