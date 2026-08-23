@@ -312,3 +312,36 @@ Reaching the grid target, returning to the safehouse for the payout, the 30-seco
 failure, and every mission/banner restoration branch were NOT independently driven
 end-to-end in real Chrome; these are flagged NOT FULLY VERIFIED rather than assumed, and
 no enterprise-grade or full behavior verification is claimed for this release.
+
+---
+
+# Safehouse Garage Tune — Release Evidence (2026-08-23)
+
+Verification matrix for the safehouse garage tune release. Evidence surfaces refer to
+the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Status |
+| --- | --- | --- |
+| Source change is committed and traceable | Commit `2a8a226ff43269578fa51d530a6931e771116dc2` (short `2a8a226`) "Add safehouse garage tune" on `origin/main` | PASS |
+| Production deploy is live | Netlify deploy `6a8b3b873974a17a6ded5382` at https://vice-meridian.netlify.app/ | PASS |
+| Production build succeeds and tracked changes are clean | Build: `npm run build` (tsc + Vite) passes; `git diff --check` clean | PASS |
+| No known vulnerabilities in production dependencies | Build: `npm audit --omit=dev` reports 0 vulnerabilities | PASS |
+| Site serves successfully with required security headers | API/headers: HTTP 200; CSP, Permissions-Policy, Referrer-Policy, HSTS, X-Content-Type-Options all present | PASS |
+| Live bundle contains the garage strings plus prior systems | Real Chrome desktop / bundle: contains "GARAGE // SPRINT KIT INSTALLED -$250", "GARAGE // TUNE KIT COSTS $250", "PRESS G TO TUNE", "SPRINT KIT INSTALLED", plus BLACKOUT getaway and POLICE SCAN heat-decay strings | PASS |
+| Desktop browser loads production with G in visible controls | Real Chrome desktop 1440px: production loaded; M/F/Q/R/E/B/H/G key smoke completed; visible hint includes "G to tune at safehouse" | PASS — zero console errors, no horizontal overflow |
+| Responsive layout on small viewport | Real Chrome mobile 390x844: production loaded, scrollWidth equals 390 | PASS — zero console errors |
+| Moving to the safehouse holding at least $250 | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Successful one-time purchase: -$250, +60 maxSpeed, +80 accel applied | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Insufficient-cash path shows GARAGE // TUNE KIT COSTS $250 once | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| resetRun restores base car stats (360/420) after a tune | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Mission/banner restoration branches after garage banners expire | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+
+## Summary
+
+Source, build, audit, header, bundle-content, and real-browser load/smoke gates passed.
+The garage tune logic itself ships verified by live bundle content and code review only.
+Moving to the safehouse with enough cash, the one-time purchase and stat change, the
+insufficient-cash banner, reset-to-base-stats, and all mission restoration branches were
+NOT independently driven end-to-end in real Chrome; these are flagged NOT FULLY VERIFIED
+rather than assumed, and no enterprise-grade or full behavior verification is claimed for
+this release.
