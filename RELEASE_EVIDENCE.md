@@ -796,41 +796,6 @@ than assumed. Prior evidence sections remain intact and their gaps still stand.
 
 ---
 
-# Smuggler Run — Release Evidence (2026-08-23)
-
-Verification matrix for the Smuggler Run slice: accept the run at the safehouse, reach the
-pickup marker, secure the package, drive to the drop marker for the payout, with a failure
-path if the deadline expires.
-
-| Requirement | Evidence surface | Result | Notes |
-| --- | --- | --- | --- |
-| Source change is committed and traceable | Source `f84da2b14e3eb2596f2ac338971a69079c301a8f` equals `origin/main` | PASS | Working tree clean after push |
-| Production build succeeds | Build: `npm run build` passes | PASS | No type or build errors blocking output |
-| No known vulnerabilities in production dependencies | Audit: `npm audit --omit=dev` reports 0 vulnerabilities | PASS | Production dependency tree clean |
-| Whitespace hygiene | Build: `git diff --check` passes | PASS | No trailing whitespace or conflict markers |
-| Production deploy is live | Live curl/headers: Netlify deploy `6a8b7164a9c44ebe4f2bcdf2` at https://vice-meridian.netlify.app/ | PASS | Deploy ID confirmed against the live site |
-| Live asset served by production | Live curl: `assets/index-3qJt7n0K.js` | PASS | Confirms the deploy serves this commit's bundle |
-| Security headers present on responses | Live curl/headers: CSP self-only with frame-ancestors none, HSTS preload, nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera/microphone/geolocation disabled | PASS | All expected headers observed on the production origin |
-| Bundle contains Smuggler Run strings plus prior systems | Markers: live bundle includes SMUGGLER RUN // REACH THE PICKUP SITE, SMUGGLER RUN // PACKAGE SECURED // REACH THE DROP SITE, SMUGGLER RUN // PACKAGE DELIVERED +$900 // REP +4, SMUGGLER RUN // RUN LOST, SMUGGLER PICKUP, SMUGGLER DROP | PASS | Prior-slice markers persist alongside the new smuggler strings |
-| Real Chrome desktop loads production cleanly | Real Chrome desktop 1440x604: canvas true, no horizontal overflow, exact live asset `index-3qJt7n0K.js`, console errors empty | PASS | Desktop session toggled Y Night Shift on/off and exercised F, Q, Space, R |
-| Real Chrome mobile loads production cleanly | Real Chrome mobile 390x844: canvas true, no horizontal overflow, exact live asset `index-3qJt7n0K.js`, console errors empty | PASS | Small-viewport layout contained within viewport width |
-| Full Smuggler Run path (safehouse → pickup → drop → payout/timeout) driven end-to-end in real Chrome | Bounded real-Chrome navigation from spawn timed out before reaching the pickup/drop loop | NOT FULLY VERIFIED | Explicitly flagged rather than assumed; source/build/live-bundle evidence only; prior sections' deeper gaps remain marked |
-| Project scope statement | Release scope review | LIMITATION ACKNOWLEDGED | This is an evolving VICE//MERIDIAN vertical slice built feature-by-feature — not complete GTA 7 and not an enterprise-grade product |
-
-## Summary
-
-Source parity with origin/main, build, audit, whitespace hygiene, Netlify deployment, live
-asset verification (`assets/index-3qJt7n0K.js`), security headers, bundle marker
-confirmation, and real-Chrome desktop (1440x604) / mobile (390x844) passes all succeeded
-with empty console errors, no horizontal overflow, and the Night Shift toggle plus F/Q/Space/R
-smoke exercised on desktop. The full safehouse → pickup → drop → payout/timeout path is NOT
-FULLY VERIFIED because bounded Chrome navigation from spawn timed out, and it is flagged above
-rather than assumed. Prior evidence sections remain intact and their gaps still stand, and no
-claim is made that this evolving VICE//MERIDIAN vertical slice is complete GTA 7 or
-enterprise-grade.
-
----
-
 # Smuggler Run - Release Evidence (2026-08-23)
 
 Verification matrix for the Smuggler Run slice: press O on foot at the safehouse to accept,
