@@ -911,3 +911,21 @@ The source commit, GitHub push, local/Netlify build, dependency audit, live asse
 ## Summary
 
 Contacts phone menu is live and verified on desktop/mobile Chrome; simulation-freeze timing remains NOT FULLY VERIFIED.
+
+# Contacts Phone Mission Calls - Release Evidence (2026-08-23)
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Cursor source commit 518f6173d3480a4fa508be8ef3fe85d0589707ff Make contacts phone mission-capable is on origin/main | Cursor Git verification | PASS | src/main.ts only; HEAD equals origin/main; clean tree |
+| Netlify production deploy 6a8b832fe350df044ac35634 is live at https://vice-meridian.netlify.app/ | Netlify CLI | PASS | Production URL live; served asset assets/index-C62wu3h2.js |
+| Build and audit | npm run build; npm audit --omit=dev | PASS | tsc + Vite build passed; 60.46 kB JS / 16.29 kB gzip; 0 vulnerabilities |
+| Live markers and security headers | curl root, bundle, headers | PASS | Root 200; asset 200; bundle contains PRESS 1-9 TO CALL, CALL CONNECTED, Digit1, Digit9; CSP, HSTS, nosniff, Referrer-Policy, Permissions-Policy present |
+| Real Chrome desktop phone call | Real Chrome production at 1440x660 | PASS | Tab opened the overlay with all nine jobs and PRESS 1-9 TO CALL; Digit1 closed it and set CALL CONNECTED; Tab reopened; Escape closed; scrollWidth 1440; zero console errors |
+| Real Chrome mobile re-check for this commit | Prior production mobile baseline plus unchanged responsive width rule | NOT FULLY VERIFIED | The previous phone release passed at 390x844; this exact commit's new hint was not rerun at 390x844 |
+| Simulation pause and mission acceptance end to end | Source and bounded Chrome smoke | NOT FULLY VERIFIED | Source preserves the phoneOpen early-return; the bounded call smoke verified the overlay/status transition, not safehouse mission completion |
+| Auth, backend, and API integration | Static Vite architecture | NOT APPLICABLE | No auth, backend, or API surface exists |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product |
+
+## Summary
+
+The Cursor-authored phone-call slice is live and verified for the desktop production interaction. Mobile re-check for this exact commit and full mission completion remain NOT FULLY VERIFIED. VICE//MERIDIAN remains an evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product.
