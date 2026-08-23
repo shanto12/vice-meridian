@@ -260,7 +260,7 @@ function frame(now: number) {
     ctx.shadowColor = '#00f0ff'
     ctx.shadowBlur = 20
     ctx.beginPath()
-    ctx.arc(player.x, player.y, jammer.radius * t, 0, Math.PI * 2)
+    ctx.arc(player.x, player.y, Math.max(0, jammer.radius * t), 0, Math.PI * 2)
     ctx.stroke()
     ctx.shadowBlur = 0
   }
