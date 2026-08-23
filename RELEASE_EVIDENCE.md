@@ -899,23 +899,15 @@ The source commit, GitHub push, local/Netlify build, dependency audit, live asse
 
 # Contacts Phone Menu - Release Evidence (2026-08-23)
 
-Verification matrix for the Tab-driven VICE//MERIDIAN contacts phone overlay.
-
 | Requirement | Evidence surface | Result | Notes |
 | --- | --- | --- | --- |
-| Source commit 7f6a54aa74e6895375ea094b72cafb1ba911f0ae Add contacts phone menu is on origin/main | Cursor Git push verification | PASS | src/main.ts only; HEAD equals origin/main and worktree clean |
-| Netlify production deploy 6a8b7e35a8f152f751a37fa7 is live at https://vice-meridian.netlify.app/ | Netlify CLI deploy output | PASS | Production URL live |
-| Build gate npm run build passed | Local and Netlify build | PASS | assets/index-DopAfWu-.js, 60.00 kB JS / 16.17 kB gzip |
-| Dependency hygiene npm audit --omit=dev | Local audit | PASS | 0 vulnerabilities |
-| Whitespace hygiene git diff --check | Local check | PASS | Clean |
-| Live root and bundle markers | curl production checks | PASS | GET / HTTP 200; asset HTTP 200; served bundle contains VICE//MERIDIAN // CONTACTS, TAB TOGGLE // ESC CLOSE, and TAB contacts |
-| Security headers | curl production headers | PASS | CSP self-only with frame-ancestors none; HSTS max-age=31536000 includeSubDomains preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy camera=(), microphone=(), geolocation=() |
-| Real Chrome desktop phone flow | Real Chrome at 1440x660 | PASS | Tab opened the overlay; DOM exposed the title, all nine job entries, live CASH / REP status, and close hint; Escape closed it; Tab toggled it closed; phone screenshot reviewed; zero console errors |
-| Real Chrome mobile phone flow | Real Chrome at 390x844 | PASS | Tab opened the overlay; phone rectangle stayed within the viewport at 320px wide; scrollWidth stayed 390; canvas rendered; zero console errors; viewport reset afterward |
-| Simulation pause behavior | Source review and bounded browser smoke | NOT FULLY VERIFIED | The source early-returns while phoneOpen, but a longer gameplay-time freeze was not separately measured in Chrome |
-| Auth, backend, and API integration | Static Vite architecture review | NOT APPLICABLE | No auth, backend, or API surface exists |
-| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | This is an evolving GTA-style vertical slice, not a complete GTA 7 and not an enterprise-grade product |
+| Source commit 7f6a54a Add contacts phone menu and Netlify deploy 6a8b7e35a8f152f751a37fa7 are live | Cursor Git and Netlify CLI | PASS | HEAD equals origin/main; production URL https://vice-meridian.netlify.app/ |
+| Build, audit, live asset, and security headers | npm run build; npm audit --omit=dev; curl | PASS | assets/index-DopAfWu-.js 60.00 kB / 16.17 kB gzip; 0 vulnerabilities; root and asset HTTP 200; CSP/HSTS/nosniff/Referrer-Policy/Permissions-Policy present |
+| Desktop Tab/Escape phone flow | Real Chrome 1440x660 | PASS | Overlay title, nine jobs, CASH/REP/WANTED, and close hint visible; Tab opens/toggles; Escape closes; zero console errors |
+| Mobile phone flow | Real Chrome 390x844 | PASS | 320px overlay stayed within viewport; scrollWidth 390; canvas true; zero console errors; viewport reset |
+| Simulation freeze timing | Source and bounded Chrome review | NOT FULLY VERIFIED | Source early-returns while phoneOpen; longer timed freeze was not measured |
+| Auth/backend/API and product scope | Architecture/scope review | NOT APPLICABLE / LIMITATION ACKNOWLEDGED | Static Vite site; evolving GTA-style vertical slice, not complete GTA 7 or enterprise-grade product |
 
 ## Summary
 
-The Cursor-authored contacts phone overlay is deployed and verified on real Chrome desktop and mobile. Build, audit, live asset, headers, Tab/Escape interactions, responsive bounds, and console checks passed. The longer simulation-freeze behavior remains NOT FULLY VERIFIED rather than inferred from source alone. VICE//MERIDIAN remains an evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product.
+Contacts phone menu is live and verified on desktop/mobile Chrome; simulation-freeze timing remains NOT FULLY VERIFIED.
