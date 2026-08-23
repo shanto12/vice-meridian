@@ -81,3 +81,35 @@ the Netlify production deploy of this repository.
 Build, audit, bundle-content, header, desktop-interaction, and mobile-layout gates passed.
 The police scan wanted-state path, safehouse H-in-zone path, and courier E/Space paths
 were NOT fully verified in this pass and are flagged above rather than assumed.
+
+---
+
+# Wallet HUD — Release Evidence (2026-08-23)
+
+Verification matrix for the wallet-HUD release. Evidence surfaces refer to
+the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed and traceable | Commit `3f7863bee3edb5ccfc59c8130c1364dfe1557566` ("Add visible wallet HUD") on `origin/main` | PASS | Only `src/main.ts` modified; working tree clean after push |
+| Production deploy is live | Netlify deploy `6a8b2dca3d5e25bcfb64d451` at https://vice-meridian.netlify.app/ | PASS | Deploy ID confirmed against the live site |
+| Production build succeeds | `npm run build` (tsc + Vite) | PASS | No type or build errors blocking output |
+| No whitespace errors in tracked changes | `git diff --check` | PASS | Clean output, no trailing whitespace or conflict markers |
+| No known vulnerabilities in production dependencies | `npm audit --omit=dev` | PASS | 0 vulnerabilities reported for the production dependency tree |
+| App bundle contains the wallet strings plus prior feature strings | Fetched live JS bundle; contains wallet "CASH $" and "REP" template strings plus "POLICE SCAN", "SAFEHOUSE", "COURIER RUN // REACH SKYWAY DROP-OFF", "COURIER RUN // DELIVERED +$250 // REP +1", and "DROP-OFF" strings | PASS | Confirms the deploy serves the updated bundle; police scan, safehouse, and courier contract strings remain intact alongside the new wallet code |
+| Security headers present on responses | Live response headers include CSP, Permissions-Policy, Referrer-Policy, HSTS, and `X-Content-Type-Options` | PASS | All expected headers observed on the production origin |
+| Wallet HUD renders in a real browser | Real Chrome profile desktop session at 1440x604: page loaded; `#hud-wallet` visible reading "CASH $0 // REP 0" | PASS | Initial values match the reset run state |
+| Core gameplay controls work in a real browser | Same desktop session at 1440x604: M (map open/close), F (pulse), Q (jammer), R (reset) smoke-exercised | PASS | Zero application console errors during interaction |
+| Responsive layout on small viewport | Real Chrome mobile session at 390x844: page loaded, wallet line visible, scrollWidth measured at 390 | PASS | No horizontal overflow; layout contained within viewport width |
+| Courier reward delivery reflected end-to-end (+$250 / REP +1 on live site) | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Delivery updates cash/rep in code but the full drive-deliver loop was not driven on the live deploy in this pass |
+| Police scan wanted-state end-to-end path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | HUD distance readout and red search ring under live wanted state shipped but were not driven end-to-end in this pass |
+| Safehouse H-in-zone heat-clear path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | H keypress while standing inside the safehouse ring was not driven end-to-end in this pass |
+| Courier E enter/exit + Space boost path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Controls implemented in code but not explicitly driven end-to-end in this pass |
+| Auth / backend / API integration | Static Vite site — no auth, backend, or API surface exists | Not applicable | Nothing to verify beyond static serving and headers |
+
+## Summary
+
+Build, audit, bundle-content, header, wallet-visibility, desktop-interaction, and
+mobile-layout gates passed. The courier reward delivery loop, police scan wanted-state
+path, safehouse H-in-zone path, and courier E/Space paths were NOT fully verified in
+this pass and are flagged above rather than assumed.
