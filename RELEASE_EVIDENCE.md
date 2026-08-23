@@ -711,3 +711,42 @@ VERIFIED in real Chrome during this pass and is flagged above rather than assume
 source review, the passing build, and the live-bundle strings are the supporting
 evidence. Prior evidence sections remain intact and their gaps still stand, and no claim
 is made that the overall GTA-style game is complete or enterprise-grade.
+
+---
+
+# Night Shift City Lights — Release Evidence (2026-08-23)
+
+Verification matrix for the Night Shift slice: a purely cosmetic Y/KeyY toggle that
+darkens the canvas background gradient, strengthens the existing building-window neon and
+district-boundary glow, draws subtle warm street-light pools along the road band, shows a
+temporary #hud-night banner reading NIGHT SHIFT // CITY LIGHTS ON / NIGHT SHIFT //
+CITY LIGHTS OFF, and adds "Y night shift" to the controls hint — with no changes to
+missions, input handling, save/load, physics, or timers.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit db2ead0d5dcf254611192bc297995119f988ec3c ("Add Night Shift city lights toggle") pushed to origin/main with clean status | git log/rev-parse + git status inspection after push | PASS | src/main.ts is the only feature surface changed; working tree clean post-push |
+| Build gate: npm run build passed (tsc + Vite) | Local build run against the source commit | PASS | Produced assets/index-D1KSzbaZ.js at 51.33 kB JS (14.25 kB gzip); zero TypeScript errors |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the package manifest | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed | Local check against the tracked diff | PASS | No trailing whitespace or conflict markers |
+| Netlify production deploy 6a8b67b412e8bef936b78a01 live at https://vice-meridian.netlify.app/ | Production URL observation | PASS | HTTP/2 200 observed; deploy serves the Night Shift commit's bundle |
+| Live asset: assets/index-D1KSzbaZ.js served by production | Live asset fetch matched against build output | PASS | Hash match confirms the deploy serves this commit's bundle |
+| Bundle markers: NIGHT SHIFT // CITY LIGHTS ON and NIGHT SHIFT // CITY LIGHTS OFF present alongside prior DISTRICT TAKEOVER and JUNCTION JOB markers | Live bundle inspection of assets/index-D1KSzbaZ.js | PASS | Prior-slice markers persist alongside the new night-shift strings |
+| Security headers observed on production HTML: CSP, HSTS, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy | Live header observation of the production origin | PASS | All expected headers observed as previously configured |
+| Real Chrome desktop on the deployed URL: canvas rendered at a 1440px viewport with no horizontal overflow; pressing Y showed the exact banner NIGHT SHIFT // CITY LIGHTS ON and toggling again showed the exact banner NIGHT SHIFT // CITY LIGHTS OFF; screenshot visual review showed a darker city background, stronger neon/window glow, street-light pools, and the HUD banner; zero console errors | Real Chrome desktop pass on the production deploy | PASS | Both toggle directions reproduced with exact banner text |
+| Real Chrome mobile: production tab at 390x844 loaded the same asset, canvas visible, scrollWidth 390, zero console errors | Real Chrome mobile pass on the production deploy | PASS | No horizontal overflow on the small viewport |
+| Interactive DOM surface: visible DOM control count is 0 by design because this is a canvas game driven entirely by keyboard input | DOM inspection of the production page | PASS (by design) | Absence of visible DOM controls is intentional architecture, not a defect |
+| Full runtime mission-transition coverage across every banner/state branch in real Chrome | Not exercised end-to-end in real Chrome during this pass; source/build/live-bundle evidence only | NOT FULLY VERIFIED | Explicitly flagged rather than assumed; existing mission-transition gaps from prior sections remain marked |
+| Project scope statement: a complete GTA 7 scope remains out of reach for this release | Release scope review | LIMITATION ACKNOWLEDGED — NOT COMPLETE | This remains an evolving GTA-style vertical slice built feature-by-feature; no enterprise-grade or complete-product claim is made |
+
+## Summary
+
+Source handoff, build, audit, whitespace hygiene, Netlify deployment, production security
+headers, live asset verification, bundle marker confirmation, and real-Chrome
+desktop/mobile passes all succeeded, including both exact Y-toggle banners (NIGHT SHIFT //
+CITY LIGHTS ON and NIGHT SHIFT // CITY LIGHTS OFF) and the screenshot visual pass showing
+the darker city, stronger neon/windows, and street-light glow. Full runtime
+mission-transition coverage was NOT exercised end-to-end in real Chrome during this pass,
+and the project remains an incomplete evolving vertical slice rather than a complete
+GTA 7 or an enterprise-grade product; these limits are flagged above rather than assumed.
+Prior evidence sections remain intact and their gaps still stand.
