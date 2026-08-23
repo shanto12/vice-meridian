@@ -59,7 +59,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -77,6 +77,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyG') garageRequested = true
   if (e.code === 'KeyT') repairRequested = true
   if (e.code === 'KeyK') bankRequested = true
+  if (e.code === 'KeyV') vipRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
@@ -186,6 +187,21 @@ type BankState = 'available' | 'active' | 'escaping' | 'complete'
 let bankState: BankState = 'available'
 let bankEscapeDeadlineMs = 0
 let bankRestoreAtMs = 0
+
+// VIP Extraction: V at the safehouse, drive to the client, then bring them home in the courier
+const VIP_CLIENT = { x: WORLD_W * 0.74, y: WORLD_H * 0.42, radius: 90 }
+const VIP_ACCEPT_RADIUS = 130
+const VIP_TIME_LIMIT_MS = 50000
+const VIP_HOLD_MS = 2600
+const VIP_ACTIVE_TEXT = 'VIP EXTRACTION // REACH THE CLIENT'
+const VIP_ESCAPE_TEXT = 'VIP EXTRACTION // CLIENT IN CAR // RETURN TO SAFEHOUSE'
+const VIP_DONE_TEXT = 'VIP EXTRACTION // CLIENT SECURED +$500 // REP +2'
+const VIP_FAILED_TEXT = 'VIP EXTRACTION // CLIENT LOST'
+let vipRequested = false
+type VipState = 'available' | 'pickup' | 'escaping' | 'complete'
+let vipState: VipState = 'available'
+let vipDeadlineMs = 0
+let vipRestoreAtMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -428,6 +444,10 @@ function resetRun(nowMs: number) {
   bankState = 'available'
   bankEscapeDeadlineMs = 0
   bankRestoreAtMs = 0
+  vipRequested = false
+  vipState = 'available'
+  vipDeadlineMs = 0
+  vipRestoreAtMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1208,6 +1228,60 @@ function frame(now: number) {
   raceRequested = false
   bankRequested = false
 
+  // VIP Extraction: V at the safehouse accepts; drive to the client, then bring them home
+  const vipAcceptable =
+    vipState === 'available' &&
+    contractState !== 'active' &&
+    blackoutState === 'available' &&
+    raceState === 'available' &&
+    bankState === 'available' &&
+    !missionComplete &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < VIP_ACCEPT_RADIUS
+  if (vipRequested && vipAcceptable) {
+    vipState = 'pickup'
+    vipDeadlineMs = now + VIP_TIME_LIMIT_MS
+    setWanted(Math.max(1, wanted))
+    missionEl.textContent = VIP_ACTIVE_TEXT
+  }
+
+  // Car pickup moment: driving the courier into the client radius starts the getaway
+  if (
+    vipState === 'pickup' &&
+    driving &&
+    Math.hypot(courierCar.x - VIP_CLIENT.x, courierCar.y - VIP_CLIENT.y) < VIP_CLIENT.radius
+  ) {
+    vipState = 'escaping'
+    setWanted(Math.max(1, wanted))
+    missionEl.textContent = `${VIP_ESCAPE_TEXT} — ${Math.ceil((vipDeadlineMs - now) / 1000)}S`
+  }
+
+  // Escaping: deliver the client home by driving the courier into the safehouse radius
+  if (
+    vipState === 'escaping' &&
+    driving &&
+    Math.hypot(courierCar.x - SAFEHOUSE.x, courierCar.y - SAFEHOUSE.y) < SAFEHOUSE.radius
+  ) {
+    vipState = 'complete'
+    vipDeadlineMs = 0
+    vipRestoreAtMs = now + VIP_HOLD_MS
+    cash += 500
+    rep += 2
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = VIP_DONE_TEXT
+  }
+  vipRequested = false
+
+  // VIP timer: expiring mid-mission safely resets to available with no payout
+  if ((vipState === 'pickup' || vipState === 'escaping') && vipDeadlineMs > 0 && now >= vipDeadlineMs) {
+    vipState = 'available'
+    vipDeadlineMs = 0
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = VIP_FAILED_TEXT
+    vipRestoreAtMs = now + VIP_HOLD_MS
+  }
+
   // Bank Run timer: expiring mid-escape safely resets to available with no payout
   if (bankState === 'escaping' && bankEscapeDeadlineMs > 0 && now >= bankEscapeDeadlineMs) {
     bankState = 'available'
@@ -1321,6 +1395,12 @@ function frame(now: number) {
   const bankEscapeTimeLeftSec =
     bankState === 'escaping' && bankEscapeDeadlineMs > 0
       ? Math.max(0, Math.ceil((bankEscapeDeadlineMs - now) / 1000))
+      : null
+
+  // Shared VIP countdown readout (pickup + escape share one 50s deadline)
+  const vipTimeLeftSec =
+    (vipState === 'pickup' || vipState === 'escaping') && vipDeadlineMs > 0
+      ? Math.max(0, Math.ceil((vipDeadlineMs - now) / 1000))
       : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
@@ -1537,6 +1617,9 @@ function frame(now: number) {
   if (policeHitRestoreAtMs > 0 && now >= policeHitRestoreAtMs) {
     policeHitRestoreAtMs = 0
   }
+  if (vipRestoreAtMs > 0 && now >= vipRestoreAtMs) {
+    vipRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -1555,7 +1638,8 @@ function frame(now: number) {
     vehicleDisabledRestoreAtMs > 0 ||
     repairPoorRestoreAtMs > 0 ||
     policeHitRestoreAtMs > 0 ||
-    bankRestoreAtMs > 0
+    bankRestoreAtMs > 0 ||
+    vipRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1579,6 +1663,9 @@ function frame(now: number) {
   } else if (bankRestoreAtMs > 0) {
     const bankBannerText = bankState === 'complete' ? BANK_DONE_TEXT : BANK_FAILED_TEXT
     if (missionEl.textContent !== bankBannerText) missionEl.textContent = bankBannerText
+  } else if (vipRestoreAtMs > 0) {
+    const vipBannerText = vipState === 'complete' ? VIP_DONE_TEXT : VIP_FAILED_TEXT
+    if (missionEl.textContent !== vipBannerText) missionEl.textContent = vipBannerText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -1586,6 +1673,9 @@ function frame(now: number) {
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (bankState === 'escaping' && bankEscapeTimeLeftSec !== null) {
     const liveText = `${BANK_ESCAPE_BASE_TEXT} — ${bankEscapeTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if ((vipState === 'pickup' || vipState === 'escaping') && vipTimeLeftSec !== null) {
+    const liveText = `${vipState === 'pickup' ? VIP_ACTIVE_TEXT : VIP_ESCAPE_TEXT} — ${vipTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
     const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
@@ -1832,6 +1922,46 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Cyan/white VIP client: ring + person glyph while the extraction is pickup or escaping
+  if (vipState === 'pickup' || vipState === 'escaping') {
+    const px2 = VIP_CLIENT.x
+    const py2 = VIP_CLIENT.y
+    const refX = driving ? courierCar.x : player.x
+    const refY = driving ? courierCar.y : player.y
+    const breathe = Math.sin(now / 280) * 5
+    const inClient = Math.hypot(refX - px2, refY - py2) < VIP_CLIENT.radius
+    ctx.strokeStyle = '#00f0ff'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 20 + breathe
+    ctx.lineWidth = inClient ? 3.5 : 3
+    ctx.setLineDash([10, 7])
+    ctx.beginPath()
+    ctx.arc(px2, py2, VIP_CLIENT.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    // inner white person glyph: head + shoulders
+    ctx.strokeStyle = '#ffffff'
+    ctx.shadowColor = '#ffffff'
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.arc(px2, py2 - 10, 6, 0, Math.PI * 2)
+    ctx.moveTo(px2 - 10, py2 + 14)
+    ctx.quadraticCurveTo(px2, py2 - 4, px2 + 10, py2 + 14)
+    ctx.stroke()
+    if (inClient && vipState === 'pickup') {
+      ctx.fillStyle = '#e0ffff'
+      ctx.beginPath()
+      ctx.arc(px2, py2, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#00f0ff'
+    ctx.fillText('VIP CLIENT', px2, py2 - VIP_CLIENT.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(refX - px2, refY - py2))}M`, px2, py2 - VIP_CLIENT.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Midnight Sprint checkpoint: distinctive green gate for the current mandatory target
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[raceCheckpointIndex]
@@ -1986,7 +2116,17 @@ function frame(now: number) {
     !missionComplete &&
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < BANK_ACCEPT_RADIUS
   const bankEscapingNow = bankState === 'escaping'
-  // Garage status composes onto every safehouse line so H, B, G, T, N, and K all stay visible
+  const vipAcceptableNow =
+    !driving &&
+    vipState === 'available' &&
+    contractState !== 'active' &&
+    blackoutState === 'available' &&
+    raceState === 'available' &&
+    bankState === 'available' &&
+    !missionComplete &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < VIP_ACCEPT_RADIUS
+  const vipEscapingNow = vipState === 'escaping'
+  // Garage status composes onto every safehouse line so H, B, G, T, N, K, and V all stay visible
   const garageStatusHint = garageTuneInstalled
     ? 'SPRINT KIT INSTALLED'
     : cash >= GARAGE_TUNE_COST
@@ -2000,16 +2140,20 @@ function frame(now: number) {
   let safehouseHint: string
   if (blackoutEscapingNow) {
     safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (vipEscapingNow) {
+    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${garageStatusHint} // ${repairStatusHint}`
   } else if (bankEscapingNow) {
     safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (vipAcceptableNow) {
+    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (bankAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (raceAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS V FOR VIP EXTRACTION // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // H CLEAR HEAT // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // PRESS V FOR VIP EXTRACTION // H CLEAR HEAT // ${garageStatusHint} // ${repairStatusHint}`
   } else if (nearSafehouse) {
-    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${garageStatusHint} // ${repairStatusHint}`
   } else {
     safehouseHint = SAFEHOUSE_CLEAR_TEXT
   }
