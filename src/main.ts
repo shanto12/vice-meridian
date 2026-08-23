@@ -202,6 +202,13 @@ let heatCoolStartMs = 0
 let heatCoolRestoreAtMs = 0
 
 // Visible police cruisers: exactly two, parked on the road band below the horizon
+const POLICE_HIT_DAMAGE = 12
+const POLICE_HIT_COOLDOWN_MS = 1200
+const POLICE_HIT_HOLD_MS = 1600
+const POLICE_IMPACT_TEXT = 'POLICE IMPACT // VEHICLE DAMAGE'
+let policeHitUntilMs = 0
+let policeHitCooldownUntilMs = 0
+let policeHitRestoreAtMs = 0
 interface PoliceUnit {
   x: number
   y: number
@@ -401,6 +408,9 @@ function resetRun(nowMs: number) {
   raceCheckpointIndex = 0
   raceDeadlineMs = 0
   raceRestoreAtMs = 0
+  policeHitUntilMs = 0
+  policeHitCooldownUntilMs = 0
+  policeHitRestoreAtMs = 0
   blackoutRequested = false
   blackoutState = 'available'
   blackoutRestoreAtMs = 0
@@ -1325,6 +1335,30 @@ function frame(now: number) {
     u.y = Math.max(WORLD_H * 0.62, Math.min(WORLD_H - 30, u.y))
   }
 
+  // Police impact: cruiser rams the driving courier — fixed damage, shared cooldown, capped heat
+  if (driving && wanted > 0 && now >= policeHitCooldownUntilMs) {
+    for (const u of policeUnits) {
+      if (Math.hypot(courierCar.x - u.x, courierCar.y - u.y) < 34) {
+        courierCar.speed *= -0.25
+        setWanted(Math.min(3, wanted + 1))
+        carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE)
+        policeHitUntilMs = now + POLICE_HIT_HOLD_MS
+        policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
+        policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
+        missionEl.textContent = POLICE_IMPACT_TEXT
+        if (carHealth <= 0) {
+          driving = false
+          player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
+          player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
+          courierCar.speed = 0
+          missionEl.textContent = VEHICLE_DISABLED_TEXT
+          vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+        }
+        break
+      }
+    }
+  }
+
   // Heat cooling: after 7s continuously clear of all active hunters' scan range, shed one level
   const hunterInRange =
     wanted > 0 &&
@@ -1423,6 +1457,9 @@ function frame(now: number) {
   if (repairPoorRestoreAtMs > 0 && now >= repairPoorRestoreAtMs) {
     repairPoorRestoreAtMs = 0
   }
+  if (policeHitRestoreAtMs > 0 && now >= policeHitRestoreAtMs) {
+    policeHitRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -1439,7 +1476,8 @@ function frame(now: number) {
     raceRestoreAtMs > 0 ||
     repairRestoreAtMs > 0 ||
     vehicleDisabledRestoreAtMs > 0 ||
-    repairPoorRestoreAtMs > 0
+    repairPoorRestoreAtMs > 0 ||
+    policeHitRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1458,6 +1496,8 @@ function frame(now: number) {
     if (missionEl.textContent !== VEHICLE_DISABLED_TEXT) missionEl.textContent = VEHICLE_DISABLED_TEXT
   } else if (repairPoorRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_POOR_TEXT) missionEl.textContent = REPAIR_POOR_TEXT
+  } else if (policeHitRestoreAtMs > 0) {
+    if (missionEl.textContent !== POLICE_IMPACT_TEXT) missionEl.textContent = POLICE_IMPACT_TEXT
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -1758,6 +1798,22 @@ function frame(now: number) {
     const hitT = (trafficHitUntilMs - now) / TRAFFIC_HIT_HOLD_MS
     ctx.strokeStyle = `rgba(255, 157, 60, ${0.35 + hitT * 0.4})`
     ctx.shadowColor = '#ff9d3c'
+    ctx.shadowBlur = 12
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(courierCar.x, courierCar.y, 30 + (1 - hitT) * 14, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+  }
+
+  // Restrained red/blue impact ring while a police impact is registering
+  if (driving && now < policeHitUntilMs) {
+    const hitT = (policeHitUntilMs - now) / POLICE_HIT_HOLD_MS
+    const flash = Math.floor(now / 120) % 2 === 0
+    ctx.strokeStyle = flash
+      ? `rgba(255, 60, 60, ${0.35 + hitT * 0.4})`
+      : `rgba(77, 166, 255, ${0.35 + hitT * 0.4})`
+    ctx.shadowColor = flash ? '#ff3c3c' : '#4da6ff'
     ctx.shadowBlur = 12
     ctx.lineWidth = 2
     ctx.beginPath()
