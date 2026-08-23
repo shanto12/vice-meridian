@@ -899,6 +899,24 @@ The source commit, GitHub push, local/Netlify build, dependency audit, live asse
 
 # Contacts Phone Menu - Release Evidence (2026-08-23)
 
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit 7f6a54a Add contacts phone menu on origin/main | Cursor Git verification | PASS | src/main.ts only; HEAD equals origin/main; clean tree |
+| Netlify deploy 6a8b7e35a8f152f751a37fa7 live at https://vice-meridian.netlify.app/ | Netlify CLI | PASS | Production URL live |
+| Build and audit | npm run build; npm audit --omit=dev | PASS | assets/index-DopAfWu-.js 60.00 kB / 16.17 kB gzip; 0 vulnerabilities |
+| Live asset and headers | curl root, asset, and production headers | PASS | root 200; asset 200; CSP, HSTS, nosniff, Referrer-Policy, Permissions-Policy present |
+| Desktop phone flow | Real Chrome 1440x660 | PASS | Tab opened; title, nine jobs, CASH/REP/WANTED and close hint visible; Escape closed; Tab toggled closed; zero console errors |
+| Mobile phone flow | Real Chrome 390x844 | PASS | Overlay width 320px stayed inside viewport; scrollWidth 390; canvas true; zero console errors; viewport reset |
+| Phone simulation freeze | Source and bounded Chrome review | NOT FULLY VERIFIED | Source early-returns while phoneOpen; longer timed freeze not measured in Chrome |
+| Auth/backend/API | Static Vite architecture | NOT APPLICABLE | No auth, backend, or API surface exists |
+| Scope | Release review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice, not complete GTA 7 or enterprise-grade product |
+
+## Summary
+
+The Cursor-authored contacts phone overlay is deployed and verified on real Chrome desktop/mobile. The phone simulation-freeze timing remains NOT FULLY VERIFIED rather than inferred from source alone.
+
+# Contacts Phone Menu - Release Evidence (2026-08-23)
+
 Verification matrix for the Tab-driven VICE//MERIDIAN contacts phone overlay.
 
 | Requirement | Evidence surface | Result | Notes |
