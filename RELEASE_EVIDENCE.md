@@ -602,3 +602,38 @@ this pass and is flagged above rather than assumed; source review, the passing b
 and the live-bundle strings are the supporting evidence. Prior evidence sections remain
 intact and their gaps still stand, and no claim is made that the overall GTA-style game
 is complete or enterprise-grade.
+
+---
+
+# Armored Convoy Mission — Release Evidence (2026-08-23)
+
+Verification matrix for the Armored Convoy slice: accept the convoy job at the safehouse,
+drive to the ambush site and press C to secure the cargo, return to the safehouse for the
+payout, with a failure path if the 65-second deadline expires.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit aa6a45b775f8bfa03ff3964ae371241e92abc855 ("Add armored convoy mission") pushed to origin/main and confirmed clean | git log/rev-parse + git status inspection after push | PASS | Working tree clean post-push; src/main.ts is the only feature surface changed |
+| Build gate: npm run build passed (tsc + Vite) | Local build run against the source commit | PASS | Produced assets/index-B_PGJen5.js at 43.80 kB JS |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the package manifest | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed before commit | Local check against the staged diff | PASS | No trailing whitespace or conflict markers |
+| Netlify production deploy 6a8b5be0db143e79ca069807 live at https://vice-meridian.netlify.app/ | Production URL observation | PASS | HTTP/2 200 observed |
+| Live asset: assets/index-B_PGJen5.js served by production | Live asset fetch matched against build output | PASS | Hash match confirms the deploy serves this commit's bundle |
+| Security headers observed on production HTML: existing CSP, HSTS, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy | Live header observation of the production origin | PASS | All expected headers observed as previously configured |
+| Bundle markers: ARMORED CONVOY, CONVOY SITE, CARGO SECURED +$750, CARGO LOST, plus prior VIP EXTRACTION, BANK RUN, MIDNIGHT SPRINT, POLICE PURSUIT confirmed | Live bundle inspection of assets/index-B_PGJen5.js | PASS | Prior-slice markers persist alongside the new convoy strings |
+| Real Chrome desktop: production tab at 1440x660 loaded the live asset, Canvas HUD visible, scrollWidth 1440, zero console errors | Real Chrome desktop pass on the production deploy | PASS | Current asset script index-B_PGJen5.js confirmed loaded |
+| Real Chrome mobile: production tab at 390x844 loaded the live asset, Canvas HUD visible, scrollWidth 390, zero console errors, then viewport reset | Real Chrome mobile pass on the production deploy | PASS | Same session returned to the desktop viewport afterward |
+| Interactive DOM surface: visible DOM control inventory is empty because the page is Canvas plus keyboard controls | DOM inspection of the production page | PASS (by design) | Absence of visible DOM controls is intentional architecture, not a defect |
+| Armored Convoy end-to-end runtime transition: accept at safehouse → drive to ambush site → press C to secure cargo → return to safehouse payout (+$750 success path / CARGO LOST failure path) driven in real Chrome | Bounded real-Chrome keyboard attempt did not drive the full state machine; surface/deploy evidence only | NOT FULLY VERIFIED | Explicitly flagged rather than assumed; prior sections' deeper gaps remain marked |
+| Project scope statement | Release scope review | LIMITATION ACKNOWLEDGED | This is surface/deploy evidence, not proof of a complete "GTA 7" or an enterprise-grade product |
+
+## Summary
+
+Source/build, dependency audit, whitespace hygiene, GitHub handoff, Netlify deployment,
+production security headers, live asset verification, bundle marker confirmation, and
+real-Chrome desktop (1440x660)/mobile (390x844) passes all succeeded with zero console
+errors and no horizontal overflow. The Armored Convoy end-to-end runtime transition —
+accept at safehouse, drive to the site, press C, return payout/failure — is NOT FULLY
+VERIFIED in real Chrome during this pass and is flagged above rather than assumed; this
+is surface/deploy evidence, not proof of a complete GTA 7 or enterprise-grade product.
+Prior evidence sections remain intact and their gaps still stand.
