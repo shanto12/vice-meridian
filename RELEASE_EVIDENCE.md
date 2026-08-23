@@ -401,8 +401,6 @@ to the Netlify production deploy of this repository.
 | Expiry recovery (reset to available, no payout) | Not reproduced in real Chrome during this pass | NOT FULLY VERIFIED — source-reviewed/build-verified only |
 | Race marker rendering during the active race | Not reproduced in real Chrome during this pass | NOT FULLY VERIFIED — source-reviewed/build-verified only |
 
-## Summary
-
 Source review, build, audit, live asset/header, and real-browser load/smoke gates passed
 on desktop and mobile. The race-specific behaviors — race start on N, checkpoint
 progression, finish payout, expiry recovery, and marker rendering — were source-reviewed
@@ -411,3 +409,34 @@ bounded attempt at the safehouse did not reproduce the race-start line. They are
 NOT FULLY VERIFIED rather than assumed. Prior evidence for save/garage/Blackout/heat-decay
 remains covered by earlier sections, and no enterprise-grade or full behavior verification
 is claimed for this release.
+
+---
+
+# Courier Vehicle Damage & Safehouse Repair — Release Evidence (2026-08-23)
+
+Verification matrix for the vehicle damage and safehouse repair release. Evidence
+surfaces refer to the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed and traceable | Commit `d1606018935df0a3dca37c87059099c47204f8f7` ("Add courier vehicle damage and repair") on `origin/main` | VERIFIED | Only `src/main.ts` modified; working tree clean after push |
+| Production deploy is live with required headers | Netlify deploy `6a8b452a5c479da1fd6b69cb` at https://vice-meridian.netlify.app/: HTTP 200; CSP, HSTS with preload, Permissions-Policy (camera/microphone/geolocation disabled), Referrer-Policy strict-origin-when-cross-origin, X-Content-Type-Options nosniff | VERIFIED | All expected headers observed on the production origin |
+| Production build and hygiene gates pass | Build: `npm run build` (tsc + Vite) passed; `git diff --check` clean; `npm audit --omit=dev` found 0 vulnerabilities | VERIFIED | No type or build errors blocking output |
+| Live bundle contains damage/repair strings plus prior systems | Live JS bundle: contains HULL, VEHICLE DAMAGE, VEHICLE DISABLED, REPAIR SHOP, PRESS T TO REPAIR, MIDNIGHT SPRINT, BLACKOUT RUN, SAVE // PROGRESS STORED, GARAGE // TURBO TUNE | VERIFIED | Confirms deploy serves the updated bundle; prior feature strings intact |
+| Desktop browser loads production with hull HUD and T controls | Real Chrome existing profile desktop 1440x604: production loaded; HULL 100% visible; "T repair at safehouse" visible; keyboard smoke M/F/Q/E/B/H/G/N/P/L/R/T completed | VERIFIED — zero console errors, no horizontal overflow | Real desktop surface |
+| Mobile layout loads cleanly | Real Chrome existing profile mobile 390x844: production loaded; HULL 100% and "T repair at safehouse" visible | VERIFIED — zero console errors, no horizontal overflow | Real mobile surface |
+| Collision damage (−18 health per registered hit) | Source review + build verification only | SOURCE/BUILD VERIFIED but NOT FULLY REPRODUCED IN CHROME | Damage decrement not independently driven end-to-end in real Chrome |
+| Disable-at-zero: forced on-foot exit, re-entry guard, disabled banner | Source review + build verification only | SOURCE/BUILD VERIFIED but NOT FULLY REPRODUCED IN CHROME | Zero-health transition not independently exercised in real Chrome |
+| Successful $150 repair restoring hull to 100% | Source review + build verification only | SOURCE/BUILD VERIFIED but NOT FULLY REPRODUCED IN CHROME | Repair transaction not independently driven end-to-end in real Chrome |
+| Insufficient-cash banner (REPAIR SHOP // NEED $150) held for banner duration | Source review + build verification only | SOURCE/BUILD VERIFIED but NOT FULLY REPRODUCED IN CHROME | Poor-repair banner path not independently exercised in real Chrome |
+| Finite/clamped carHealth persistence in the save slot | Source review + build verification only | SOURCE/BUILD VERIFIED but NOT FULLY REPRODUCED IN CHROME | Save/load round-trip of damaged hull not independently demonstrated in real Chrome |
+
+## Summary
+
+Build, audit, header, bundle-content, and real-browser load/smoke gates passed on desktop
+and mobile. The damage/repair mechanics themselves — collision damage application,
+disable-at-zero behavior, successful repair, insufficient-cash banner hold, and hull
+persistence — are SOURCE/BUILD VERIFIED but were NOT FULLY REPRODUCED IN CHROME during
+this pass. Prior evidence sections remain intact and applicable, the Midnight Sprint
+end-to-end gap noted there still stands, and no claim is made that the GTA-style project
+is complete or enterprise-grade.
