@@ -530,3 +530,40 @@ hull/disabled/repair follow-ons were NOT FULLY VERIFIED end-to-end in real Chrom
 source, build, and live-bundle evidence supports them. Impact state is transient and not
 saved. Prior race/persistence gaps remain marked, and no claim is made that the overall
 GTA-style game is complete or enterprise-grade.
+
+---
+
+# Bank Run Heist — Release Evidence (2026-08-23)
+
+Verification matrix for the Bank Run heist slice. The heist loop (accept at safehouse →
+loot the vault on foot → escape back before the 40-second deadline) is transient by
+design and excluded from save data.
+
+| Requirement | Evidence surface | Status |
+| --- | --- | --- |
+| Source/build: commit 8108a21c8a806c11a6e5e59b3d6cb105694d51fc; only src/main.ts changed for the feature (138 insertions / 3 adjusted lines); npm run build passes (tsc + Vite); git diff --check clean | Source/build review and local verification | PASS |
+| Dependency audit: npm audit --omit=dev found 0 vulnerabilities | Local audit against package manifest | PASS |
+| GitHub handoff: origin/main points to 8108a21c8a806c11a6e5e59b3d6cb105694d51fc; working tree clean after push | git status/log inspection after push | PASS |
+| Netlify production: site https://vice-meridian.netlify.app/ serving deploy 6a8b534c9d31fa424970b25f with live asset assets/index-BOomiOI9.js | Netlify deploy record + live asset fetch | PASS |
+| Production headers: CSP, Permissions-Policy, Referrer-Policy, HSTS preload, and nosniff observed on the production HTML | Live header observation of production HTML | PASS |
+| Live asset markers: production bundle contains BANK RUN, BANK VAULT, PRESS K FOR BANK RUN, VAULT JOB +$600, ESCAPE FAILED, plus prior MIDNIGHT SPRINT and POLICE PURSUIT markers | Live bundle inspection of assets/index-BOomiOI9.js | PASS |
+| Real Chrome desktop: existing user Chrome profile, 1440x604, current Bank Run bundle; core HUD visible; zero console errors; no horizontal overflow | Real Chrome desktop pass on production deploy | VERIFIED |
+| Real Chrome mobile: existing user Chrome profile, 390x844, current Bank Run bundle; core HUD visible; zero console errors; no horizontal overflow | Real Chrome mobile pass on production deploy | VERIFIED |
+| Bank Run acceptance/loot/escape/payout flow (K accept at safehouse → vault loot transition → 40s escape deadline → +$600 / REP +3 payout or expiry failure) | Bounded real-Chrome keyboard pass did not reproduce the entire safehouse-to-vault-to-safehouse state transition; source/build/live-bundle evidence only | NOT FULLY VERIFIED |
+| Security/runtime scope: client-only Canvas game — no auth, backend jobs, forms, or API calls are in scope for this release | Architecture review of src/main.ts and deploy output | NOT APPLICABLE (explicitly out of scope, not silently passed) |
+
+## Limitations
+
+The overall GTA-style objective remains an evolving vertical slice built feature-by-feature,
+not a complete "GTA 7" or an enterprise-grade game. The Bank Run mission flow itself is
+verified by source review, build, live-bundle content, and clean desktop/mobile runtime
+passes — but its full state machine was not driven end-to-end in a real browser during
+this pass. Prior evidence sections remain intact and their gaps still stand.
+
+## Summary
+
+Source/build, dependency audit, GitHub handoff, Netlify deployment, production headers,
+live asset markers, and real-Chrome desktop/mobile gates all PASSED. The Bank Run
+acceptance/loot/escape/payout flow is NOT FULLY VERIFIED end-to-end and is flagged above
+rather than assumed; auth/backend/forms/API rows are explicitly not applicable to this
+client-only Canvas game.
