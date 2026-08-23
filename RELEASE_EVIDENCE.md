@@ -750,3 +750,46 @@ mission-transition coverage was NOT exercised end-to-end in real Chrome during t
 and the project remains an incomplete evolving vertical slice rather than a complete
 GTA 7 or an enterprise-grade product; these limits are flagged above rather than assumed.
 Prior evidence sections remain intact and their gaps still stand.
+
+---
+
+# Crew Network Safehouse Cover — Release Evidence (2026-08-23)
+
+Verification matrix for the Crew Network slice: a temporary U/KeyU safehouse service on foot
+that buys 45 seconds of Crew Cover for $600 when affordable (deducting cash and showing the
+banner CREW NETWORK // COVER ACTIVE -$600, or CREW NETWORK // NEED $600 when unaffordable),
+speeds up existing wanted/heat decay while active without changing mission timers or contract
+payouts, shows a compact CREW COVER 45S HUD countdown, renders a subtle cyan crew-beacon pulse
+around the existing safehouse only while active, adds "U crew network" to the controls hint,
+handles repeat presses safely with no repeated charges while active, clears all transient crew
+state on R reset, and is never persisted to localStorage — with no changes to existing missions,
+controls, physics, save/load schema, or timer outcomes.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit 2fe080a0e126c41ece00dbddf4105be368d5362a ("Add Crew Network safehouse cover") pushed to origin/main with clean status | git log/rev-parse + git status inspection after push | PASS | src/main.ts only; 63 insertions, 3 deletions; working tree clean post-push |
+| Build gate: npm run build passed (tsc + Vite) | Local build run against the source commit | PASS | Produced assets/index-Bplu5VCm.js at 52.40 kB JS (14.57 kB gzip); zero TypeScript errors |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the package manifest | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed | Local check against the tracked diff | PASS | No trailing whitespace or conflict markers |
+| Netlify production deploy 6a8b6a8d3f3b97da0a138f9f live at https://vice-meridian.netlify.app/ | Production URL observation | PASS | Deploy serves the Crew Network commit's bundle |
+| Live asset: assets/index-Bplu5VCm.js served by production | Live asset fetch matched against build output | PASS | Hash match confirms the deploy serves this commit's bundle |
+| Bundle markers: CREW NETWORK // COVER ACTIVE -$600, CREW NETWORK // NEED $600, and CREW COVER 0S present alongside prior NIGHT SHIFT // CITY LIGHTS ON/OFF, DISTRICT TAKEOVER, and JUNCTION JOB markers | Live bundle inspection of assets/index-Bplu5VCm.js | PASS | Prior-slice markers persist alongside the new crew network strings |
+| Security headers observed on production HTML: CSP, HSTS, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy | Live header observation of the production origin | PASS | All expected headers observed as previously configured |
+| Real Chrome desktop on the deployed URL: canvas rendered, scrollWidth 1440, "U crew network" present in the controls hint, both Night Shift banner directions reproduced, zero console errors, screenshot visual pass | Real Chrome desktop pass on the production deploy at 1440x660 | PASS | Prior Night Shift banners still reproduce exactly on this deploy; no application console errors during interaction |
+| Real Chrome mobile: production tab loaded the same asset, canvas visible, scrollWidth 390, zero console errors, viewport reset afterward | Real Chrome mobile pass on the production deploy at 390x844 | PASS | No horizontal overflow on the small viewport; session viewport restored after check |
+| Interactive DOM surface: visible DOM control count is 0 by design because this is a canvas game driven entirely by keyboard input | DOM inspection of the production page | PASS (by design) | Absence of visible DOM controls is intentional architecture, not a defect |
+| Crew Cover end-to-end purchase path at the safehouse (afford/charge, 45-second countdown, faster heat decay, beacon pulse, and unaffordable branch) | Not fully verified in real Chrome during this pass because the bounded keyboard approach did not reliably reach the safehouse; source/build/live-bundle evidence only | NOT FULLY VERIFIED | Explicitly flagged rather than assumed; runtime completion is not inferred from bundle markers alone. Existing mission-transition gaps from prior sections remain marked |
+| Project scope statement: a complete GTA 7 scope remains out of reach for this release | Release scope review | LIMITATION ACKNOWLEDGED — NOT COMPLETE | This remains an evolving GTA-style vertical slice built feature-by-feature; no enterprise-grade or complete-product claim is made |
+
+## Summary
+
+Source handoff, build, audit, whitespace hygiene, Netlify deployment, production security
+headers, live asset verification, bundle marker confirmation, and real-Chrome desktop/mobile
+passes all succeeded, including "U crew network" in the controls hint and both exact Night
+Shift banner directions on the new deploy. The full Crew Cover end-to-end purchase path at
+the safehouse (afford/charge, 45-second countdown, faster heat decay, beacon, unaffordable
+branch) was NOT FULLY VERIFIED in real Chrome during this pass because the bounded keyboard
+approach did not reliably reach the safehouse, and runtime completion is not inferred from
+bundle markers. The project remains an incomplete evolving GTA-style vertical slice rather
+than a complete GTA 7 or an enterprise-grade product; these limits are flagged above rather
+than assumed. Prior evidence sections remain intact and their gaps still stand.
