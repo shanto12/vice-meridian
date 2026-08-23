@@ -36,6 +36,10 @@ window.addEventListener('resize', () => {
   h = canvas.height = window.innerHeight
 })
 
+const WORLD_W = 2400
+const WORLD_H = 1600
+let camera = { x: 0, y: 0 }
+
 const keys = new Set<string>()
 const MOVE_KEYS: Record<string, [number, number]> = {
   KeyW: [0, -1], ArrowUp: [0, -1],
@@ -65,7 +69,7 @@ window.addEventListener('keydown', e => {
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
 
-const player = { x: w / 2, y: h / 2, size: 28, speed: 320 }
+const player = { x: WORLD_W / 2, y: WORLD_H / 2, size: 28, speed: 320 }
 const grid = 48
 
 let mapOpen = false
@@ -131,8 +135,8 @@ function resetRun(nowMs: number) {
   missionComplete = false
   runStartMs = nowMs
   runTimeSec = 0
-  player.x = w / 2
-  player.y = h / 2
+  player.x = WORLD_W / 2
+  player.y = WORLD_H / 2
   facing = { dx: 0, dy: -1 }
   boost.energy = 100
   boost.cooldown = false
@@ -142,8 +146,8 @@ function resetRun(nowMs: number) {
   jammer.cooldown = 0
   jammer.active = 0
   drones.forEach((d, i) => {
-    d.x = w * (0.22 + i * 0.28)
-    d.y = h * 0.62 + 70
+    d.x = WORLD_W * (0.22 + i * 0.28)
+    d.y = WORLD_H * 0.62 + 70
     d.angle = i * 2.1
     d.disabledUntil = 0
   })
@@ -152,21 +156,21 @@ function resetRun(nowMs: number) {
 }
 
 const signals = Array.from({ length: 3 }, (_, i) => ({
-  x: ((i * 419 + 211) % (w - 200)) + 100,
-  y: h * 0.62 + 60 + ((i * 173) % Math.max(1, h - h * 0.62 - 140)),
+  x: ((i * 419 + 211) % (WORLD_W - 200)) + 100,
+  y: WORLD_H * 0.62 + 60 + ((i * 173) % Math.max(1, WORLD_H - WORLD_H * 0.62 - 140)),
 }))
 
 const buildings = Array.from({ length: 14 }, (_, i) => ({
-  x: ((i * 137) % (w - 160)) + 40,
-  y: ((i * 257) % (h - 220)) + 60,
+  x: ((i * 137) % (WORLD_W - 160)) + 40,
+  y: ((i * 257) % (WORLD_H - 220)) + 60,
   width: 90 + ((i * 61) % 120),
   height: 70 + ((i * 113) % 140),
 }))
 
 let wanted = 0
 const drones = Array.from({ length: 3 }, (_, i) => ({
-  x: w * (0.22 + i * 0.28),
-  y: h * 0.62 + 70,
+  x: WORLD_W * (0.22 + i * 0.28),
+  y: WORLD_H * 0.62 + 70,
   angle: i * 2.1,
   radius: 70 + i * 26,
   speed: 1.4 + i * 0.35,
@@ -178,8 +182,8 @@ const traffic = Array.from({ length: 6 }, (_, i) => {
   const laneIndex = i % 3
   const dir = laneIndex === 0 ? 1 : -1
   return {
-    x: (w / 6) * i + 40,
-    laneY: h * 0.62 + 55 + laneIndex * ((h * 0.38 - 90) / 2),
+    x: (WORLD_W / 6) * i + 40,
+    laneY: WORLD_H * 0.62 + 55 + laneIndex * ((WORLD_H * 0.38 - 90) / 2),
     dir,
     speed: 70 + ((i * 53) % 90),
     color: TRAFFIC_COLORS[i],
@@ -190,10 +194,10 @@ const traffic = Array.from({ length: 6 }, (_, i) => {
 // Second-act objective: extraction gate (revealed once all signals are found)
 const gate = {
   get x() {
-    return w - 150
+    return WORLD_W - 150
   },
   get y() {
-    return h * 0.62 + 90
+    return WORLD_H * 0.62 + 90
   },
   radius: 46,
 }
@@ -214,8 +218,8 @@ function neonRect(x: number, y: number, width: number, height: number, color: st
 }
 
 function districtFor(x: number): string {
-  if (x < w / 3) return 'DOCKSIDE'
-  if (x > (w * 2) / 3) return 'SKYWAY'
+  if (x < WORLD_W / 3) return 'DOCKSIDE'
+  if (x > (WORLD_W * 2) / 3) return 'SKYWAY'
   return 'NEON CORE'
 }
 
@@ -234,8 +238,8 @@ function drawCityMap() {
   const mh = h - padTop - padBottom
   const mx = padX
   const myTop = padTop
-  const kx = mw / w
-  const ky = mh / h
+  const kx = mw / WORLD_W
+  const ky = mh / WORLD_H
 
   // abstract streets + blocks
   ctx.strokeStyle = 'rgba(255, 45, 150, 0.22)'
@@ -263,8 +267,8 @@ function drawCityMap() {
   ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)'
   ctx.setLineDash([6, 6])
   ctx.beginPath()
-  ctx.moveTo(mx, myTop + h * 0.62 * ky)
-  ctx.lineTo(mx + mw, myTop + h * 0.62 * ky)
+  ctx.moveTo(mx, myTop + WORLD_H * 0.62 * ky)
+  ctx.lineTo(mx + mw, myTop + WORLD_H * 0.62 * ky)
   ctx.stroke()
   ctx.setLineDash([])
 
@@ -371,8 +375,8 @@ function drawRadar(now: number) {
   const iy = ry + pad + 6
   const iw = rw - pad * 2
   const ih = rh - pad * 2 - 6
-  const kx = iw / w
-  const ky = ih / h
+  const kx = iw / WORLD_W
+  const ky = ih / WORLD_H
   const mx = (wx: number) => ix + wx * kx
   const my = (wy: number) => iy + wy * ky
 
@@ -404,8 +408,8 @@ function drawRadar(now: number) {
   // shoreline/horizon marker
   ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)'
   ctx.beginPath()
-  ctx.moveTo(ix, my(h * 0.62))
-  ctx.lineTo(ix + iw, my(h * 0.62))
+  ctx.moveTo(ix, my(WORLD_H * 0.62))
+  ctx.lineTo(ix + iw, my(WORLD_H * 0.62))
   ctx.stroke()
 
   // remaining relay signals
@@ -510,8 +514,10 @@ function frame(now: number) {
   }
 
   const speedNow = player.speed * (boost.active ? boost.multiplier : 1)
-  player.x = Math.max(player.size, Math.min(w - player.size, player.x + (dx / len) * speedNow * dt))
-  player.y = Math.max(player.size, Math.min(h - player.size, player.y + (dy / len) * speedNow * dt))
+  player.x = Math.max(player.size, Math.min(WORLD_W - player.size, player.x + (dx / len) * speedNow * dt))
+  player.y = Math.max(player.size, Math.min(WORLD_H - player.size, player.y + (dy / len) * speedNow * dt))
+  camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
+  camera.y = Math.max(0, Math.min(Math.max(0, WORLD_H - h), player.y - h / 2))
   if (moving) facing = { dx: dx / len, dy: dy / len }
 
   const pct = boost.energy.toFixed(0)
@@ -540,13 +546,13 @@ function frame(now: number) {
         d.x += Math.cos(d.angle) * 60 * dt
         d.y += Math.sin(d.angle) * 40 * dt
       }
-      d.x = Math.max(30, Math.min(w - 30, d.x))
-      d.y = Math.max(h * 0.62, Math.min(h - 30, d.y))
+      d.x = Math.max(30, Math.min(WORLD_W - 30, d.x))
+      d.y = Math.max(WORLD_H * 0.62, Math.min(WORLD_H - 30, d.y))
       distToPlayer = Math.hypot(player.x - d.x, player.y - d.y)
       if (distToPlayer < 30 && !disabled && !missionComplete) {
         setWanted(wanted - 1)
-        player.x = w / 2
-        player.y = h / 2
+        player.x = WORLD_W / 2
+        player.y = WORLD_H / 2
         d.disabledUntil = now + 1200
         d.x = Math.max(40, d.x - 220)
       }
@@ -585,7 +591,7 @@ function frame(now: number) {
     const b = pulse.bolts[i]
     b.x += b.dx * pulse.speed * dt
     b.y += b.dy * pulse.speed * dt
-    if (b.x < -20 || b.x > w + 20 || b.y < -20 || b.y > h + 20) {
+    if (b.x < -20 || b.x > WORLD_W + 20 || b.y < -20 || b.y > WORLD_H + 20) {
       pulse.bolts.splice(i, 1)
       continue
     }
@@ -640,6 +646,8 @@ function frame(now: number) {
 
   ctx.font = '600 13px ui-monospace, Consolas, monospace'
   ctx.textAlign = 'center'
+  ctx.save()
+  ctx.translate(-camera.x, -camera.y)
   buildings.forEach((b, i) => {
     neonRect(b.x, b.y, b.width, b.height, i % 3 === 0 ? '#00f0ff' : '#ff2d96')
     ctx.fillStyle = 'rgba(255, 240, 90, 0.85)'
@@ -705,8 +713,8 @@ function frame(now: number) {
   // Civilian traffic: continuous lane movement with edge wrap
   traffic.forEach(t => {
     t.x += t.dir * t.speed * dt
-    if (t.dir > 0 && t.x > w + t.length) t.x = -t.length
-    if (t.dir < 0 && t.x < -t.length) t.x = w + t.length
+    if (t.dir > 0 && t.x > WORLD_W + t.length) t.x = -t.length
+    if (t.dir < 0 && t.x < -t.length) t.x = WORLD_W + t.length
   })
 
   signals.forEach((s, i) => {
@@ -898,6 +906,7 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   })
 
+  ctx.restore()
   drawRadar(now)
 
   requestAnimationFrame(frame)
