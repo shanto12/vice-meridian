@@ -7,7 +7,7 @@ app.innerHTML = `
   <canvas id="game"></canvas>
   <div class="hud">
     <p class="hud-count">SIGNALS <span id="signal-count">0</span>/3</p>
-    <p class="hud-mission">MISSION // Sweep the grid — recover 3 relay signals</p>
+    <p class="hud-mission" id="mission-line">MISSION // Sweep the grid — recover 3 relay signals</p>
     <p class="hud-boost">
       BOOST
       <span class="boost-bar"><span class="boost-fill" id="boost-fill"></span></span>
@@ -17,7 +17,12 @@ app.innerHTML = `
     <p class="hud-pulse">PULSE F <span class="pulse-state" id="pulse-state">READY</span></p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones</p>
+  <div class="run-complete" id="run-complete" hidden>
+    <p class="run-title">RUN COMPLETE // EXTRACTION SECURED</p>
+    <p class="run-stats" id="run-stats"></p>
+    <p class="run-restart">PRESS R TO RESTART</p>
+  </div>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — R to restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -49,11 +54,17 @@ window.addEventListener('keydown', e => {
   }
   if (e.code === 'KeyQ') jammer.requested = true
   if (e.code === 'KeyF') pulse.requested = true
+  if (e.code === 'KeyR') restartRequested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
 
 const player = { x: w / 2, y: h / 2, size: 28, speed: 320 }
 const grid = 48
+
+let restartRequested = false
+let missionComplete = false
+let runStartMs = performance.now()
+let runTimeSec = 0
 
 const jammer = {
   requested: false,
@@ -99,6 +110,37 @@ const wantedEls = {
 const pulseEls = {
   state: document.querySelector<HTMLSpanElement>('#pulse-state')!,
 }
+const missionEl = document.getElementById('mission-line')!
+const runCompleteEl = document.getElementById('run-complete')!
+const runStatsEl = document.getElementById('run-stats')!
+
+function resetRun(nowMs: number) {
+  signalsFound = 0
+  signalEls.count.textContent = '0'
+  signalEls.complete.hidden = true
+  setWanted(0)
+  missionComplete = false
+  runStartMs = nowMs
+  runTimeSec = 0
+  player.x = w / 2
+  player.y = h / 2
+  facing = { dx: 0, dy: -1 }
+  boost.energy = 100
+  boost.cooldown = false
+  boost.active = false
+  pulse.bolts.length = 0
+  pulse.cooldown = 0
+  jammer.cooldown = 0
+  jammer.active = 0
+  drones.forEach((d, i) => {
+    d.x = w * (0.22 + i * 0.28)
+    d.y = h * 0.62 + 70
+    d.angle = i * 2.1
+    d.disabledUntil = 0
+  })
+  missionEl.textContent = 'MISSION // Sweep the grid — recover 3 relay signals'
+  runCompleteEl.hidden = true
+}
 
 const signals = Array.from({ length: 3 }, (_, i) => ({
   x: ((i * 419 + 211) % (w - 200)) + 100,
@@ -136,6 +178,17 @@ const traffic = Array.from({ length: 6 }, (_, i) => {
   }
 })
 
+// Second-act objective: extraction gate (revealed once all signals are found)
+const gate = {
+  get x() {
+    return w - 150
+  },
+  get y() {
+    return h * 0.62 + 90
+  },
+  radius: 46,
+}
+
 function setWanted(next: number) {
   wanted = Math.max(0, Math.min(3, next))
   wantedEls.count.textContent = String(wanted)
@@ -152,6 +205,7 @@ function neonRect(x: number, y: number, width: number, height: number, color: st
 }
 
 let last = performance.now()
+const missionPhase2 = 'MISSION // Reach the extraction gate'
 
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.05)
@@ -214,7 +268,7 @@ function frame(now: number) {
       d.x = Math.max(30, Math.min(w - 30, d.x))
       d.y = Math.max(h * 0.62, Math.min(h - 30, d.y))
       distToPlayer = Math.hypot(player.x - d.x, player.y - d.y)
-      if (distToPlayer < 30 && !disabled) {
+      if (distToPlayer < 30 && !disabled && !missionComplete) {
         setWanted(wanted - 1)
         player.x = w / 2
         player.y = h / 2
@@ -272,6 +326,21 @@ function frame(now: number) {
   const pulseState = pulse.cooldown > 0 ? 'COOLDOWN' : 'READY'
   if (pulseEls.state.textContent !== pulseState) pulseEls.state.textContent = pulseState
 
+  // Restart on R
+  if (restartRequested) {
+    restartRequested = false
+    resetRun(now)
+  }
+
+  // Extraction: overlap gate after all signals collected completes the run
+  if (!missionComplete && signalsFound === 3 && Math.hypot(player.x - gate.x, player.y - gate.y) < gate.radius + player.size / 2) {
+    missionComplete = true
+    runTimeSec = (now - runStartMs) / 1000
+    runStatsEl.textContent = `TIME ${runTimeSec.toFixed(1)}s // SCORE ${Math.max(500, Math.round(5000 - runTimeSec * 40))}`
+    runCompleteEl.hidden = false
+    setWanted(0)
+  }
+
   const bg = ctx.createLinearGradient(0, 0, 0, h)
   bg.addColorStop(0, '#0a0325')
   bg.addColorStop(0.55, '#12063a')
@@ -311,6 +380,40 @@ function frame(now: number) {
 
   neonRect(0, h * 0.62, w, 4, '#00f0ff')
 
+  // Violet extraction gate: revealed after all signals are recovered
+  if (signalsFound === 3 && !missionComplete) {
+    const gx = gate.x
+    const gy = gate.y
+    const breathe = Math.sin(now / 320) * 6
+    ctx.strokeStyle = '#b26bff'
+    ctx.shadowColor = '#b26bff'
+    ctx.shadowBlur = 26 + breathe
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.ellipse(gx, gy, gate.radius * 0.62, gate.radius, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    // inner shimmer ring
+    ctx.lineWidth = 1.5
+    ctx.globalAlpha = 0.55
+    ctx.beginPath()
+    ctx.ellipse(gx, gy, gate.radius * 0.38 + breathe * 0.5, gate.radius * 0.66 + breathe * 0.5, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+    // base pylons
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.moveTo(gx - gate.radius * 0.62 - 8, gy + gate.radius)
+    ctx.lineTo(gx - gate.radius * 0.62 - 8, gy + gate.radius + 16)
+    ctx.moveTo(gx + gate.radius * 0.62 + 8, gy + gate.radius)
+    ctx.lineTo(gx + gate.radius * 0.62 + 8, gy + gate.radius + 16)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.fillStyle = 'rgba(178, 107, 255, 0.9)'
+    ctx.textAlign = 'center'
+    ctx.fillText('EXTRACT', gx, gy - gate.radius - 12)
+  }
+
   // Jammer pulse ring
   if (jammerRingVisible) {
     const t = 1 - (jammer.active - now) / 420
@@ -336,8 +439,11 @@ function frame(now: number) {
     if (Math.hypot(player.x - s.x, player.y - s.y) < player.size + 16) {
       signalsFound++
       signalEls.count.textContent = String(signalsFound)
-      setWanted(wanted + 1)
-      if (signalsFound === 3) signalEls.complete.hidden = false
+      if (!missionComplete) setWanted(wanted + 1)
+      if (signalsFound === 3 && !missionComplete) {
+        signalEls.complete.hidden = false
+        missionEl.textContent = missionPhase2
+      }
       return
     }
     const bob = Math.sin(now / 260 + i * 2.1) * 5
