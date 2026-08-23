@@ -107,6 +107,20 @@ const drones = Array.from({ length: 3 }, (_, i) => ({
   disabledUntil: 0,
 }))
 
+const TRAFFIC_COLORS = ['#ff9d3c', '#b26bff', '#00e5b0', '#ff6b8a', '#4da6ff', '#e8e84a']
+const traffic = Array.from({ length: 6 }, (_, i) => {
+  const laneIndex = i % 3
+  const dir = laneIndex === 0 ? 1 : -1
+  return {
+    x: (w / 6) * i + 40,
+    laneY: h * 0.62 + 55 + laneIndex * ((h * 0.38 - 90) / 2),
+    dir,
+    speed: 70 + ((i * 53) % 90),
+    color: TRAFFIC_COLORS[i],
+    length: 30 + ((i * 37) % 14),
+  }
+})
+
 function setWanted(next: number) {
   wanted = Math.max(0, Math.min(3, next))
   wantedEls.count.textContent = String(wanted)
@@ -265,6 +279,13 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Civilian traffic: continuous lane movement with edge wrap
+  traffic.forEach(t => {
+    t.x += t.dir * t.speed * dt
+    if (t.dir > 0 && t.x > w + t.length) t.x = -t.length
+    if (t.dir < 0 && t.x < -t.length) t.x = w + t.length
+  })
+
   signals.forEach((s, i) => {
     if (signalsFound > i) return
     if (Math.hypot(player.x - s.x, player.y - s.y) < player.size + 16) {
@@ -286,6 +307,33 @@ function frame(now: number) {
     ctx.arc(s.x, s.y + bob, 4, 0, Math.PI * 2)
     ctx.fillStyle = '#fff8d6'
     ctx.fill()
+    ctx.shadowBlur = 0
+  })
+
+  // Civilian traffic cars (drawn under player + drones)
+  traffic.forEach(t => {
+    const half = t.length / 2
+    const rear = t.dir > 0 ? -half : half
+    const front = -rear
+
+    ctx.shadowColor = t.color
+    ctx.shadowBlur = 10
+    ctx.strokeStyle = t.color
+    ctx.lineWidth = 2
+    ctx.strokeRect(t.x - half, t.laneY - 9, t.length, 18)
+
+    // window strip
+    ctx.fillStyle = 'rgba(191, 255, 255, 0.5)'
+    ctx.fillRect(t.x - half + t.length * 0.28, t.laneY - 6, t.length * 0.44, 5)
+
+    // taillights at rear, headlights at front
+    ctx.shadowBlur = 8
+    ctx.fillStyle = '#ff2d96'
+    ctx.fillRect(t.x + rear - (t.dir > 0 ? 4 : 0), t.laneY - 7, 4, 3)
+    ctx.fillRect(t.x + rear - (t.dir > 0 ? 4 : 0), t.laneY + 4, 4, 3)
+    ctx.fillStyle = 'rgba(255, 248, 214, 0.85)'
+    ctx.fillRect(t.x + front - (t.dir > 0 ? 0 : 4), t.laneY - 7, 4, 3)
+    ctx.fillRect(t.x + front - (t.dir > 0 ? 0 : 4), t.laneY + 4, 4, 3)
     ctx.shadowBlur = 0
   })
 
