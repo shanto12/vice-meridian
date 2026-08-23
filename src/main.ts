@@ -225,11 +225,14 @@ function drawCityMap() {
   ctx.fillStyle = 'rgba(3, 1, 12, 0.88)'
   ctx.fillRect(0, 0, w, h)
 
-  const pad = 70
-  const mw = w - pad * 2
-  const mh = h - pad * 2
-  const mx = pad
-  const myTop = pad
+  const narrow = w <= 620
+  const padX = narrow ? 14 : 70
+  const padTop = narrow ? 64 : 70
+  const padBottom = narrow ? 56 : 70
+  const mw = w - padX * 2
+  const mh = h - padTop - padBottom
+  const mx = padX
+  const myTop = padTop
   const kx = mw / w
   const ky = mh / h
 
@@ -315,7 +318,7 @@ function drawCityMap() {
   ctx.shadowBlur = 0
 
   // district labels
-  ctx.font = '700 13px ui-monospace, Consolas, monospace'
+  ctx.font = narrow ? '700 10px ui-monospace, Consolas, monospace' : '700 13px ui-monospace, Consolas, monospace'
   ctx.textAlign = 'center'
   const labels: [string, number][] = [
     ['DOCKSIDE', mx + mw / 6],
@@ -326,25 +329,27 @@ function drawCityMap() {
     ctx.fillStyle = 'rgba(255, 45, 150, 0.85)'
     ctx.shadowColor = '#ff2d96'
     ctx.shadowBlur = 10
-    ctx.fillText(name, lx, myTop + mh - 16)
+    ctx.fillText(name, lx, myTop + mh - 12)
   })
 
   // header + close hint
-  ctx.font = '600 12px ui-monospace, Consolas, monospace'
+  ctx.font = narrow ? '600 10px ui-monospace, Consolas, monospace' : '600 12px ui-monospace, Consolas, monospace'
   ctx.textAlign = 'left'
   ctx.fillStyle = 'rgba(0, 240, 255, 0.85)'
-  ctx.fillText('CITY MAP', pad, pad - 24)
+  ctx.fillText('CITY MAP', padX, padTop - 16)
   ctx.textAlign = 'right'
   ctx.fillStyle = '#ffe05a'
-  ctx.fillText('MAP OPEN // PRESS M TO CLOSE', mx + mw, pad - 24)
+  ctx.fillText('MAP OPEN // PRESS M TO CLOSE', mx + mw, padTop - 16)
 }
 
 // Compact top-right NEON RADAR: abstract blocks/streets + live entity blips
 function drawRadar(now: number) {
-  const rw = 186
-  const rh = 142
-  const rx = w - rw - 16
-  const ry = 14
+  const narrow = w <= 620
+  const rw = narrow ? 148 : 186
+  const rh = narrow ? 116 : 142
+  // narrow screens: sit below the HTML HUD stack so it never meets the title
+  const rx = w - rw - (narrow ? 10 : 16)
+  const ry = narrow ? 158 : 14
 
   ctx.fillStyle = 'rgba(4, 2, 16, 0.74)'
   ctx.fillRect(rx, ry, rw, rh)

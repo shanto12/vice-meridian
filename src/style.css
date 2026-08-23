@@ -238,3 +238,101 @@ canvas {
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
   animation: wanted-pulse 1.1s ease-in-out infinite alternate;
 }
+
+@media (max-width: 600px) {
+  .title {
+    top: 8px;
+    font-size: clamp(16px, 4.8vw, 20px);
+    letter-spacing: 3px;
+  }
+
+  .hud {
+    top: 42px;
+    left: 12px;
+    right: 12px;
+  }
+
+  .hud-count {
+    font-size: 13px;
+    letter-spacing: 3px;
+  }
+
+  .hud-mission {
+    margin: 5px 0 0;
+    max-width: none;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+  }
+
+  .hud-boost {
+    margin: 7px 0 0;
+    gap: 7px;
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .boost-bar {
+    width: clamp(80px, 30vw, 130px);
+    height: 7px;
+  }
+
+  .boost-state {
+    min-width: 9ch;
+    font-size: 10px;
+  }
+
+  .hud-wanted {
+    margin: 7px 0 0;
+    font-size: 11px;
+    letter-spacing: 3px;
+  }
+
+  .hud-pulse {
+    margin: 5px 0 0;
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+
+  .pulse-state {
+    font-size: 10px;
+  }
+
+  .hint {
+    bottom: 8px;
+    width: 100%;
+    padding: 0 10px;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    line-height: 1.6;
+  }
+
+  .complete {
+    max-width: 88vw;
+    padding: 12px 14px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+
+  .run-complete {
+    max-width: 88vw;
+    padding: 14px 16px;
+  }
+
+  .run-title {
+    font-size: 14px;
+    letter-spacing: 2px;
+  }
+
+  .run-stats {
+    margin: 10px 0 0;
+    font-size: 11px;
+    letter-spacing: 2px;
+  }
+
+  .run-restart {
+    margin: 10px 0 0;
+    font-size: 10px;
+    letter-spacing: 3px;
+  }
+}
