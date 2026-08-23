@@ -46,6 +46,14 @@ const WORLD_W = 2400
 const WORLD_H = 1600
 let camera = { x: 0, y: 0 }
 
+// Purely visual city districts: dashed boundary + label + center coordinate line
+const CITY_DISTRICTS = [
+  { name: 'MIDTOWN', x: WORLD_W * 0.22, y: WORLD_H * 0.22, color: '#00f0ff' },
+  { name: 'INDUSTRIAL', x: WORLD_W * 0.72, y: WORLD_H * 0.22, color: '#ffb300' },
+  { name: 'OLD MARKET', x: WORLD_W * 0.24, y: WORLD_H * 0.72, color: '#ff2d96' },
+  { name: 'HARBOR', x: WORLD_W * 0.74, y: WORLD_H * 0.72, color: '#39ff88' },
+] as const
+
 const keys = new Set<string>()
 const MOVE_KEYS: Record<string, [number, number]> = {
   KeyW: [0, -1], ArrowUp: [0, -1],
@@ -59,7 +67,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -80,6 +88,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyV') vipRequested = true
   if (e.code === 'KeyC') convoyRequested = true
   if (e.code === 'KeyJ') jJobRequested = true
+  if (e.code === 'KeyX') turfRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
@@ -234,6 +243,21 @@ type JunctionJobState = 'available' | 'active' | 'escaping' | 'complete'
 let jJobState: JunctionJobState = 'available'
 let jJobDeadlineMs = 0
 let jJobRestoreAtMs = 0
+
+// District Takeover: X at the safehouse, walk into the contested district, press X on site to secure it, then escape home on foot
+const TURF_SITE = { x: WORLD_W * 0.30, y: WORLD_H * 0.28, radius: 110 }
+const TURF_ACCEPT_RADIUS = 130
+const TURF_TIME_LIMIT_MS = 75000
+const TURF_HOLD_MS = 2600
+const TURF_ACTIVE_TEXT = 'DISTRICT TAKEOVER // REACH THE DISTRICT SITE'
+const TURF_ESCAPE_TEXT = 'DISTRICT TAKEOVER // DISTRICT SECURED // RETURN TO SAFEHOUSE'
+const TURF_DONE_TEXT = 'DISTRICT TAKEOVER // DISTRICT SECURED +$1200'
+const TURF_FAILED_TEXT = 'DISTRICT TAKEOVER // DISTRICT LOST'
+let turfRequested = false
+type TurfState = 'available' | 'active' | 'escaping' | 'complete'
+let turfState: TurfState = 'available'
+let turfDeadlineMs = 0
+let turfRestoreAtMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -488,6 +512,10 @@ function resetRun(nowMs: number) {
   jJobState = 'available'
   jJobDeadlineMs = 0
   jJobRestoreAtMs = 0
+  turfRequested = false
+  turfState = 'available'
+  turfDeadlineMs = 0
+  turfRestoreAtMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1435,6 +1463,60 @@ function frame(now: number) {
     jJobRestoreAtMs = now + J_JOB_HOLD_MS
   }
 
+  // X at the safehouse accepts the District Takeover when no other contract or mission is running
+  const turfAcceptable =
+    turfState === 'available' &&
+    contractState !== 'active' &&
+    blackoutState === 'available' &&
+    raceState === 'available' &&
+    bankState === 'available' &&
+    vipState === 'available' &&
+    convoyState === 'available' &&
+    jJobState === 'available' &&
+    !missionComplete &&
+    !driving &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < TURF_ACCEPT_RADIUS
+  if (turfRequested && turfAcceptable) {
+    turfState = 'active'
+    turfDeadlineMs = now + TURF_TIME_LIMIT_MS
+    setWanted(Math.max(2, wanted))
+    missionEl.textContent = TURF_ACTIVE_TEXT
+  }
+  // On foot inside the contested district, pressing X secures the takeover and starts the escape home
+  if (
+    turfState === 'active' &&
+    !driving &&
+    turfRequested &&
+    Math.hypot(player.x - TURF_SITE.x, player.y - TURF_SITE.y) < TURF_SITE.radius
+  ) {
+    turfState = 'escaping'
+    setWanted(Math.max(2, wanted))
+    missionEl.textContent = `${TURF_ESCAPE_TEXT} — ${Math.ceil((turfDeadlineMs - now) / 1000)}S`
+  }
+  turfRequested = false
+
+  // Escaping: return home on foot inside the safehouse radius to lock the district in
+  if (turfState === 'escaping' && !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
+    turfState = 'complete'
+    turfDeadlineMs = 0
+    turfRestoreAtMs = now + TURF_HOLD_MS
+    cash += 1200
+    rep += 5
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = TURF_DONE_TEXT
+  }
+
+  // District Takeover timer: expiring mid-takeover safely resets to available with no payout
+  if ((turfState === 'active' || turfState === 'escaping') && turfDeadlineMs > 0 && now >= turfDeadlineMs) {
+    turfState = 'available'
+    turfDeadlineMs = 0
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = TURF_FAILED_TEXT
+    turfRestoreAtMs = now + TURF_HOLD_MS
+  }
+
   // Bank Run timer: expiring mid-escape safely resets to available with no payout
   if (bankState === 'escaping' && bankEscapeDeadlineMs > 0 && now >= bankEscapeDeadlineMs) {
     bankState = 'available'
@@ -1566,6 +1648,12 @@ function frame(now: number) {
   const jJobTimeLeftSec =
     (jJobState === 'active' || jJobState === 'escaping') && jJobDeadlineMs > 0
       ? Math.max(0, Math.ceil((jJobDeadlineMs - now) / 1000))
+      : null
+
+  // Shared District Takeover countdown readout (approach + getaway share one 75s deadline)
+  const turfTimeLeftSec =
+    (turfState === 'active' || turfState === 'escaping') && turfDeadlineMs > 0
+      ? Math.max(0, Math.ceil((turfDeadlineMs - now) / 1000))
       : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
@@ -1788,6 +1876,9 @@ function frame(now: number) {
   if (jJobRestoreAtMs > 0 && now >= jJobRestoreAtMs) {
     jJobRestoreAtMs = 0
   }
+  if (turfRestoreAtMs > 0 && now >= turfRestoreAtMs) {
+    turfRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -1809,7 +1900,8 @@ function frame(now: number) {
     bankRestoreAtMs > 0 ||
     vipRestoreAtMs > 0 ||
     convoyRestoreAtMs > 0 ||
-    jJobRestoreAtMs > 0
+    jJobRestoreAtMs > 0 ||
+    turfRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1842,6 +1934,9 @@ function frame(now: number) {
   } else if (jJobRestoreAtMs > 0) {
     const jJobBannerText = jJobState === 'complete' ? J_JOB_DONE_TEXT : J_JOB_FAILED_TEXT
     if (missionEl.textContent !== jJobBannerText) missionEl.textContent = jJobBannerText
+  } else if (turfRestoreAtMs > 0) {
+    const turfBannerText = turfState === 'complete' ? TURF_DONE_TEXT : TURF_FAILED_TEXT
+    if (missionEl.textContent !== turfBannerText) missionEl.textContent = turfBannerText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -1864,6 +1959,12 @@ function frame(now: number) {
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (jJobState === 'escaping' && jJobTimeLeftSec !== null) {
     const liveText = `${J_JOB_ESCAPE_TEXT} — ${jJobTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if (turfState === 'active' && turfTimeLeftSec !== null) {
+    const liveText = `${TURF_ACTIVE_TEXT} — ${turfTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if (turfState === 'escaping' && turfTimeLeftSec !== null) {
+    const liveText = `${TURF_ESCAPE_TEXT} — ${turfTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
     const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
@@ -1929,6 +2030,30 @@ function frame(now: number) {
   })
 
   neonRect(0, h * 0.62, w, 4, '#00f0ff')
+
+  // District overlays: subtle dashed boundary, label, and center coordinate line
+  ctx.font = '600 11px ui-monospace, Consolas, monospace'
+  ctx.textAlign = 'left'
+  CITY_DISTRICTS.forEach(d => {
+    const half = 130
+    const left = d.x - half
+    const top = d.y - half
+    ctx.strokeStyle = d.color
+    ctx.globalAlpha = 0.28
+    ctx.lineWidth = 1
+    ctx.setLineDash([10, 8])
+    ctx.strokeRect(left, top, half * 2, half * 2)
+    ctx.setLineDash([])
+    ctx.globalAlpha = 0.75
+    ctx.fillStyle = d.color
+    ctx.fillText(d.name, left + 6, top - 6)
+    ctx.globalAlpha = 0.35
+    ctx.beginPath()
+    ctx.moveTo(left, d.y)
+    ctx.lineTo(d.x, d.y)
+    ctx.stroke()
+    ctx.globalAlpha = 1
+  })
 
   // Violet extraction gate: revealed after all signals are recovered
   if (signalsFound === 3 && !missionComplete) {
@@ -2291,6 +2416,79 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Contested district: magenta-orange dashed takeover ring with three enemy markers while active/escaping
+  if (turfState === 'active' || turfState === 'escaping') {
+    const tx = TURF_SITE.x
+    const ty = TURF_SITE.y
+    const breathe = Math.sin(now / 300) * 5
+    const atTurf = !driving && Math.hypot(player.x - tx, player.y - ty) < TURF_SITE.radius
+    ctx.strokeStyle = '#ff2d96'
+    ctx.shadowColor = '#ff9d3c'
+    ctx.shadowBlur = 22 + breathe
+    ctx.lineWidth = atTurf ? 3.5 : 3
+    ctx.setLineDash([14, 10])
+    ctx.beginPath()
+    ctx.arc(tx, ty, TURF_SITE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    // inner orange shimmer ring for the two-tone district boundary
+    ctx.strokeStyle = '#ff9d3c'
+    ctx.shadowColor = '#ff9d3c'
+    ctx.globalAlpha = 0.55
+    ctx.setLineDash([7, 11])
+    ctx.beginPath()
+    ctx.arc(tx, ty, TURF_SITE.radius - 10, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
+
+    // three enemy markers: dark hulls with red roof lights holding the block
+    const turfEnemies = [
+      { x: tx - 40, y: ty - 30, angle: Math.PI / 3 },
+      { x: tx + 38, y: ty - 22, angle: -Math.PI / 2 },
+      { x: tx + 6, y: ty + 42, angle: Math.PI / 4 },
+    ]
+    for (const enemy of turfEnemies) {
+      ctx.save()
+      ctx.translate(enemy.x, enemy.y)
+      ctx.rotate(enemy.angle)
+      ctx.strokeStyle = '#2a2f45'
+      ctx.shadowColor = now % 400 < 200 ? '#ff3c3c' : '#ffe05a'
+      ctx.shadowBlur = 12
+      ctx.lineWidth = 3
+      ctx.strokeRect(-13, -8, 26, 16)
+      // cabin slit
+      ctx.fillStyle = 'rgba(191, 255, 255, 0.35)'
+      ctx.fillRect(-4, -4, 7, 8)
+      // red light bar cells
+      ctx.fillStyle = '#ff3c3c'
+      ctx.fillRect(-5, -2, 4, 4)
+      ctx.fillStyle = '#ffe05a'
+      ctx.fillRect(1, -2, 4, 4)
+      // headlights
+      ctx.shadowColor = '#fff8d6'
+      ctx.shadowBlur = 7
+      ctx.fillStyle = '#fff8d6'
+      ctx.fillRect(-9, -9, 4, 3)
+      ctx.fillRect(6, -9, 4, 3)
+      ctx.restore()
+      ctx.shadowBlur = 0
+    }
+
+    // secured beacon once the district is locked in and the escape home is running
+    if (atTurf && turfState === 'escaping') {
+      ctx.fillStyle = '#ffd6ea'
+      ctx.beginPath()
+      ctx.arc(tx, ty, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ff2d96'
+    ctx.fillText('DISTRICT TAKEOVER', tx, ty - TURF_SITE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - tx, player.y - ty))}M`, tx, ty - TURF_SITE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Midnight Sprint checkpoint: distinctive green gate for the current mandatory target
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[raceCheckpointIndex]
@@ -2457,6 +2655,9 @@ function frame(now: number) {
   const vipEscapingNow = vipState === 'escaping'
   const convoyEscapingNow = convoyState === 'escaping'
   const jJobEscapingNow = jJobState === 'escaping'
+  const turfEscapingNow = turfState === 'escaping'
+  // Advertise the takeover offer wherever it is still open without displacing the standing hints
+  const turfOfferHint = turfState === 'available' ? 'PRESS X FOR DISTRICT TAKEOVER // ' : ''
   // Advertise the convoy offer wherever it is still open without displacing the standing hints
   const convoyOfferHint = convoyState === 'available' ? 'PRESS C FOR ARMORED CONVOY // ' : ''
   // Advertise the junction offer wherever it is still open without displacing the standing hints
@@ -2473,26 +2674,28 @@ function frame(now: number) {
       : `EARN $${REPAIR_COST} FOR REPAIR`
     : 'HULL OK'
   let safehouseHint: string
-  if (jJobEscapingNow) {
-    safehouseHint = `SAFEHOUSE // JUNCTION JOB // RETURN TO SAFEHOUSE // ${garageStatusHint} // ${repairStatusHint}`
+  if (turfEscapingNow) {
+    safehouseHint = `SAFEHOUSE // DISTRICT TAKEOVER // RETURN TO SAFEHOUSE // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (jJobEscapingNow) {
+    safehouseHint = `SAFEHOUSE // JUNCTION JOB // RETURN TO SAFEHOUSE // ${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (convoyEscapingNow) {
     safehouseHint = `SAFEHOUSE // ARMORED CONVOY // RETURN TO SAFEHOUSE // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutEscapingNow) {
-    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${convoyOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (vipEscapingNow) {
-    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${convoyOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (bankEscapingNow) {
-    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${convoyOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (vipAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${turfOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (bankAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${turfOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (raceAcceptableNow) {
     safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutAcceptableNow) {
     safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (nearSafehouse) {
-    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${convoyOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${convoyOfferHint}${jJobOfferHint}${turfOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else {
     safehouseHint = SAFEHOUSE_CLEAR_TEXT
   }
