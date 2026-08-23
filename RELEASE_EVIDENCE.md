@@ -281,3 +281,34 @@ The heat-decay logic itself is verified by source review and live bundle content
 direct 7-second decay transition and every mission branch were NOT independently
 reproduced in real Chrome; these are flagged NOT FULLY VERIFIED rather than assumed, and
 no enterprise-grade or full behavior verification is claimed for this release.
+
+---
+
+# Blackout Getaway — Release Evidence (2026-08-23)
+
+Verification matrix for the Blackout Run getaway-phase release. Evidence surfaces refer
+to the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Status |
+| --- | --- | --- |
+| Source change is committed and traceable | Commit `3e6dba1dcef11f68a532cb20f8678be5dd77a216` (short `3e6dba1`) "Add Blackout Run getaway phase" on `origin/main` | PASS |
+| Production deploy is live | Netlify deploy `6a8b39630407f65d13ea4513` at https://vice-meridian.netlify.app/ | PASS |
+| Production build succeeds and tracked changes are clean | Build: `npm run build` (tsc + Vite) passes; `git diff --check` clean | PASS |
+| No known vulnerabilities in production dependencies | Build: `npm audit --omit=dev` reports 0 vulnerabilities | PASS |
+| Site serves successfully with required security headers | API/headers: HTTP 200; CSP, Permissions-Policy, Referrer-Policy, HSTS, X-Content-Type-Options all present | PASS |
+| Live bundle contains the getaway strings plus prior systems | Real Chrome desktop / bundle: contains "BLACKOUT RUN // GRID CUT // ESCAPE TO SAFEHOUSE", "BLACKOUT RUN // ESCAPE FAILED", "RETURN TO BANK BLACKOUT RUN", plus prior "POLICE SCAN // HEAT COOLING -1", "TRAFFIC HIT", and "HOT DELIVERY" strings | PASS |
+| Desktop browser loads production and extended key smoke works | Real Chrome desktop 1440px: production loaded; M/F/Q/R/E/B/H key smoke completed | PASS — zero console errors, no horizontal overflow |
+| Responsive layout on small viewport | Real Chrome mobile 390x844: production loaded, scrollWidth equals 390 | PASS — zero console errors |
+| Reaching the grid target transitions active → escaping | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Returning to the safehouse on foot awards the payout once | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| 30-second escape deadline expires into ESCAPE FAILED without payout | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Every mission/banner restoration branch under the two-phase loop | Not independently driven end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+
+## Summary
+
+Source, build, audit, header, bundle-content, and real-browser load/smoke gates passed.
+The getaway-phase logic itself ships verified by live bundle content and code review only.
+Reaching the grid target, returning to the safehouse for the payout, the 30-second timeout
+failure, and every mission/banner restoration branch were NOT independently driven
+end-to-end in real Chrome; these are flagged NOT FULLY VERIFIED rather than assumed, and
+no enterprise-grade or full behavior verification is claimed for this release.
