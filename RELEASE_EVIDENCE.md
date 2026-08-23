@@ -24,3 +24,31 @@ Netlify production deploy of this repository.
 All applicable release gates passed. Two gameplay inputs (E enter/exit, Space boost)
 remain not fully verified in a real browser session and are flagged above rather than
 assumed.
+
+---
+
+# Safehouse Heat Recovery — Release Evidence (2026-08-23)
+
+Verification matrix for the safehouse heat-recovery release. Evidence surfaces refer to
+the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed and traceable | Commit `90fe5ae9780d36d83d807b66ac26984178360607` ("Add safehouse heat recovery") on `origin/main` | PASS | Only `src/main.ts` modified; working tree clean after push |
+| Production deploy is live | Netlify deploy `6a8b2934126dab3c20fa4050` at https://vice-meridian.netlify.app/ | PASS | Deploy ID confirmed against the live site |
+| Production build succeeds | `npm run build` (tsc + Vite) | PASS | No type or build errors blocking output |
+| No whitespace errors in tracked changes | `git diff --check` | PASS | Clean output, no trailing whitespace or conflict markers |
+| No known vulnerabilities in production dependencies | `npm audit --omit=dev` | PASS | 0 vulnerabilities reported for the production dependency tree |
+| App bundle contains the safehouse feature strings | Fetched live JS bundle; contains "SAFEHOUSE", "SAFEHOUSE // HOLD H TO CLEAR HEAT", "SAFEHOUSE // HEAT CLEARED", "COURIER RUN", and "DROP-OFF" strings | PASS | Confirms the deploy serves the updated bundle, not a stale one; courier contract strings still present alongside the new safehouse code |
+| Security headers present on responses | Live response headers include CSP, Permissions-Policy, Referrer-Policy, HSTS, and `X-Content-Type-Options` | PASS | All expected headers observed on the production origin |
+| Core gameplay controls work in a real browser | Real Chrome profile desktop session at 1440x604: page loaded; M (map open/close), F (pulse), Q (jammer), R (reset) manually exercised | PASS | No application console errors during interaction |
+| Responsive layout on small viewport | Real Chrome mobile session at 390x844: page loaded, scrollWidth measured at 390 | PASS | No horizontal overflow; layout contained within viewport width |
+| Safehouse H-in-zone heat-clear path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | H keypress while standing inside the safehouse ring shipped but was not driven end-to-end in this pass |
+| Courier E enter/exit + Space boost path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Controls implemented in code but not explicitly driven end-to-end in this pass |
+| Auth / backend / API integration | Static Vite site — no auth, backend, or API surface exists | Not applicable | Nothing to verify beyond static serving and headers |
+
+## Summary
+
+Build, audit, bundle-content, header, desktop-interaction, and mobile-layout gates passed.
+The safehouse H-in-zone heat-clear end-to-end path and the courier E/Space paths were NOT
+fully verified in this pass and are flagged above rather than assumed.
