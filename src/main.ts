@@ -17,6 +17,7 @@ app.innerHTML = `
     <p class="hud-pulse">PULSE F <span class="pulse-state" id="pulse-state">READY</span></p>
     <p class="hud-courier" id="hud-courier" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff9d3c;text-shadow:0 0 10px rgba(255,157,60,0.6);">COURIER // PRESS E TO DRIVE</p>
     <p class="hud-safehouse" id="hud-safehouse" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 10px rgba(0,240,255,0.6);">SAFEHOUSE // HOLD H TO CLEAR HEAT</p>
+    <p class="hud-crew" id="hud-crew" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 10px rgba(0,240,255,0.6);">CREW COVER 0S</p>
     <p class="hud-scan" id="hud-scan" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE SCAN // NEAREST UNIT ---M</p>
     <p class="hud-pursuit" id="hud-pursuit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE PURSUIT // HEAT 0/3</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
@@ -29,7 +30,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — N race — Y night shift — P save — L load — R restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — P save — L load — R restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -68,7 +69,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'KeyU') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -90,6 +91,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyC') convoyRequested = true
   if (e.code === 'KeyJ') jJobRequested = true
   if (e.code === 'KeyX') turfRequested = true
+  if (e.code === 'KeyU') crewNetworkRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyY') nightShiftEnabled = !nightShiftEnabled
   if (e.code === 'KeyP') saveRequested = true
@@ -297,6 +299,15 @@ const HEAT_COOLING_TEXT = 'POLICE SCAN // HEAT COOLING -1'
 let heatCoolStartMs = 0
 let heatCoolRestoreAtMs = 0
 
+// Temporary Crew Network safehouse service: U on foot buys 45s of faster heat decay (never persisted)
+const CREW_COVER_COST = 600
+const CREW_COVER_DURATION_MS = 45000
+const CREW_COVER_FAST_HEAT_COOL_MS = 2800
+const CREW_AFFORD_TEXT = 'CREW NETWORK // COVER ACTIVE -$600'
+const CREW_POOR_TEXT = 'CREW NETWORK // NEED $600'
+let crewNetworkRequested = false
+let crewCoverUntilMs = 0
+
 // Visible police cruisers: exactly two, parked on the road band below the horizon
 const POLICE_HIT_DAMAGE = 12
 const POLICE_HIT_COOLDOWN_MS = 1200
@@ -451,6 +462,7 @@ const pulseEls = {
 }
 const courierEl = document.getElementById('hud-courier')!
 const safehouseEl = document.getElementById('hud-safehouse')!
+const crewEl = document.getElementById('hud-crew')!
 const scanEl = document.getElementById('hud-scan')!
 const pursuitEl = document.getElementById('hud-pursuit')!
 const walletEl = document.getElementById('hud-wallet')!
@@ -544,6 +556,8 @@ function resetRun(nowMs: number) {
   heatCoolRestoreAtMs = 0
   cash = 0
   rep = 0
+  crewNetworkRequested = false
+  crewCoverUntilMs = 0
   courierCar.maxSpeed = 360
   courierCar.accel = 420
   courierCar.x = WORLD_W / 2 + 90
@@ -1213,6 +1227,21 @@ function frame(now: number) {
     }
     repairRequested = false
 
+    // U on foot at the safehouse buys Crew Cover: $600 flat for 45s of faster heat cooling
+    if (crewNetworkRequested && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
+      if (now >= crewCoverUntilMs) {
+        if (cash >= CREW_COVER_COST) {
+          cash -= CREW_COVER_COST
+          crewCoverUntilMs = now + CREW_COVER_DURATION_MS
+          missionEl.textContent = CREW_AFFORD_TEXT
+          safehouseRestoreAtMs = now + SAFEHOUSE_HOLD_MS
+        } else {
+          missionEl.textContent = CREW_POOR_TEXT
+          safehouseRestoreAtMs = now + SAFEHOUSE_HOLD_MS
+        }
+      }
+    }
+
     // B near the safehouse accepts the blackout run when no courier contract is active
     const blackoutAcceptable =
       blackoutState === 'available' &&
@@ -1301,6 +1330,7 @@ function frame(now: number) {
   }
   courierToggleRequested = false
   safehouseRequested = false
+  crewNetworkRequested = false
   blackoutRequested = false
   raceRequested = false
   bankRequested = false
@@ -1776,6 +1806,8 @@ function frame(now: number) {
   }
 
   // Heat cooling: after 7s continuously clear of all active hunters' scan range, shed one level
+  // Active Crew Cover compresses that window to a faster decay without touching mission timers or payouts
+  const heatCoolRequiredMs = now < crewCoverUntilMs ? CREW_COVER_FAST_HEAT_COOL_MS : HEAT_COOL_MS
   const hunterInRange =
     wanted > 0 &&
     drones.some(d => now >= d.disabledUntil && Math.hypot(player.x - d.x, player.y - d.y) < POLICE_SCAN_RADIUS)
@@ -1783,7 +1815,7 @@ function frame(now: number) {
     heatCoolStartMs = 0
   } else if (heatCoolStartMs === 0) {
     heatCoolStartMs = now
-  } else if (now - heatCoolStartMs >= HEAT_COOL_MS) {
+  } else if (now - heatCoolStartMs >= heatCoolRequiredMs) {
     setWanted(wanted - 1)
     heatCoolStartMs = wanted > 0 ? now : 0
     heatCoolRestoreAtMs = now + HEAT_COOL_HOLD_MS
@@ -2209,6 +2241,25 @@ function frame(now: number) {
     ctx.fillText('SAFEHOUSE', sx, sy - SAFEHOUSE.radius - 26)
     ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - sx, player.y - sy))}M`, sx, sy - SAFEHOUSE.radius - 12)
     ctx.shadowBlur = 0
+    // Crew beacon: subtle cyan pulse rings around the safehouse only while Cover is active
+    if (now < crewCoverUntilMs) {
+      const crewPulseT = (now % 1400) / 1400
+      for (const offset of [0, 0.5]) {
+        const ringT = (crewPulseT + offset) % 1
+        ctx.strokeStyle = `rgba(0, 240, 255, ${0.28 * (1 - ringT)})`
+        ctx.shadowColor = '#00f0ff'
+        ctx.shadowBlur = 10
+        ctx.lineWidth = 1.5
+        ctx.beginPath()
+        ctx.arc(sx, sy, SAFEHOUSE.radius + 8 + ringT * 46, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      ctx.fillStyle = '#bfffff'
+      ctx.beginPath()
+      ctx.arc(sx, sy, 3.5 + Math.sin(now / 150) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.shadowBlur = 0
+    }
   }
 
   // Violet grid target: rendered only during the target phase
@@ -2672,6 +2723,15 @@ function frame(now: number) {
   const nearSafehouse = !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius
   if (safehouseEl.style.display !== (nearSafehouse ? '' : 'none')) {
     safehouseEl.style.display = nearSafehouse ? '' : 'none'
+  }
+
+  // Crew Cover HUD countdown: compact cyan readout only while the temporary effect is live
+  const crewCoverSec = Math.max(0, Math.ceil((crewCoverUntilMs - now) / 1000))
+  const crewCoverActive = now < crewCoverUntilMs
+  const crewText = crewCoverActive ? `CREW COVER ${crewCoverSec}S` : ''
+  if (crewEl.textContent !== crewText) crewEl.textContent = crewText
+  if (crewEl.style.display !== (crewCoverActive ? '' : 'none')) {
+    crewEl.style.display = crewCoverActive ? '' : 'none'
   }
 
   // Safehouse hint composes every available interaction: H heat, B blackout, G garage, N race
