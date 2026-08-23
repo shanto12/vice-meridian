@@ -227,7 +227,8 @@ function drawCityMap() {
 
   const narrow = w <= 620
   const padX = narrow ? 14 : 70
-  const padTop = narrow ? 64 : 70
+  // narrow: clear the full HTML HUD stack (~145px) + header row before the map frame
+  const padTop = narrow ? 182 : 70
   const padBottom = narrow ? 56 : 70
   const mw = w - padX * 2
   const mh = h - padTop - padBottom
