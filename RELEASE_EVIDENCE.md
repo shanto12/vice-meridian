@@ -113,3 +113,36 @@ Build, audit, bundle-content, header, wallet-visibility, desktop-interaction, an
 mobile-layout gates passed. The courier reward delivery loop, police scan wanted-state
 path, safehouse H-in-zone path, and courier E/Space paths were NOT fully verified in
 this pass and are flagged above rather than assumed.
+
+---
+
+# Hot Delivery — Release Evidence (2026-08-23)
+
+Verification matrix for the hot-delivery release. Evidence surfaces refer to
+the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed and traceable | Commit `220cc833280119875136bbf9eada65e8207f92b3` ("Add hot courier wanted heat") on `origin/main` | PASS | Only `src/main.ts` modified; working tree clean after push |
+| Production deploy is live | Netlify deploy `6a8b2fb9126dab65a5fa4086` at https://vice-meridian.netlify.app/ | PASS | Deploy ID confirmed against the live site |
+| Production build succeeds | `npm run build` (tsc + Vite) | PASS | No type or build errors blocking output |
+| No whitespace errors in tracked changes | `git diff --check` | PASS | Clean output, no trailing whitespace or conflict markers |
+| No known vulnerabilities in production dependencies | `npm audit --omit=dev` | PASS | 0 vulnerabilities reported for the production dependency tree |
+| App bundle contains the hot-delivery strings plus prior feature strings | Fetched live JS bundle; contains "HOT DELIVERY" plus "POLICE SCAN", "SAFEHOUSE", wallet "CASH $"/"REP", "COURIER RUN // DELIVERED +$250 // REP +1", and "DROP-OFF" strings | PASS | Confirms the deploy serves the updated bundle; police scan, safehouse, wallet, and courier strings remain intact alongside the new hot-heat code |
+| Security headers present on responses | Live response headers include CSP, Permissions-Policy, Referrer-Policy, HSTS, and `X-Content-Type-Options` | PASS | All expected headers observed on the production origin |
+| Desktop browser loads the deploy and core controls work | Real Chrome profile desktop session at 1440x604: deploy loaded; M (map open/close), F (pulse), Q (jammer), R (reset) exercised | PASS | Zero application console errors during interaction |
+| Responsive layout on small viewport | Real Chrome mobile session at 390x844: page loaded, scrollWidth measured at 390 | PASS | No horizontal overflow; zero application console errors |
+| Hot-heat behavior on contract start | Verified via source review and live bundle strings only (`setWanted(Math.max(1, wanted))` at activation; HOT DELIVERY mission text present in served bundle) | VERIFIED BY SOURCE + BUNDLE, NOT E2E | The new wanted-heat-on-entry behavior was not driven end-to-end in a browser in this pass |
+| Full courier E pickup / drive / deliver loop | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Enter, drive, and deliver sequence not driven end-to-end in this pass |
+| Police wanted-state path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Drone chase, POLICE SCAN readout, and search ring under live wanted state not driven end-to-end in this pass |
+| Safehouse H-in-zone heat-clear path | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | H keypress while standing inside the safehouse ring not driven end-to-end in this pass |
+| Reward delivery (+$250 / REP +1 reflected in wallet) | Not exercised end-to-end in the real Chrome session | NOT FULLY VERIFIED | Delivery reward updating cash/rep and the wallet HUD not driven end-to-end in this pass |
+| Auth / backend / API integration | Static Vite site — no auth, backend, or API surface exists | Not applicable | Nothing to verify beyond static serving and headers |
+
+## Summary
+
+Build, audit, bundle-content, header, desktop-interaction, and mobile-layout gates passed.
+The hot-heat behavior itself is verified by source and live bundle but not end-to-end.
+Full courier E pickup/drive/deliver, the police wanted-state path, safehouse H-in-zone,
+and reward delivery were NOT fully verified in this pass and are flagged above rather
+than assumed.
