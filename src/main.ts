@@ -16,6 +16,7 @@ app.innerHTML = `
     <p class="hud-wanted" id="hud-wanted">WANTED <span id="wanted-count">0</span>/3</p>
     <p class="hud-pulse">PULSE F <span class="pulse-state" id="pulse-state">READY</span></p>
     <p class="hud-courier" id="hud-courier" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff9d3c;text-shadow:0 0 10px rgba(255,157,60,0.6);">COURIER // PRESS E TO DRIVE</p>
+    <p class="hud-safehouse" id="hud-safehouse" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 10px rgba(0,240,255,0.6);">SAFEHOUSE // HOLD H TO CLEAR HEAT</p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <div class="run-complete" id="run-complete" hidden>
@@ -67,6 +68,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyQ') jammer.requested = true
   if (e.code === 'KeyF') pulse.requested = true
   if (e.code === 'KeyE') courierToggleRequested = true
+  if (e.code === 'KeyH') safehouseRequested = true
   if (e.code === 'KeyR') restartRequested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
@@ -92,6 +94,13 @@ const COURIER_ENTER_RADIUS = 70
 let driving = false
 let courierToggleRequested = false
 
+// Off-map heat dump: stand in the zone and press H; banner holds briefly, then mission text restores
+const SAFEHOUSE = { x: WORLD_W * 0.18, y: WORLD_H * 0.62 + 180, radius: 110 }
+const SAFEHOUSE_HOLD_MS = 2200
+const SAFEHOUSE_CLEAR_TEXT = 'SAFEHOUSE // HEAT CLEARED'
+let safehouseRequested = false
+let safehouseRestoreAtMs = 0
+
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
 const DROP_OFF_RADIUS = 95
@@ -101,6 +110,13 @@ let contractState: 'available' | 'active' | 'complete' = 'available'
 let contractRestoreAtMs = 0
 let cash = 0
 let rep = 0
+
+// Standing mission text used when temporary banners (courier/safehouse) hand the line back
+function campaignMissionText(): string {
+  if (contractState === 'active') return 'COURIER RUN // REACH SKYWAY DROP-OFF'
+  if (contractState === 'complete' && contractRestoreAtMs > 0) return 'COURIER RUN // DELIVERED +$250 // REP +1'
+  return signalsFound === 3 ? missionPhase2 : MISSION_SWEEP_TEXT
+}
 
 let mapOpen = false
 
@@ -154,6 +170,7 @@ const pulseEls = {
   state: document.querySelector<HTMLSpanElement>('#pulse-state')!,
 }
 const courierEl = document.getElementById('hud-courier')!
+const safehouseEl = document.getElementById('hud-safehouse')!
 const missionEl = document.getElementById('mission-line')!
 const runCompleteEl = document.getElementById('run-complete')!
 const runStatsEl = document.getElementById('run-stats')!
@@ -186,6 +203,8 @@ function resetRun(nowMs: number) {
   runCompleteEl.hidden = true
   driving = false
   courierToggleRequested = false
+  safehouseRequested = false
+  safehouseRestoreAtMs = 0
   contractState = 'available'
   contractRestoreAtMs = 0
   cash = 0
@@ -702,8 +721,16 @@ function frame(now: number) {
         missionEl.textContent = 'COURIER RUN // REACH SKYWAY DROP-OFF'
       }
     }
+
+    // H inside the safehouse zone clears police heat; banner holds, then the mission line restores
+    if (safehouseRequested && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
+      setWanted(0)
+      missionEl.textContent = SAFEHOUSE_CLEAR_TEXT
+      safehouseRestoreAtMs = now + SAFEHOUSE_HOLD_MS
+    }
   }
   courierToggleRequested = false
+  safehouseRequested = false
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
   camera.y = Math.max(0, Math.min(Math.max(0, WORLD_H - h), player.y - h / 2))
@@ -796,10 +823,19 @@ function frame(now: number) {
   const pulseState = pulse.cooldown > 0 ? 'COOLDOWN' : 'READY'
   if (pulseEls.state.textContent !== pulseState) pulseEls.state.textContent = pulseState
 
-  // Hand the mission line back to the campaign once the DELIVERED hold elapses
+  // Hand the mission line back to the campaign once temporary banners expire
   if (contractState === 'complete' && contractRestoreAtMs > 0 && now >= contractRestoreAtMs) {
     contractRestoreAtMs = 0
-    missionEl.textContent = signalsFound === 3 ? missionPhase2 : MISSION_SWEEP_TEXT
+  }
+  if (safehouseRestoreAtMs > 0 && now >= safehouseRestoreAtMs) {
+    safehouseRestoreAtMs = 0
+  }
+  const bannerActive =
+    (contractState === 'active') ||
+    (contractState === 'complete' && contractRestoreAtMs > 0) ||
+    safehouseRestoreAtMs > 0
+  if (!bannerActive) {
+    missionEl.textContent = campaignMissionText()
   }
 
   // Restart on R
@@ -918,6 +954,47 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Cyan safehouse pad: always visible so players can find the heat dump
+  {
+    const sx = SAFEHOUSE.x
+    const sy = SAFEHOUSE.y
+    const breathe = Math.sin(now / 420) * 5
+    const inZone = Math.hypot(player.x - sx, player.y - sy) < SAFEHOUSE.radius
+    ctx.strokeStyle = '#00f0ff'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 18 + breathe
+    ctx.lineWidth = inZone ? 3.5 : 2.5
+    ctx.setLineDash([10, 8])
+    ctx.beginPath()
+    ctx.arc(sx, sy, SAFEHOUSE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    // inner shelter glyph: roof over a dot
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.moveTo(sx - 16, sy + 6)
+    ctx.lineTo(sx, sy - 14)
+    ctx.lineTo(sx + 16, sy + 6)
+    ctx.moveTo(sx - 9, sy + 1)
+    ctx.lineTo(sx - 9, sy + 13)
+    ctx.lineTo(sx + 9, sy + 13)
+    ctx.lineTo(sx + 9, sy + 1)
+    ctx.stroke()
+    // center beacon when standing inside
+    if (inZone) {
+      ctx.fillStyle = '#bfffff'
+      ctx.beginPath()
+      ctx.arc(sx, sy, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#00f0ff'
+    ctx.fillText('SAFEHOUSE', sx, sy - SAFEHOUSE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - sx, player.y - sy))}M`, sx, sy - SAFEHOUSE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Jammer pulse ring
   if (jammerRingVisible) {
     const t = 1 - (jammer.active - now) / 420
@@ -951,6 +1028,12 @@ function frame(now: number) {
       : ''
   if (courierEl.textContent !== courierText) courierEl.textContent = courierText
   courierEl.style.display = courierText ? '' : 'none'
+
+  // Safehouse prompt: on-foot players inside the zone see the heat-clear hint
+  const nearSafehouse = !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius
+  if (safehouseEl.style.display !== (nearSafehouse ? '' : 'none')) {
+    safehouseEl.style.display = nearSafehouse ? '' : 'none'
+  }
 
   signals.forEach((s, i) => {
     if (signalsFound > i) return
