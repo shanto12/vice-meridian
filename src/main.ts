@@ -106,6 +106,7 @@ window.addEventListener('keydown', e => {
     }
     phoneStatusBusy = false
     job.request()
+    phoneStatusEl.textContent = 'CALL CONNECTED'
     phoneOpen = false
     return
   }
