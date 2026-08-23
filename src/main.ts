@@ -200,6 +200,21 @@ const HEAT_COOL_HOLD_MS = 2200
 const HEAT_COOLING_TEXT = 'POLICE SCAN // HEAT COOLING -1'
 let heatCoolStartMs = 0
 let heatCoolRestoreAtMs = 0
+
+// Visible police cruisers: exactly two, parked on the road band below the horizon
+interface PoliceUnit {
+  x: number
+  y: number
+  angle: number
+  homeX: number
+  homeY: number
+  speed: number
+  sirenPhase: number
+}
+const policeUnits: PoliceUnit[] = [
+  { x: WORLD_W * 0.3, y: WORLD_H * 0.62 + 120, angle: Math.PI / 2, homeX: WORLD_W * 0.3, homeY: WORLD_H * 0.62 + 120, speed: 150, sirenPhase: 0 },
+  { x: WORLD_W * 0.7, y: WORLD_H * 0.62 + 240, angle: -Math.PI / 2, homeX: WORLD_W * 0.7, homeY: WORLD_H * 0.62 + 240, speed: 170, sirenPhase: Math.PI },
+]
 let cash = 0
 let rep = 0
 
@@ -538,6 +553,50 @@ function drawCourierCar(isDriving: boolean) {
   ctx.shadowBlur = 0
 }
 
+// Red/white neon cruiser with alternating roof lights and siren glow — distinct from courier and traffic
+function drawPoliceUnit(unit: PoliceUnit, active: boolean, nowMs: number) {
+  ctx.save()
+  ctx.translate(unit.x, unit.y)
+  ctx.rotate(unit.angle)
+
+  // subtle siren glow while hunting
+  if (active) {
+    const glow = 12 + Math.sin(nowMs / 130 + unit.sirenPhase) * 6
+    ctx.shadowColor = '#ff3c3c'
+    ctx.shadowBlur = glow
+  }
+
+  // dark body outline
+  ctx.strokeStyle = '#2a2f45'
+  ctx.shadowColor = active ? '#ff3c3c' : 'rgba(0,0,0,0)'
+  ctx.lineWidth = 2.5
+  ctx.strokeRect(-13, -10, 26, 20)
+
+  // cabin
+  ctx.fillStyle = 'rgba(191, 255, 255, 0.4)'
+  ctx.fillRect(-5, -7, 10, 14)
+
+  // alternating cyan/red roof lights
+  if (active) {
+    const flash = Math.floor(nowMs / 140 + unit.sirenPhase) % 2 === 0
+    ctx.shadowColor = flash ? '#ff2d55' : '#00f0ff'
+    ctx.shadowBlur = 14
+    ctx.fillStyle = flash ? '#ff2d55' : '#00f0ff'
+    ctx.fillRect(-6, -3, 5, 6)
+    ctx.fillStyle = flash ? '#00f0ff' : '#ff2d55'
+    ctx.fillRect(1, -3, 5, 6)
+  }
+
+  // headlights
+  ctx.shadowColor = '#fff8d6'
+  ctx.shadowBlur = 8
+  ctx.fillStyle = '#fff8d6'
+  ctx.fillRect(-9, -11, 5, 3)
+  ctx.fillRect(4, -11, 5, 3)
+  ctx.restore()
+  ctx.shadowBlur = 0
+}
+
 function districtFor(x: number): string {
   if (x < WORLD_W / 3) return 'DOCKSIDE'
   if (x > (WORLD_W * 2) / 3) return 'SKYWAY'
@@ -625,6 +684,19 @@ function drawCityMap() {
     })
   }
   ctx.shadowBlur = 0
+
+  // pursuit cruiser contacts
+  if (wanted > 0) {
+    policeUnits.forEach(u => {
+      ctx.fillStyle = '#ff3c3c'
+      ctx.shadowColor = '#ff3c3c'
+      ctx.shadowBlur = 6
+      ctx.beginPath()
+      ctx.arc(mx + u.x * kx, myTop + u.y * ky, 3.5, 0, Math.PI * 2)
+      ctx.fill()
+    })
+    ctx.shadowBlur = 0
+  }
 
   // player marker with facing tick
   const px = mx + player.x * kx
@@ -761,6 +833,14 @@ function drawRadar(now: number) {
       ctx.shadowColor = stunned ? 'rgba(0,0,0,0)' : '#00f0ff'
       ctx.beginPath()
       ctx.arc(mx(d.x), my(d.y), 2.2, 0, Math.PI * 2)
+      ctx.fill()
+    })
+    policeUnits.forEach(u => {
+      ctx.fillStyle = '#ff3c3c'
+      ctx.shadowColor = '#ff3c3c'
+      ctx.shadowBlur = 4
+      ctx.beginPath()
+      ctx.arc(mx(u.x), my(u.y), 2.4, 0, Math.PI * 2)
       ctx.fill()
     })
   }
@@ -1219,6 +1299,30 @@ function frame(now: number) {
         scanDrone = d
       }
     }
+  }
+
+  // Police cruisers: hunt while wanted > 0, otherwise drift home and stay hidden
+  const pursuitActive = wanted > 0
+  for (const u of policeUnits) {
+    if (pursuitActive) {
+      const ang = Math.atan2(player.y - u.y, player.x - u.x)
+      let diff = ang - u.angle
+      while (diff > Math.PI) diff -= Math.PI * 2
+      while (diff < -Math.PI) diff += Math.PI * 2
+      u.angle += Math.max(-2.5 * dt, Math.min(2.5 * dt, diff))
+      const chaseSpeed = u.speed + wanted * 25
+      u.x += Math.cos(ang) * chaseSpeed * dt
+      u.y += Math.sin(ang) * chaseSpeed * dt
+    } else {
+      const homeAng = Math.atan2(u.homeY - u.y, u.homeX - u.x)
+      if (Math.hypot(u.homeX - u.x, u.homeY - u.y) > 4) {
+        u.x += Math.cos(homeAng) * 90 * dt
+        u.y += Math.sin(homeAng) * 90 * dt
+        u.angle = homeAng - Math.PI / 2
+      }
+    }
+    u.x = Math.max(24, Math.min(WORLD_W - 24, u.x))
+    u.y = Math.max(WORLD_H * 0.62, Math.min(WORLD_H - 30, u.y))
   }
 
   // Heat cooling: after 7s continuously clear of all active hunters' scan range, shed one level
@@ -1892,6 +1996,13 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   })
   ctx.shadowBlur = 0
+
+  // Visible police cruisers hunting while wanted
+  if (wanted > 0) {
+    for (const u of policeUnits) {
+      drawPoliceUnit(u, true, now)
+    }
+  }
 
   // Cyan patrol drones
   drones.forEach(d => {
