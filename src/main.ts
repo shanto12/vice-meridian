@@ -52,6 +52,13 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF') {
     e.preventDefault()
   }
+  if (e.code === 'KeyM') {
+    e.preventDefault()
+    mapOpen = !mapOpen
+  }
+  if (e.code === 'Escape' && mapOpen) {
+    mapOpen = false
+  }
   if (e.code === 'KeyQ') jammer.requested = true
   if (e.code === 'KeyF') pulse.requested = true
   if (e.code === 'KeyR') restartRequested = true
@@ -60,6 +67,8 @@ window.addEventListener('keyup', e => keys.delete(e.code))
 
 const player = { x: w / 2, y: h / 2, size: 28, speed: 320 }
 const grid = 48
+
+let mapOpen = false
 
 let restartRequested = false
 let missionComplete = false
@@ -210,6 +219,126 @@ function districtFor(x: number): string {
   return 'NEON CORE'
 }
 
+// Full-screen CITY MAP overlay: static world view, simulation paused while open
+function drawCityMap() {
+  const now = performance.now()
+  ctx.fillStyle = 'rgba(3, 1, 12, 0.88)'
+  ctx.fillRect(0, 0, w, h)
+
+  const pad = 70
+  const mw = w - pad * 2
+  const mh = h - pad * 2
+  const mx = pad
+  const myTop = pad
+  const kx = mw / w
+  const ky = mh / h
+
+  // abstract streets + blocks
+  ctx.strokeStyle = 'rgba(255, 45, 150, 0.22)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  for (let gx = 0; gx <= w; gx += grid) {
+    ctx.moveTo(mx + gx * kx, myTop)
+    ctx.lineTo(mx + gx * kx, myTop + mh)
+  }
+  for (let gy = 0; gy <= h; gy += grid) {
+    ctx.moveTo(mx, myTop + gy * ky)
+    ctx.lineTo(mx + mw, myTop + gy * ky)
+  }
+  ctx.stroke()
+
+  buildings.forEach(b => {
+    ctx.fillStyle = 'rgba(178, 107, 255, 0.22)'
+    ctx.fillRect(mx + b.x * kx, myTop + b.y * ky, b.width * kx, b.height * ky)
+    ctx.strokeStyle = 'rgba(178, 107, 255, 0.45)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(mx + b.x * kx, myTop + b.y * ky, b.width * kx, b.height * ky)
+  })
+
+  // horizon marker
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)'
+  ctx.setLineDash([6, 6])
+  ctx.beginPath()
+  ctx.moveTo(mx, myTop + h * 0.62 * ky)
+  ctx.lineTo(mx + mw, myTop + h * 0.62 * ky)
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  // remaining relay signals
+  for (let i = signalsFound; i < signals.length; i++) {
+    const s = signals[i]
+    ctx.fillStyle = '#ffe05a'
+    ctx.shadowColor = '#ffe05a'
+    ctx.shadowBlur = 8
+    ctx.beginPath()
+    ctx.arc(mx + s.x * kx, myTop + s.y * ky, 4.5, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  // extraction gate after 3/3 signals
+  if (signalsFound === 3 && !missionComplete) {
+    ctx.strokeStyle = '#b26bff'
+    ctx.shadowColor = '#b26bff'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(mx + gate.x * kx, myTop + gate.y * ky, 7 + Math.sin(now / 300), 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  // wanted drone contacts
+  if (wanted > 0) {
+    drones.forEach(d => {
+      ctx.fillStyle = now < d.disabledUntil ? 'rgba(120, 130, 150, 0.7)' : '#00f0ff'
+      ctx.shadowColor = ctx.fillStyle as string
+      ctx.beginPath()
+      ctx.arc(mx + d.x * kx, myTop + d.y * ky, 3.5, 0, Math.PI * 2)
+      ctx.fill()
+    })
+  }
+  ctx.shadowBlur = 0
+
+  // player marker with facing tick
+  const px = mx + player.x * kx
+  const py = myTop + player.y * ky
+  ctx.fillStyle = '#39ff88'
+  ctx.shadowColor = '#39ff88'
+  ctx.shadowBlur = 9
+  ctx.beginPath()
+  ctx.arc(px, py, 5, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = '#39ff88'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(px, py)
+  ctx.lineTo(px + facing.dx * 12, py + facing.dy * 12)
+  ctx.stroke()
+  ctx.shadowBlur = 0
+
+  // district labels
+  ctx.font = '700 13px ui-monospace, Consolas, monospace'
+  ctx.textAlign = 'center'
+  const labels: [string, number][] = [
+    ['DOCKSIDE', mx + mw / 6],
+    ['NEON CORE', mx + mw / 2],
+    ['SKYWAY', mx + (mw * 5) / 6],
+  ]
+  labels.forEach(([name, lx]) => {
+    ctx.fillStyle = 'rgba(255, 45, 150, 0.85)'
+    ctx.shadowColor = '#ff2d96'
+    ctx.shadowBlur = 10
+    ctx.fillText(name, lx, myTop + mh - 16)
+  })
+
+  // header + close hint
+  ctx.font = '600 12px ui-monospace, Consolas, monospace'
+  ctx.textAlign = 'left'
+  ctx.fillStyle = 'rgba(0, 240, 255, 0.85)'
+  ctx.fillText('CITY MAP', pad, pad - 24)
+  ctx.textAlign = 'right'
+  ctx.fillStyle = '#ffe05a'
+  ctx.fillText('MAP OPEN // PRESS M TO CLOSE', mx + mw, pad - 24)
+}
+
 // Compact top-right NEON RADAR: abstract blocks/streets + live entity blips
 function drawRadar(now: number) {
   const rw = 186
@@ -344,6 +473,12 @@ const missionPhase2 = 'MISSION // Reach the extraction gate'
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.05)
   last = now
+
+  if (mapOpen) {
+    drawCityMap()
+    requestAnimationFrame(frame)
+    return
+  }
 
   let dx = 0
   let dy = 0
