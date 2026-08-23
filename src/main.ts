@@ -204,6 +204,140 @@ function neonRect(x: number, y: number, width: number, height: number, color: st
   ctx.shadowBlur = 0
 }
 
+function districtFor(x: number): string {
+  if (x < w / 3) return 'DOCKSIDE'
+  if (x > (w * 2) / 3) return 'SKYWAY'
+  return 'NEON CORE'
+}
+
+// Compact top-right NEON RADAR: abstract blocks/streets + live entity blips
+function drawRadar(now: number) {
+  const rw = 186
+  const rh = 142
+  const rx = w - rw - 16
+  const ry = 14
+
+  ctx.fillStyle = 'rgba(4, 2, 16, 0.74)'
+  ctx.fillRect(rx, ry, rw, rh)
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.5)'
+  ctx.shadowColor = '#00f0ff'
+  ctx.shadowBlur = 12
+  ctx.lineWidth = 1.5
+  ctx.strokeRect(rx, ry, rw, rh)
+  ctx.shadowBlur = 0
+
+  ctx.font = '600 9px ui-monospace, Consolas, monospace'
+  ctx.textAlign = 'left'
+  ctx.fillStyle = 'rgba(0, 240, 255, 0.75)'
+  ctx.fillText('NEON RADAR', rx + 8, ry + 13)
+
+  const pad = 8
+  const ix = rx + pad
+  const iy = ry + pad + 6
+  const iw = rw - pad * 2
+  const ih = rh - pad * 2 - 6
+  const kx = iw / w
+  const ky = ih / h
+  const mx = (wx: number) => ix + wx * kx
+  const my = (wy: number) => iy + wy * ky
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(ix, iy, iw, ih)
+  ctx.clip()
+
+  // abstract street grid
+  ctx.strokeStyle = 'rgba(255, 45, 150, 0.18)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  for (let gx = 0; gx <= w; gx += grid * 2) {
+    ctx.moveTo(mx(gx), iy)
+    ctx.lineTo(mx(gx), iy + ih)
+  }
+  for (let gy = 0; gy <= h; gy += 90) {
+    ctx.moveTo(ix, my(gy))
+    ctx.lineTo(ix + iw, my(gy))
+  }
+  ctx.stroke()
+
+  // city blocks from the live building layout
+  ctx.fillStyle = 'rgba(178, 107, 255, 0.16)'
+  buildings.forEach(b => {
+    ctx.fillRect(mx(b.x), my(b.y), Math.max(2, b.width * kx), Math.max(1.5, b.height * ky))
+  })
+
+  // shoreline/horizon marker
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)'
+  ctx.beginPath()
+  ctx.moveTo(ix, my(h * 0.62))
+  ctx.lineTo(ix + iw, my(h * 0.62))
+  ctx.stroke()
+
+  // remaining relay signals
+  ctx.fillStyle = '#ffe05a'
+  ctx.shadowColor = '#ffe05a'
+  ctx.shadowBlur = 5
+  for (let i = signalsFound; i < signals.length; i++) {
+    ctx.beginPath()
+    ctx.arc(mx(signals[i].x), my(signals[i].y), 2.4, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  // extraction gate once revealed
+  if (signalsFound === 3 && !missionComplete) {
+    ctx.strokeStyle = '#b26bff'
+    ctx.shadowColor = '#b26bff'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(mx(gate.x), my(gate.y), 4.5 + Math.sin(now / 300), 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  // drone contacts while wanted
+  if (wanted > 0) {
+    drones.forEach(d => {
+      const stunned = now < d.disabledUntil
+      ctx.fillStyle = stunned ? 'rgba(120, 130, 150, 0.7)' : '#00f0ff'
+      ctx.shadowColor = stunned ? 'rgba(0,0,0,0)' : '#00f0ff'
+      ctx.beginPath()
+      ctx.arc(mx(d.x), my(d.y), 2.2, 0, Math.PI * 2)
+      ctx.fill()
+    })
+  }
+  ctx.shadowBlur = 0
+
+  // rotating sweep
+  const sweepAng = (now / 1100) % (Math.PI * 2)
+  const cx = ix + iw / 2
+  const cy = iy + ih / 2
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.22)'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(cx, cy)
+  ctx.lineTo(cx + Math.cos(sweepAng) * iw, cy + Math.sin(sweepAng) * ih)
+  ctx.stroke()
+
+  // player blip
+  ctx.fillStyle = '#39ff88'
+  ctx.shadowColor = '#39ff88'
+  ctx.shadowBlur = 7 + Math.sin(now / 220) * 3
+  ctx.beginPath()
+  ctx.arc(mx(player.x), my(player.y), 2.8, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.shadowBlur = 0
+
+  ctx.restore()
+
+  // district readout
+  ctx.font = '600 9px ui-monospace, Consolas, monospace'
+  ctx.textAlign = 'right'
+  ctx.fillStyle = '#ff2d96'
+  ctx.shadowColor = '#ff2d96'
+  ctx.shadowBlur = 6
+  ctx.fillText(`DIST // ${districtFor(player.x)}`, rx + rw - 8, ry + 13)
+  ctx.shadowBlur = 0
+}
+
 let last = performance.now()
 const missionPhase2 = 'MISSION // Reach the extraction gate'
 
@@ -622,6 +756,8 @@ function frame(now: number) {
     ctx.restore()
     ctx.shadowBlur = 0
   })
+
+  drawRadar(now)
 
   requestAnimationFrame(frame)
 }
