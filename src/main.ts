@@ -59,7 +59,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -79,6 +79,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyK') bankRequested = true
   if (e.code === 'KeyV') vipRequested = true
   if (e.code === 'KeyC') convoyRequested = true
+  if (e.code === 'KeyJ') jJobRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
@@ -218,6 +219,21 @@ type ConvoyState = 'available' | 'active' | 'escaping' | 'complete'
 let convoyState: ConvoyState = 'available'
 let convoyDeadlineMs = 0
 let convoyRestoreAtMs = 0
+
+// Junction Job: J at the safehouse, drive to the junction, press J on site to secure the target, then bring it home
+const J_JOB_SITE = { x: WORLD_W * 0.78, y: WORLD_H * 0.24, radius: 100 }
+const J_JOB_ACCEPT_RADIUS = 130
+const J_JOB_TIME_LIMIT_MS = 70000
+const J_JOB_HOLD_MS = 2600
+const J_JOB_ACTIVE_TEXT = 'JUNCTION JOB // REACH THE JUNCTION TARGET'
+const J_JOB_ESCAPE_TEXT = 'JUNCTION JOB // TARGET SECURED // RETURN TO SAFEHOUSE'
+const J_JOB_DONE_TEXT = 'JUNCTION JOB // TARGET SECURED +$1000 // REP +4'
+const J_JOB_FAILED_TEXT = 'JUNCTION JOB // TARGET LOST'
+let jJobRequested = false
+type JunctionJobState = 'available' | 'active' | 'escaping' | 'complete'
+let jJobState: JunctionJobState = 'available'
+let jJobDeadlineMs = 0
+let jJobRestoreAtMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -468,6 +484,10 @@ function resetRun(nowMs: number) {
   convoyState = 'available'
   convoyDeadlineMs = 0
   convoyRestoreAtMs = 0
+  jJobRequested = false
+  jJobState = 'available'
+  jJobDeadlineMs = 0
+  jJobRestoreAtMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1358,6 +1378,63 @@ function frame(now: number) {
     convoyRestoreAtMs = now + CONVOY_HOLD_MS
   }
 
+  // J at the safehouse accepts the Junction Job when no other contract or mission is running
+  const jJobAcceptable =
+    jJobState === 'available' &&
+    contractState !== 'active' &&
+    blackoutState === 'available' &&
+    raceState === 'available' &&
+    bankState === 'available' &&
+    vipState === 'available' &&
+    convoyState === 'available' &&
+    !missionComplete &&
+    !driving &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < J_JOB_ACCEPT_RADIUS
+  if (jJobRequested && jJobAcceptable) {
+    jJobState = 'active'
+    jJobDeadlineMs = now + J_JOB_TIME_LIMIT_MS
+    setWanted(Math.max(2, wanted))
+    missionEl.textContent = J_JOB_ACTIVE_TEXT
+  }
+  // Driving the courier into the rival site and pressing J secures the target, starting the getaway with heat kept up
+  if (
+    jJobState === 'active' &&
+    driving &&
+    jJobRequested &&
+    Math.hypot(courierCar.x - J_JOB_SITE.x, courierCar.y - J_JOB_SITE.y) < J_JOB_SITE.radius
+  ) {
+    jJobState = 'escaping'
+    setWanted(Math.max(2, wanted))
+    missionEl.textContent = `${J_JOB_ESCAPE_TEXT} — ${Math.ceil((jJobDeadlineMs - now) / 1000)}S`
+  }
+  jJobRequested = false
+
+  // Escaping: deliver the secured target home by driving the courier into the safehouse radius
+  if (
+    jJobState === 'escaping' &&
+    driving &&
+    Math.hypot(courierCar.x - SAFEHOUSE.x, courierCar.y - SAFEHOUSE.y) < SAFEHOUSE.radius
+  ) {
+    jJobState = 'complete'
+    jJobDeadlineMs = 0
+    jJobRestoreAtMs = now + J_JOB_HOLD_MS
+    cash += 1000
+    rep += 4
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = J_JOB_DONE_TEXT
+  }
+
+  // Junction Job timer: expiring mid-mission safely resets to available with no payout
+  if ((jJobState === 'active' || jJobState === 'escaping') && jJobDeadlineMs > 0 && now >= jJobDeadlineMs) {
+    jJobState = 'available'
+    jJobDeadlineMs = 0
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = J_JOB_FAILED_TEXT
+    jJobRestoreAtMs = now + J_JOB_HOLD_MS
+  }
+
   // Bank Run timer: expiring mid-escape safely resets to available with no payout
   if (bankState === 'escaping' && bankEscapeDeadlineMs > 0 && now >= bankEscapeDeadlineMs) {
     bankState = 'available'
@@ -1483,6 +1560,12 @@ function frame(now: number) {
   const convoyTimeLeftSec =
     (convoyState === 'active' || convoyState === 'escaping') && convoyDeadlineMs > 0
       ? Math.max(0, Math.ceil((convoyDeadlineMs - now) / 1000))
+      : null
+
+  // Shared Junction Job countdown readout (approach + getaway share one 70s deadline)
+  const jJobTimeLeftSec =
+    (jJobState === 'active' || jJobState === 'escaping') && jJobDeadlineMs > 0
+      ? Math.max(0, Math.ceil((jJobDeadlineMs - now) / 1000))
       : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
@@ -1702,6 +1785,9 @@ function frame(now: number) {
   if (vipRestoreAtMs > 0 && now >= vipRestoreAtMs) {
     vipRestoreAtMs = 0
   }
+  if (jJobRestoreAtMs > 0 && now >= jJobRestoreAtMs) {
+    jJobRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -1722,7 +1808,8 @@ function frame(now: number) {
     policeHitRestoreAtMs > 0 ||
     bankRestoreAtMs > 0 ||
     vipRestoreAtMs > 0 ||
-    convoyRestoreAtMs > 0
+    convoyRestoreAtMs > 0 ||
+    jJobRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -1752,6 +1839,9 @@ function frame(now: number) {
   } else if (convoyRestoreAtMs > 0) {
     const convoyBannerText = convoyState === 'complete' ? CONVOY_DONE_TEXT : CONVOY_FAILED_TEXT
     if (missionEl.textContent !== convoyBannerText) missionEl.textContent = convoyBannerText
+  } else if (jJobRestoreAtMs > 0) {
+    const jJobBannerText = jJobState === 'complete' ? J_JOB_DONE_TEXT : J_JOB_FAILED_TEXT
+    if (missionEl.textContent !== jJobBannerText) missionEl.textContent = jJobBannerText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -1768,6 +1858,12 @@ function frame(now: number) {
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (convoyState === 'escaping' && convoyTimeLeftSec !== null) {
     const liveText = `${CONVOY_ESCAPE_TEXT} — ${convoyTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if (jJobState === 'active' && jJobTimeLeftSec !== null) {
+    const liveText = `${J_JOB_ACTIVE_TEXT} — ${jJobTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if (jJobState === 'escaping' && jJobTimeLeftSec !== null) {
+    const liveText = `${J_JOB_ESCAPE_TEXT} — ${jJobTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
     const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
@@ -2125,6 +2221,76 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Rival two-car crew at the Junction Job site: magenta ring, dark hulls, red light bars while active/escaping
+  if (jJobState === 'active' || jJobState === 'escaping') {
+    const jx = J_JOB_SITE.x
+    const jy = J_JOB_SITE.y
+    const refX = driving ? courierCar.x : player.x
+    const refY = driving ? courierCar.y : player.y
+    const breathe = Math.sin(now / 300) * 5
+    const atSite = Math.hypot(refX - jx, refY - jy) < J_JOB_SITE.radius
+    ctx.strokeStyle = '#ff2d96'
+    ctx.shadowColor = '#ff2d96'
+    ctx.shadowBlur = 22 + breathe
+    ctx.lineWidth = atSite ? 3.5 : 3
+    ctx.setLineDash([14, 10])
+    ctx.beginPath()
+    ctx.arc(jx, jy, J_JOB_SITE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 0.08
+    ctx.fillStyle = '#ff2d96'
+    ctx.fill()
+    ctx.globalAlpha = 1
+
+    // rival cars: heavy dark bodies with red roof light bars
+    const rivalCars = [
+      { x: jx - 34, y: jy - 24, angle: Math.PI / 4 },
+      { x: jx + 30, y: jy + 26, angle: -Math.PI / 3 },
+    ]
+    for (const car of rivalCars) {
+      ctx.save()
+      ctx.translate(car.x, car.y)
+      ctx.rotate(car.angle)
+      ctx.strokeStyle = '#2a2f45'
+      ctx.shadowColor = now % 400 < 200 ? '#ff3c3c' : '#ffe05a'
+      ctx.shadowBlur = 12
+      ctx.lineWidth = 3
+      ctx.strokeRect(-15, -9, 30, 18)
+      // rival cabin slit
+      ctx.fillStyle = 'rgba(191, 255, 255, 0.35)'
+      ctx.fillRect(-5, -5, 8, 10)
+      // red light bar cells
+      ctx.fillStyle = '#ff3c3c'
+      ctx.fillRect(-6, -2.5, 5, 5)
+      ctx.fillStyle = '#ffe05a'
+      ctx.fillRect(1, -2.5, 5, 5)
+      // headlights
+      ctx.shadowColor = '#fff8d6'
+      ctx.shadowBlur = 7
+      ctx.fillStyle = '#fff8d6'
+      ctx.fillRect(-11, -10, 4, 3)
+      ctx.fillRect(7, -10, 4, 3)
+      ctx.restore()
+      ctx.shadowBlur = 0
+    }
+
+    // secured-target beacon while running the getaway
+    if (atSite && jJobState === 'escaping') {
+      ctx.fillStyle = '#ffd6ea'
+      ctx.beginPath()
+      ctx.arc(jx, jy, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ff2d96'
+    ctx.fillText('JUNCTION JOB', jx, jy - J_JOB_SITE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(refX - jx, refY - jy))}M`, jx, jy - J_JOB_SITE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Midnight Sprint checkpoint: distinctive green gate for the current mandatory target
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[raceCheckpointIndex]
@@ -2290,8 +2456,11 @@ function frame(now: number) {
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < VIP_ACCEPT_RADIUS
   const vipEscapingNow = vipState === 'escaping'
   const convoyEscapingNow = convoyState === 'escaping'
+  const jJobEscapingNow = jJobState === 'escaping'
   // Advertise the convoy offer wherever it is still open without displacing the standing hints
   const convoyOfferHint = convoyState === 'available' ? 'PRESS C FOR ARMORED CONVOY // ' : ''
+  // Advertise the junction offer wherever it is still open without displacing the standing hints
+  const jJobOfferHint = jJobState === 'available' ? 'PRESS J FOR JUNCTION JOB // ' : ''
   // Garage status composes onto every safehouse line so H, B, G, T, N, K, and V all stay visible
   const garageStatusHint = garageTuneInstalled
     ? 'SPRINT KIT INSTALLED'
@@ -2304,24 +2473,26 @@ function frame(now: number) {
       : `EARN $${REPAIR_COST} FOR REPAIR`
     : 'HULL OK'
   let safehouseHint: string
-  if (convoyEscapingNow) {
-    safehouseHint = `SAFEHOUSE // ARMORED CONVOY // RETURN TO SAFEHOUSE // ${garageStatusHint} // ${repairStatusHint}`
+  if (jJobEscapingNow) {
+    safehouseHint = `SAFEHOUSE // JUNCTION JOB // RETURN TO SAFEHOUSE // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (convoyEscapingNow) {
+    safehouseHint = `SAFEHOUSE // ARMORED CONVOY // RETURN TO SAFEHOUSE // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutEscapingNow) {
-    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${convoyOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${convoyOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (vipEscapingNow) {
-    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${convoyOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // VIP EXTRACTION // RETURN TO SAFEHOUSE // ${convoyOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (bankEscapingNow) {
-    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${convoyOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // BANK RUN // RETURN WITH THE LOOT // ${convoyOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (vipAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS V FOR VIP EXTRACTION // PRESS K FOR BANK RUN // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (bankAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS K FOR BANK RUN // PRESS V FOR VIP EXTRACTION // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (raceAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (blackoutAcceptableNow) {
-    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // ${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // PRESS V FOR VIP EXTRACTION // PRESS C FOR ARMORED CONVOY // H CLEAR HEAT // ${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else if (nearSafehouse) {
-    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${convoyOfferHint}${garageStatusHint} // ${repairStatusHint}`
+    safehouseHint = `SAFEHOUSE // H CLEAR HEAT // PRESS V FOR VIP EXTRACTION // ${convoyOfferHint}${jJobOfferHint}${garageStatusHint} // ${repairStatusHint}`
   } else {
     safehouseHint = SAFEHOUSE_CLEAR_TEXT
   }
