@@ -793,3 +793,76 @@ approach did not reliably reach the safehouse, and runtime completion is not inf
 bundle markers. The project remains an incomplete evolving GTA-style vertical slice rather
 than a complete GTA 7 or an enterprise-grade product; these limits are flagged above rather
 than assumed. Prior evidence sections remain intact and their gaps still stand.
+
+---
+
+# Smuggler Run — Release Evidence (2026-08-23)
+
+Verification matrix for the Smuggler Run slice: accept the run at the safehouse, reach the
+pickup marker, secure the package, drive to the drop marker for the payout, with a failure
+path if the deadline expires.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed and traceable | Source `f84da2b14e3eb2596f2ac338971a69079c301a8f` equals `origin/main` | PASS | Working tree clean after push |
+| Production build succeeds | Build: `npm run build` passes | PASS | No type or build errors blocking output |
+| No known vulnerabilities in production dependencies | Audit: `npm audit --omit=dev` reports 0 vulnerabilities | PASS | Production dependency tree clean |
+| Whitespace hygiene | Build: `git diff --check` passes | PASS | No trailing whitespace or conflict markers |
+| Production deploy is live | Live curl/headers: Netlify deploy `6a8b7164a9c44ebe4f2bcdf2` at https://vice-meridian.netlify.app/ | PASS | Deploy ID confirmed against the live site |
+| Live asset served by production | Live curl: `assets/index-3qJt7n0K.js` | PASS | Confirms the deploy serves this commit's bundle |
+| Security headers present on responses | Live curl/headers: CSP self-only with frame-ancestors none, HSTS preload, nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera/microphone/geolocation disabled | PASS | All expected headers observed on the production origin |
+| Bundle contains Smuggler Run strings plus prior systems | Markers: live bundle includes SMUGGLER RUN // REACH THE PICKUP SITE, SMUGGLER RUN // PACKAGE SECURED // REACH THE DROP SITE, SMUGGLER RUN // PACKAGE DELIVERED +$900 // REP +4, SMUGGLER RUN // RUN LOST, SMUGGLER PICKUP, SMUGGLER DROP | PASS | Prior-slice markers persist alongside the new smuggler strings |
+| Real Chrome desktop loads production cleanly | Real Chrome desktop 1440x604: canvas true, no horizontal overflow, exact live asset `index-3qJt7n0K.js`, console errors empty | PASS | Desktop session toggled Y Night Shift on/off and exercised F, Q, Space, R |
+| Real Chrome mobile loads production cleanly | Real Chrome mobile 390x844: canvas true, no horizontal overflow, exact live asset `index-3qJt7n0K.js`, console errors empty | PASS | Small-viewport layout contained within viewport width |
+| Full Smuggler Run path (safehouse → pickup → drop → payout/timeout) driven end-to-end in real Chrome | Bounded real-Chrome navigation from spawn timed out before reaching the pickup/drop loop | NOT FULLY VERIFIED | Explicitly flagged rather than assumed; source/build/live-bundle evidence only; prior sections' deeper gaps remain marked |
+| Project scope statement | Release scope review | LIMITATION ACKNOWLEDGED | This is an evolving VICE//MERIDIAN vertical slice built feature-by-feature — not complete GTA 7 and not an enterprise-grade product |
+
+## Summary
+
+Source parity with origin/main, build, audit, whitespace hygiene, Netlify deployment, live
+asset verification (`assets/index-3qJt7n0K.js`), security headers, bundle marker
+confirmation, and real-Chrome desktop (1440x604) / mobile (390x844) passes all succeeded
+with empty console errors, no horizontal overflow, and the Night Shift toggle plus F/Q/Space/R
+smoke exercised on desktop. The full safehouse → pickup → drop → payout/timeout path is NOT
+FULLY VERIFIED because bounded Chrome navigation from spawn timed out, and it is flagged above
+rather than assumed. Prior evidence sections remain intact and their gaps still stand, and no
+claim is made that this evolving VICE//MERIDIAN vertical slice is complete GTA 7 or
+enterprise-grade.
+
+---
+
+# Smuggler Run - Release Evidence (2026-08-23)
+
+Verification matrix for the Smuggler Run slice: press O on foot at the safehouse to accept,
+drive to the pickup site and press O to secure the package, then reach the drop site and
+press O to deliver inside the shared 80-second deadline for +$900 / REP +4; expiring mid-run
+resets to available with no payout, clears wanted heat, and shows RUN LOST. Acceptance is
+gated on being on foot (!driving), and dashed SMUGGLER PICKUP / SMUGGLER DROP rings mark the
+two sites while a shared countdown runs in the mission line and courier HUD.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit f84da2b14e3eb2596f2ac338971a69079c301a8f ("Tighten Smuggler Run state guards") pushed to origin/main and origin/main matches (verification source: git log/rev-parse) | git log/rev-parse comparison of HEAD and origin/main after push | PASS | Working tree clean post-push; src/main.ts only (feature commit a067247 "Add Smuggler Run contract" plus this guard fixup) |
+| Build gate: npm run build passed with tsc + Vite (verification source: local build) | Local build run against the source commit | PASS | Produced assets/index-3qJt7n0K.js at 55.56 kB JS (15.11 kB gzip); zero TypeScript errors |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities (verification source: npm audit) | Local audit against the package manifest | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed (verification source: build hygiene check) | Local check against the tracked diff | PASS | No trailing whitespace or conflict markers |
+| Bundle markers: SMUGGLER RUN // REACH THE PICKUP SITE, SMUGGLER RUN // PACKAGE SECURED // REACH THE DROP SITE, SMUGGLER RUN // PACKAGE DELIVERED +$900 // REP +4, SMUGGLER RUN // RUN LOST, SMUGGLER PICKUP, and SMUGGLER DROP confirmed (verification source: live bundle/source markers) | Live bundle inspection of assets/index-3qJt7n0K.js | PASS | Live asset exact match confirms the deploy serves this release's bundle |
+| Security headers observed on production HTML: Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera=(), microphone=(), geolocation=() (verification source: live curl/headers) | Live header observation of the production origin | PASS | Expected policy directives observed |
+| Real Chrome desktop: production tab at 1440x604, canvas true, scrollWidth 1440, live asset exact; Y toggled Night Shift city lights on and off; F/Q/Space/R exercised (verification source: real Chrome) | Real Chrome desktop pass on the production deploy | PASS | Console errors empty; no horizontal overflow |
+| Real Chrome mobile: production tab at 390x844, canvas true, scrollWidth 390, live asset exact (verification source: real Chrome) | Real Chrome mobile pass on the production deploy | PASS | Console errors empty; no horizontal overflow |
+| Interactive DOM surface: visible DOM control count is 0 because the page is Canvas plus keyboard controls (verification source: real Chrome DOM inspection) | DOM inspection of the production page | PASS (by design) | Absence of visible DOM controls is intentional architecture, not a defect |
+| Smuggler Run end-to-end runtime transition: accept at safehouse on foot → pickup-site O secure → drop-site O deliver (+$900 / REP +4 success path) or timeout fail path driven in real Chrome (verification source: attempted in real Chrome; NOT completed — source/live markers only) | Bounded real-Chrome keyboard attempt timed out short of completing the run to safehouse; source/build/live-bundle evidence only | NOT FULLY VERIFIED | Explicitly flagged rather than assumed — do not claim it as end-to-end; prior sections' deeper gaps remain marked |
+| Project scope statement: this release documents an evolving VICE//MERIDIAN vertical slice — it is not complete GTA 7 and no enterprise-grade claim is made (verification source: release scope review) | Release scope review | LIMITATION ACKNOWLEDGED | Built feature-by-feature; each slice ships its own evidence matrix and carries forward prior gaps |
+
+## Summary
+
+Source handoff, build (tsc + Vite), dependency audit (npm audit), whitespace hygiene,
+live-bundle marker confirmation, production security headers (live curl/headers), and
+real-Chrome desktop/mobile passes all succeeded with zero console errors and no
+horizontal overflow. The Smuggler Run end-to-end runtime transition — accept, pickup
+secure, drop delivery/payout, or timeout failure — was NOT FULLY VERIFIED in real Chrome
+during this pass because the bounded keyboard attempt timed out short of completing the
+run to safehouse; it is flagged above rather than assumed and must not be claimed as
+end-to-end. VICE//MERIDIAN remains an evolving vertical slice built feature-by-feature —
+not complete GTA 7 and not an enterprise-grade product. Prior evidence sections remain
+intact and their gaps still stand.
