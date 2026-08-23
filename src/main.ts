@@ -17,6 +17,7 @@ app.innerHTML = `
     <p class="hud-pulse">PULSE F <span class="pulse-state" id="pulse-state">READY</span></p>
     <p class="hud-courier" id="hud-courier" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff9d3c;text-shadow:0 0 10px rgba(255,157,60,0.6);">COURIER // PRESS E TO DRIVE</p>
     <p class="hud-safehouse" id="hud-safehouse" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 10px rgba(0,240,255,0.6);">SAFEHOUSE // HOLD H TO CLEAR HEAT</p>
+    <p class="hud-scan" id="hud-scan" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE SCAN // NEAREST UNIT ---M</p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <div class="run-complete" id="run-complete" hidden>
@@ -171,6 +172,7 @@ const pulseEls = {
 }
 const courierEl = document.getElementById('hud-courier')!
 const safehouseEl = document.getElementById('hud-safehouse')!
+const scanEl = document.getElementById('hud-scan')!
 const missionEl = document.getElementById('mission-line')!
 const runCompleteEl = document.getElementById('run-complete')!
 const runStatsEl = document.getElementById('run-stats')!
@@ -779,6 +781,20 @@ function frame(now: number) {
     }
   }
 
+  // Police scan target: nearest drone that is actively hunting (wanted > 0, not disabled)
+  let scanDrone: (typeof drones)[number] | null = null
+  let scanDist = Infinity
+  if (wanted > 0) {
+    for (const d of drones) {
+      if (now < d.disabledUntil) continue
+      const dist = Math.hypot(player.x - d.x, player.y - d.y)
+      if (dist < scanDist) {
+        scanDist = dist
+        scanDrone = d
+      }
+    }
+  }
+
   // Jammer pulse on Q: disables nearest drone in range, cools heat by 1
   if (jammer.requested) {
     jammer.requested = false
@@ -995,6 +1011,32 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Police search ring: restrained red pulse + heading tick on the nearest active drone
+  if (scanDrone) {
+    const sdx = scanDrone.x
+    const sdy = scanDrone.y
+    const pulseT = Math.sin(now / 260)
+    const ringR = 44 + pulseT * 6
+    ctx.strokeStyle = `rgba(255, 60, 60, ${0.5 + pulseT * 0.18})`
+    ctx.shadowColor = '#ff3c3c'
+    ctx.shadowBlur = 14
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(sdx, sdy, ringR, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.globalAlpha = 0.08
+    ctx.fillStyle = '#ff3c3c'
+    ctx.fill()
+    ctx.globalAlpha = 1
+    // short sweep line along the unit's current heading
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.moveTo(sdx + Math.cos(scanDrone.angle) * (ringR - 4), sdy + Math.sin(scanDrone.angle) * (ringR - 4))
+    ctx.lineTo(sdx + Math.cos(scanDrone.angle) * (ringR + 14), sdy + Math.sin(scanDrone.angle) * (ringR + 14))
+    ctx.stroke()
+    ctx.shadowBlur = 0
+  }
+
   // Jammer pulse ring
   if (jammerRingVisible) {
     const t = 1 - (jammer.active - now) / 420
@@ -1033,6 +1075,15 @@ function frame(now: number) {
   const nearSafehouse = !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius
   if (safehouseEl.style.display !== (nearSafehouse ? '' : 'none')) {
     safehouseEl.style.display = nearSafehouse ? '' : 'none'
+  }
+
+  // Police scan readout: nearest active hunter's distance while heat is up
+  if (scanDrone) {
+    const scanText = `POLICE SCAN // NEAREST UNIT ${Math.round(scanDist)}M`
+    if (scanEl.textContent !== scanText) scanEl.textContent = scanText
+    if (scanEl.style.display !== '') scanEl.style.display = ''
+  } else if (scanEl.style.display !== 'none') {
+    scanEl.style.display = 'none'
   }
 
   signals.forEach((s, i) => {
