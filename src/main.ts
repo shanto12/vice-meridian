@@ -1590,6 +1590,7 @@ function frame(now: number) {
     jJobState === 'available' &&
     turfState === 'available' &&
     !missionComplete &&
+    !driving &&
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SMUGGLER_ACCEPT_RADIUS
   if (smugglerRequested && smugglerAcceptable) {
     smugglerState = 'pickup'
@@ -1631,6 +1632,7 @@ function frame(now: number) {
   if ((smugglerState === 'pickup' || smugglerState === 'drop') && smugglerDeadlineMs > 0 && now >= smugglerDeadlineMs) {
     smugglerState = 'available'
     smugglerDeadlineMs = 0
+    setWanted(0)
     heatCoolStartMs = 0
     missionEl.textContent = SMUGGLER_LOST_TEXT
     smugglerRestoreAtMs = now + SMUGGLER_HOLD_MS
