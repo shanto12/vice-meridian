@@ -345,3 +345,36 @@ insufficient-cash banner, reset-to-base-stats, and all mission restoration branc
 NOT independently driven end-to-end in real Chrome; these are flagged NOT FULLY VERIFIED
 rather than assumed, and no enterprise-grade or full behavior verification is claimed for
 this release.
+
+---
+
+# Progression Save Slot — Release Evidence (2026-08-23)
+
+Verification matrix for the local progression save-slot release. Evidence surfaces refer
+to the Netlify production deploy of this repository.
+
+| Requirement | Evidence surface | Status |
+| --- | --- | --- |
+| Source change is committed and traceable | Commit `bc27d8a83637aba9155a78c8d3b45ffd6d8fd803` (short `bc27d8a`) "Add local progression save slot" on `origin/main` | PASS |
+| Production deploy is live | Netlify deploy `6a8b3e520407f6706cea451f` at https://vice-meridian.netlify.app/ | PASS |
+| Production build succeeds and tracked changes are clean | Build: `npm run build` (tsc + Vite) passes; `git diff --check` clean | PASS |
+| No known vulnerabilities in production dependencies | Build: `npm audit --omit=dev` reports 0 vulnerabilities | PASS |
+| Site serves successfully with required security headers | API/headers: HTTP 200; CSP, Permissions-Policy, Referrer-Policy, HSTS, X-Content-Type-Options all present | PASS |
+| Live bundle contains the save strings plus prior systems | Real Chrome desktop / bundle: contains "SAVE // PROGRESS STORED", "SAVE // PROGRESS LOADED", "SAVE // NO SLOT FOUND", "localStorage", "P save", "L load", plus prior garage, Blackout getaway, and heat-decay strings | PASS |
+| Save/load round-trip works in a real browser | Real Chrome desktop 1440px: visible "P save / L load" hint; P showed SAVE // PROGRESS STORED, R reset, L showed SAVE // PROGRESS LOADED; M/F/Q/E/B/H/G/P/R/L smoke completed | PASS — zero console errors, no horizontal overflow |
+| Responsive layout on small viewport | Real Chrome mobile 390x844: production loaded, scrollWidth equals 390 | PASS — zero console errors |
+| Non-zero campaign progress round-trip (signals/cash/rep restored exactly) | Not independently demonstrated end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Garage stat persistence across page reload (+60/+80 applied once on boot) | Not independently demonstrated end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Blackout Run completion persistence across reload | Not independently demonstrated end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Automatic boot restore with changed saved state observed live | Not independently demonstrated end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+| Malformed-storage recovery exercised against corrupted slot data | Not independently demonstrated end-to-end in real Chrome during this pass | NOT FULLY VERIFIED |
+
+## Summary
+
+Source, build, audit, header, bundle-content, and real-browser load/smoke gates passed.
+The basic P → R → L save/load round-trip was verified in real Chrome. Non-zero progress
+restoration, garage stat persistence across reload, Blackout completion persistence,
+automatic boot restore with changed state, and malformed-storage recovery were NOT
+independently demonstrated end-to-end in real Chrome; these are flagged NOT FULLY
+VERIFIED rather than assumed, and no enterprise-grade or full persistence verification
+is claimed for this release.
