@@ -26,7 +26,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — P save — L load — R restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — N race — P save — L load — R restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -57,7 +57,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyP' || e.code === 'KeyL') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -73,6 +73,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyH') safehouseRequested = true
   if (e.code === 'KeyB') blackoutRequested = true
   if (e.code === 'KeyG') garageRequested = true
+  if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
   if (e.code === 'KeyR') restartRequested = true
@@ -99,6 +100,24 @@ const courierCar = {
 const COURIER_ENTER_RADIUS = 70
 let driving = false
 let courierToggleRequested = false
+
+// Midnight Sprint street race: three mandatory courier-car checkpoints against the clock (KeyN)
+const RACE_CHECKPOINTS = [
+  { x: WORLD_W * 0.5, y: WORLD_H * 0.62 + 120, radius: 80 },
+  { x: WORLD_W * 0.82, y: WORLD_H * 0.62 + 260, radius: 80 },
+  { x: WORLD_W - 340, y: WORLD_H * 0.26, radius: 90 },
+]
+const RACE_TIME_LIMIT_MS = 45000
+const RACE_HOLD_MS = 2600
+const RACE_ACCEPT_RADIUS = 130
+const RACE_ACTIVE_BASE_TEXT = 'MIDNIGHT SPRINT'
+const RACE_DONE_TEXT = 'MIDNIGHT SPRINT // FINISH +$300 // REP +2'
+const RACE_EXPIRED_TEXT = 'MIDNIGHT SPRINT // EXPIRED'
+let raceRequested = false
+let raceState: 'available' | 'active' | 'complete' = 'available'
+let raceCheckpointIndex = 0
+let raceDeadlineMs = 0
+let raceRestoreAtMs = 0
 
 // Off-map heat dump: stand in the zone and press H; banner holds briefly, then mission text restores
 const SAFEHOUSE = { x: WORLD_W * 0.18, y: WORLD_H * 0.62 + 180, radius: 110 }
@@ -335,6 +354,11 @@ function resetRun(nowMs: number) {
   saveRequested = false
   loadRequested = false
   saveRestoreAtMs = 0
+  raceRequested = false
+  raceState = 'available'
+  raceCheckpointIndex = 0
+  raceDeadlineMs = 0
+  raceRestoreAtMs = 0
   blackoutRequested = false
   blackoutState = 'available'
   blackoutRestoreAtMs = 0
@@ -849,6 +873,24 @@ function frame(now: number) {
     facing.dx = Math.sin(courierCar.angle)
     facing.dy = -Math.cos(courierCar.angle)
 
+    // Midnight Sprint: only the driving courier advances checkpoints, in mandatory order
+    if (raceState === 'active') {
+      const cp = RACE_CHECKPOINTS[raceCheckpointIndex]
+      if (Math.hypot(courierCar.x - cp.x, courierCar.y - cp.y) < cp.radius) {
+        raceCheckpointIndex++
+        if (raceCheckpointIndex >= RACE_CHECKPOINTS.length) {
+          raceState = 'complete'
+          raceDeadlineMs = 0
+          raceRestoreAtMs = now + RACE_HOLD_MS
+          cash += 300
+          rep += 2
+          setWanted(0)
+          heatCoolStartMs = 0
+          missionEl.textContent = RACE_DONE_TEXT
+        }
+      }
+    }
+
     // E steps out beside the door once nearly stopped; stopped inside the active drop-off delivers the run
     if (courierToggleRequested && Math.abs(courierCar.speed) <= 80) {
       const stoppedAtDrop =
@@ -921,6 +963,21 @@ function frame(now: number) {
       missionEl.textContent = BLACKOUT_ACTIVE_TEXT
     }
 
+    // N near the safehouse starts the street race when nothing else is running
+    const raceAcceptable =
+      raceState === 'available' &&
+      contractState !== 'active' &&
+      blackoutState === 'available' &&
+      !missionComplete &&
+      Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < RACE_ACCEPT_RADIUS
+    if (raceRequested && raceAcceptable) {
+      raceState = 'active'
+      raceCheckpointIndex = 0
+      raceDeadlineMs = now + RACE_TIME_LIMIT_MS
+      setWanted(Math.max(1, wanted))
+      missionEl.textContent = `${RACE_ACTIVE_BASE_TEXT} // ENTER COURIER — ${Math.ceil(RACE_TIME_LIMIT_MS / 1000)}S`
+    }
+
     // Reaching the grid target starts the getaway: heat stays up, race back on foot
     if (
       blackoutState === 'active' &&
@@ -946,6 +1003,18 @@ function frame(now: number) {
   courierToggleRequested = false
   safehouseRequested = false
   blackoutRequested = false
+  raceRequested = false
+
+  // Race timer: expiring mid-race safely resets to available with no payout
+  if (raceState === 'active' && raceDeadlineMs > 0 && now >= raceDeadlineMs) {
+    raceState = 'available'
+    raceCheckpointIndex = 0
+    raceDeadlineMs = 0
+    setWanted(0)
+    heatCoolStartMs = 0
+    missionEl.textContent = RACE_EXPIRED_TEXT
+    raceRestoreAtMs = now + RACE_HOLD_MS
+  }
 
   // P stores durable campaign progress; L restores it (transient state always resets)
   if (saveRequested) {
@@ -1024,6 +1093,12 @@ function frame(now: number) {
   const escapeTimeLeftSec =
     blackoutState === 'escaping' && blackoutEscapeDeadlineMs > 0
       ? Math.max(0, Math.ceil((blackoutEscapeDeadlineMs - now) / 1000))
+      : null
+
+  // Shared race countdown readout for the mission line during the sprint
+  const raceTimeLeftSec =
+    raceState === 'active' && raceDeadlineMs > 0
+      ? Math.max(0, Math.ceil((raceDeadlineMs - now) / 1000))
       : null
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
@@ -1174,10 +1249,14 @@ function frame(now: number) {
   if (saveRestoreAtMs > 0 && now >= saveRestoreAtMs) {
     saveRestoreAtMs = 0
   }
+  if (raceRestoreAtMs > 0 && now >= raceRestoreAtMs) {
+    raceRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
     (blackoutState === 'escaping' && escapeTimeLeftSec !== null) ||
+    (raceState === 'active' && raceTimeLeftSec !== null) ||
     (contractState === 'complete' && contractRestoreAtMs > 0) ||
     contractFailRestoreAtMs > 0 ||
     trafficHitRestoreAtMs > 0 ||
@@ -1185,18 +1264,25 @@ function frame(now: number) {
     blackoutRestoreAtMs > 0 ||
     garageRestoreAtMs > 0 ||
     heatCoolRestoreAtMs > 0 ||
-    saveRestoreAtMs > 0
+    saveRestoreAtMs > 0 ||
+    raceRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
     if (missionEl.textContent !== TRAFFIC_HIT_TEXT) missionEl.textContent = TRAFFIC_HIT_TEXT
   } else if (heatCoolRestoreAtMs > 0) {
     if (missionEl.textContent !== HEAT_COOLING_TEXT) missionEl.textContent = HEAT_COOLING_TEXT
+  } else if (raceRestoreAtMs > 0) {
+    const raceBannerText = raceState === 'complete' ? RACE_DONE_TEXT : RACE_EXPIRED_TEXT
+    if (missionEl.textContent !== raceBannerText) missionEl.textContent = raceBannerText
   } else if (saveRestoreAtMs > 0) {
     if (missionEl.textContent !== saveBannerText) missionEl.textContent = saveBannerText
   } else if (garageRestoreAtMs > 0) {
     const garageText = garageBannerAfford ? GARAGE_AFFORD_TEXT : GARAGE_POOR_TEXT
     if (missionEl.textContent !== garageText) missionEl.textContent = garageText
+  } else if (raceState === 'active' && raceTimeLeftSec !== null) {
+    const liveText = `MIDNIGHT SPRINT // CHECKPOINT ${Math.min(raceCheckpointIndex + 1, RACE_CHECKPOINTS.length)}/${RACE_CHECKPOINTS.length} — ${raceTimeLeftSec}S`
+    if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   } else if (blackoutState === 'escaping' && escapeTimeLeftSec !== null) {
     const liveText = `${BLACKOUT_ESCAPE_BASE_TEXT} — ${escapeTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
@@ -1404,6 +1490,42 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
 
+  // Midnight Sprint checkpoint: distinctive green gate for the current mandatory target
+  if (raceState === 'active') {
+    const cp = RACE_CHECKPOINTS[raceCheckpointIndex]
+    const cpx = cp.x
+    const cpy = cp.y
+    const breathe = Math.sin(now / 220) * 6
+    ctx.strokeStyle = '#39ff88'
+    ctx.shadowColor = '#39ff88'
+    ctx.shadowBlur = 24 + breathe
+    ctx.lineWidth = 3.5
+    ctx.setLineDash([18, 10])
+    ctx.beginPath()
+    ctx.arc(cpx, cpy, cp.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    // inner chevron pointing at the gate center
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(cpx - 14, cpy - 8)
+    ctx.lineTo(cpx, cpy + 10)
+    ctx.lineTo(cpx + 14, cpy - 8)
+    ctx.stroke()
+    if (driving && Math.hypot(courierCar.x - cpx, courierCar.y - cpy) < cp.radius) {
+      ctx.fillStyle = '#bfffff'
+      ctx.beginPath()
+      ctx.arc(cpx, cpy, 4 + Math.sin(now / 120) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#39ff88'
+    ctx.fillText(`CHECKPOINT ${raceCheckpointIndex + 1}/${RACE_CHECKPOINTS.length}`, cpx, cpy - cp.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - cpx, player.y - cpy))}M`, cpx, cpy - cp.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Police search ring: restrained red pulse + heading tick on the nearest active drone
   if (scanDrone) {
     const sdx = scanDrone.x
@@ -1482,7 +1604,7 @@ function frame(now: number) {
     safehouseEl.style.display = nearSafehouse ? '' : 'none'
   }
 
-  // Blackout accept hint / escape return hint at the safehouse
+  // Safehouse hint composes every available interaction: H heat, B blackout, G garage, N race
   const blackoutAcceptableNow =
     !driving &&
     blackoutState === 'available' &&
@@ -1490,7 +1612,14 @@ function frame(now: number) {
     !missionComplete &&
     Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < BLACKOUT_ACCEPT_RADIUS
   const blackoutEscapingNow = blackoutState === 'escaping'
-  // Garage status composes onto every safehouse line so H, B, and G all stay visible
+  const raceAcceptableNow =
+    !driving &&
+    raceState === 'available' &&
+    contractState !== 'active' &&
+    blackoutState === 'available' &&
+    !missionComplete &&
+    Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < RACE_ACCEPT_RADIUS
+  // Garage status composes onto every safehouse line so H, B, G, and N all stay visible
   const garageStatusHint = garageTuneInstalled
     ? 'SPRINT KIT INSTALLED'
     : cash >= GARAGE_TUNE_COST
@@ -1499,6 +1628,8 @@ function frame(now: number) {
   let safehouseHint: string
   if (blackoutEscapingNow) {
     safehouseHint = `SAFEHOUSE // RETURN TO BANK BLACKOUT RUN // ${garageStatusHint}`
+  } else if (raceAcceptableNow) {
+    safehouseHint = `SAFEHOUSE // MIDNIGHT SPRINT // PRESS N TO RACE // H CLEAR HEAT // PRESS B FOR BLACKOUT RUN // ${garageStatusHint}`
   } else if (blackoutAcceptableNow) {
     safehouseHint = `SAFEHOUSE // PRESS B FOR BLACKOUT RUN // H CLEAR HEAT // ${garageStatusHint}`
   } else if (nearSafehouse) {
