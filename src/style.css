@@ -151,6 +151,19 @@ canvas {
   }
 }
 
+.hud-pulse {
+  margin: 8px 0 0;
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: #00f0ff;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.55);
+}
+
+.pulse-state {
+  color: #bfffff;
+  text-shadow: 0 0 8px rgba(191, 255, 255, 0.7);
+}
+
 .complete {
   position: absolute;
   top: 50%;

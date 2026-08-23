@@ -14,6 +14,7 @@ app.innerHTML = `
       <span class="boost-state" id="boost-state">READY</span>
     </p>
     <p class="hud-wanted" id="hud-wanted">WANTED <span id="wanted-count">0</span>/3</p>
+    <p class="hud-pulse">PULSE F <span class="pulse-state" id="pulse-state">READY</span></p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones</p>
@@ -43,10 +44,11 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF') {
     e.preventDefault()
   }
   if (e.code === 'KeyQ') jammer.requested = true
+  if (e.code === 'KeyF') pulse.requested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
 
@@ -59,6 +61,16 @@ const jammer = {
   cooldown: 0,
   duration: 1.6,
   active: 0,
+}
+
+const pulse = {
+  requested: false,
+  cooldown: 0,
+  rate: 0.45,
+  speed: 560,
+  max: 6,
+  bolts: [] as { x: number; y: number; dx: number; dy: number }[],
+  flashUntil: 0,
 }
 
 const boost = {
@@ -83,6 +95,9 @@ const boostEls = {
 const wantedEls = {
   row: document.getElementById('hud-wanted')!,
   count: document.querySelector<HTMLSpanElement>('#wanted-count')!,
+}
+const pulseEls = {
+  state: document.querySelector<HTMLSpanElement>('#pulse-state')!,
 }
 
 const signals = Array.from({ length: 3 }, (_, i) => ({
@@ -226,6 +241,36 @@ function frame(now: number) {
     }
   }
   const jammerRingVisible = now < jammer.active
+
+  // Pulse weapon on F: bolt in facing direction, max 6 live bolts
+  if (pulse.cooldown > 0) pulse.cooldown = Math.max(0, pulse.cooldown - dt)
+  if (pulse.requested) {
+    pulse.requested = false
+    if (pulse.cooldown <= 0 && pulse.bolts.length < pulse.max) {
+      pulse.cooldown = pulse.rate
+      pulse.flashUntil = now + 90
+      pulse.bolts.push({ x: player.x + facing.dx * 20, y: player.y + facing.dy * 20, dx: facing.dx, dy: facing.dy })
+    }
+  }
+  for (let i = pulse.bolts.length - 1; i >= 0; i--) {
+    const b = pulse.bolts[i]
+    b.x += b.dx * pulse.speed * dt
+    b.y += b.dy * pulse.speed * dt
+    if (b.x < -20 || b.x > w + 20 || b.y < -20 || b.y > h + 20) {
+      pulse.bolts.splice(i, 1)
+      continue
+    }
+    for (const d of drones) {
+      if (now >= d.disabledUntil && Math.hypot(b.x - d.x, b.y - d.y) < 18) {
+        d.disabledUntil = now + jammer.duration * 1000
+        setWanted(wanted - 1)
+        pulse.bolts.splice(i, 1)
+        break
+      }
+    }
+  }
+  const pulseState = pulse.cooldown > 0 ? 'COOLDOWN' : 'READY'
+  if (pulseEls.state.textContent !== pulseState) pulseEls.state.textContent = pulseState
 
   const bg = ctx.createLinearGradient(0, 0, 0, h)
   bg.addColorStop(0, '#0a0325')
@@ -394,6 +439,35 @@ function frame(now: number) {
   ctx.fillRect(-8, 13, 5, 3)
   ctx.fillRect(3, 13, 5, 3)
   ctx.restore()
+  ctx.shadowBlur = 0
+
+  // Pulse bolts + muzzle flash
+  if (now < pulse.flashUntil) {
+    ctx.fillStyle = '#bfffff'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 18
+    ctx.beginPath()
+    ctx.arc(player.x + facing.dx * 20, player.y + facing.dy * 20, 7, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  pulse.bolts.forEach(b => {
+    const tailX = b.x - b.dx * 14
+    const tailY = b.y - b.dy * 14
+    ctx.strokeStyle = '#00f0ff'
+    ctx.lineWidth = 4
+    ctx.lineCap = 'round'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 16
+    ctx.beginPath()
+    ctx.moveTo(tailX, tailY)
+    ctx.lineTo(b.x, b.y)
+    ctx.stroke()
+    ctx.fillStyle = '#eaffff'
+    ctx.beginPath()
+    ctx.arc(b.x, b.y, 3.5, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.shadowBlur = 0
+  })
   ctx.shadowBlur = 0
 
   // Cyan patrol drones
