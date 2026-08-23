@@ -92,6 +92,14 @@ const COURIER_ENTER_RADIUS = 70
 let driving = false
 let courierToggleRequested = false
 
+// Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
+const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
+const DROP_OFF_RADIUS = 95
+const CONTRACT_DELIVER_HOLD_MS = 2600
+const MISSION_SWEEP_TEXT = 'MISSION // Sweep the grid — recover 3 relay signals'
+let contractState: 'available' | 'active' | 'complete' = 'available'
+let contractRestoreAtMs = 0
+
 let mapOpen = false
 
 let restartRequested = false
@@ -176,6 +184,8 @@ function resetRun(nowMs: number) {
   runCompleteEl.hidden = true
   driving = false
   courierToggleRequested = false
+  contractState = 'available'
+  contractRestoreAtMs = 0
   courierCar.x = WORLD_W / 2 + 90
   courierCar.y = WORLD_H / 2 + 40
   courierCar.angle = -Math.PI / 4
@@ -657,20 +667,34 @@ function frame(now: number) {
     facing.dx = Math.sin(courierCar.angle)
     facing.dy = -Math.cos(courierCar.angle)
 
-    // E steps out beside the door once nearly stopped
+    // E steps out beside the door once nearly stopped; stopped inside the active drop-off delivers the run
     if (courierToggleRequested && Math.abs(courierCar.speed) <= 80) {
+      const stoppedAtDrop =
+        contractState === 'active' &&
+        Math.hypot(courierCar.x - SKYWAY_DROP_OFF.x, courierCar.y - SKYWAY_DROP_OFF.y) < DROP_OFF_RADIUS &&
+        Math.abs(courierCar.speed) <= 20
       driving = false
       player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
       player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
       courierCar.speed = 0
+      if (stoppedAtDrop) {
+        contractState = 'complete'
+        contractRestoreAtMs = now + CONTRACT_DELIVER_HOLD_MS
+        setWanted(0)
+        missionEl.textContent = 'COURIER RUN // DELIVERED'
+      }
     }
   } else {
     player.x = Math.max(player.size, Math.min(WORLD_W - player.size, player.x + (dx / len) * speedNow * dt))
     player.y = Math.max(player.size, Math.min(WORLD_H - player.size, player.y + (dy / len) * speedNow * dt))
 
-    // E hops in when close to the parked courier
+    // E hops in when close to the parked courier; first pickup starts the courier run
     if (courierToggleRequested && Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS) {
       driving = true
+      if (contractState === 'available') {
+        contractState = 'active'
+        missionEl.textContent = 'COURIER RUN // REACH SKYWAY DROP-OFF'
+      }
     }
   }
   courierToggleRequested = false
@@ -766,6 +790,12 @@ function frame(now: number) {
   const pulseState = pulse.cooldown > 0 ? 'COOLDOWN' : 'READY'
   if (pulseEls.state.textContent !== pulseState) pulseEls.state.textContent = pulseState
 
+  // Hand the mission line back to the campaign once the DELIVERED hold elapses
+  if (contractState === 'complete' && contractRestoreAtMs > 0 && now >= contractRestoreAtMs) {
+    contractRestoreAtMs = 0
+    missionEl.textContent = signalsFound === 3 ? missionPhase2 : MISSION_SWEEP_TEXT
+  }
+
   // Restart on R
   if (restartRequested) {
     restartRequested = false
@@ -856,6 +886,32 @@ function frame(now: number) {
     ctx.fillText('EXTRACT', gx, gy - gate.radius - 12)
   }
 
+  // Amber dashed drop-off pad while a courier run is underway
+  if (contractState === 'active') {
+    const dox = SKYWAY_DROP_OFF.x
+    const doy = SKYWAY_DROP_OFF.y
+    const breathe = Math.sin(now / 300) * 6
+    ctx.strokeStyle = '#ff9d3c'
+    ctx.shadowColor = '#ff9d3c'
+    ctx.shadowBlur = 22 + breathe
+    ctx.lineWidth = 3
+    ctx.setLineDash([16, 12])
+    ctx.beginPath()
+    ctx.arc(dox, doy, DROP_OFF_RADIUS, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 0.1
+    ctx.fillStyle = '#ff9d3c'
+    ctx.fill()
+    ctx.globalAlpha = 1
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ff9d3c'
+    ctx.fillText('DROP-OFF', dox, doy - DROP_OFF_RADIUS - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - dox, player.y - doy))}M`, dox, doy - DROP_OFF_RADIUS - 12)
+    ctx.shadowBlur = 0
+  }
+
   // Jammer pulse ring
   if (jammerRingVisible) {
     const t = 1 - (jammer.active - now) / 420
@@ -879,8 +935,11 @@ function frame(now: number) {
   // Courier coupe under the signal/traffic layer; HUD prompt tracks proximity and drive state
   drawCourierCar(driving)
   const nearCourier = Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS
+  const dropDist = Math.round(Math.hypot(player.x - SKYWAY_DROP_OFF.x, player.y - SKYWAY_DROP_OFF.y))
   const courierText = driving
-    ? `COURIER // DRIVING ${Math.round(Math.abs(courierCar.speed) * 0.6)} KMH — SPACE BOOST — SLOWS UNDER 80 FOR E`
+    ? contractState === 'active'
+      ? `COURIER RUN // REACH SKYWAY DROP-OFF — ${dropDist}M — STOP + E TO DELIVER`
+      : `COURIER // DRIVING ${Math.round(Math.abs(courierCar.speed) * 0.6)} KMH — SPACE BOOST — SLOWS UNDER 80 FOR E`
     : nearCourier
       ? 'COURIER // PRESS E TO DRIVE'
       : ''
@@ -895,7 +954,7 @@ function frame(now: number) {
       if (!missionComplete) setWanted(wanted + 1)
       if (signalsFound === 3 && !missionComplete) {
         signalEls.complete.hidden = false
-        missionEl.textContent = missionPhase2
+        if (contractState !== 'active') missionEl.textContent = missionPhase2
       }
       return
     }
