@@ -25,13 +25,29 @@ app.innerHTML = `
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
     <p class="hud-jobboard" id="hud-jobboard" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff6bd6;text-shadow:0 0 10px rgba(255,107,214,0.6);">JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // N RACE</p>
   </div>
+  <div id="phone-menu" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;width:min(320px,86vw);max-height:70vh;overflow-y:auto;padding:18px 20px;background:rgba(8,4,24,0.92);border:1px solid #ff2d96;border-radius:10px;box-shadow:0 0 28px rgba(255,45,150,0.55),inset 0 0 14px rgba(255,45,150,0.2);color:#f4ecff;font-family:ui-monospace,Consolas,monospace;text-align:left;display:none;">
+    <p id="phone-title" style="margin:0 0 12px;font-size:13px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 12px rgba(0,240,255,0.75);">VICE//MERIDIAN // CONTACTS</p>
+    <ul id="phone-jobs" style="list-style:none;margin:0;padding:0;font-size:11px;letter-spacing:2px;line-height:2;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);">
+      <li>B BLACKOUT</li>
+      <li>K BANK</li>
+      <li>V VIP</li>
+      <li>C CONVOY</li>
+      <li>J JUNCTION</li>
+      <li>X TAKEOVER</li>
+      <li>O SMUGGLER</li>
+      <li>I CHOP SHOP</li>
+      <li>N RACE</li>
+    </ul>
+    <p id="phone-status" style="margin:12px 0 0;font-size:11px;letter-spacing:2px;color:#39ff88;text-shadow:0 0 8px rgba(57,255,136,0.55);">CASH $0 / REP 0 / WANTED 0</p>
+    <p id="phone-close" style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ff2d96;text-shadow:0 0 8px rgba(255,45,150,0.6);">TAB TOGGLE // ESC CLOSE</p>
+  </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
   <div class="run-complete" id="run-complete" hidden>
     <p class="run-title">RUN COMPLETE // EXTRACTION SECURED</p>
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — P save — L load — R restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — TAB contacts — P save — L load — R restart</p>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -79,6 +95,13 @@ window.addEventListener('keydown', e => {
   }
   if (e.code === 'Escape' && mapOpen) {
     mapOpen = false
+  }
+  if (e.code === 'Tab') {
+    e.preventDefault()
+    phoneOpen = !phoneOpen
+  }
+  if (e.code === 'Escape' && !mapOpen && phoneOpen) {
+    phoneOpen = false
   }
   if (e.code === 'KeyQ') jammer.requested = true
   if (e.code === 'KeyF') pulse.requested = true
@@ -446,6 +469,7 @@ function campaignMissionText(): string {
 }
 
 let mapOpen = false
+let phoneOpen = false
 
 let restartRequested = false
 let missionComplete = false
@@ -502,6 +526,8 @@ const crewEl = document.getElementById('hud-crew')!
 const scanEl = document.getElementById('hud-scan')!
 const pursuitEl = document.getElementById('hud-pursuit')!
 const walletEl = document.getElementById('hud-wallet')!
+const phoneEl = document.getElementById('phone-menu')!
+const phoneStatusEl = document.getElementById('phone-status')!
 const hullEl = document.getElementById('hud-hull')!
 const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
 const hullFillEl = document.querySelector<HTMLSpanElement>('#hull-fill')!
@@ -1075,6 +1101,17 @@ function frame(now: number) {
     drawCityMap()
     requestAnimationFrame(frame)
     return
+  }
+
+  if (phoneOpen) {
+    phoneEl.style.display = 'block'
+    const phoneText = `CASH $${cash} / REP ${rep} / WANTED ${wanted}`
+    if (phoneStatusEl.textContent !== phoneText) phoneStatusEl.textContent = phoneText
+    requestAnimationFrame(frame)
+    return
+  }
+  if (phoneEl.style.display !== 'none') {
+    phoneEl.style.display = 'none'
   }
 
   let dx = 0
