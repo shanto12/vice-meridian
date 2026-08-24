@@ -23,6 +23,7 @@ app.innerHTML = `
     <p class="hud-pursuit" id="hud-pursuit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE PURSUIT // HEAT 0/3</p>
     <p class="hud-roadblock" id="hud-roadblock" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffb300;text-shadow:0 0 10px rgba(255,179,0,0.7);">ROADBLOCK // INTERCEPTOR EN ROUTE</p>
     <p class="hud-street-cred" id="hud-street-cred" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">STREET CRED // RUNNER</p>
+    <p class="hud-perk" id="hud-perk" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#bfffff;text-shadow:0 0 10px rgba(191,255,255,0.6);">PERK // RISK RUNNER</p>
     <p class="hud-airunit" id="hud-airunit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#c8d2eb;text-shadow:0 0 10px rgba(200,210,235,0.7);">AIR UNIT // SPOTLIGHT ACTIVE</p>
     <p class="hud-air-support" id="hud-air-support" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">AIR SUPPORT // ACTIVE</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
@@ -793,7 +794,16 @@ function streetCredRank(repValue: number): 'RUNNER' | 'OPERATOR' | 'FIXER' | 'KI
   if (repValue >= 3) return 'OPERATOR'
   return 'RUNNER'
 }
+// Rank passive perk: a deterministic multiplier on the PASSIVE heat-cooling window only —
+// derived from live rep each frame, never persisted, and Crew Cover still composes on top
+const STREET_CRED_PERKS: Record<ReturnType<typeof streetCredRank>, { perk: string; coolMult: number }> = {
+  RUNNER: { perk: 'RISK RUNNER', coolMult: 1.0 },
+  OPERATOR: { perk: 'HEAT SHIELD', coolMult: 0.9 },
+  FIXER: { perk: 'CLEAN GETAWAY', coolMult: 0.8 },
+  KINGPIN: { perk: 'KINGPIN COVER', coolMult: 0.7 },
+}
 const streetCredEl = document.getElementById('hud-street-cred')!
+const perkEl = document.getElementById('hud-perk')!
 let lastStreetCredRank: ReturnType<typeof streetCredRank> = 'RUNNER'
 const STREET_CRED_RANK_UP_HOLD_MS = 2200
 let streetCredRankUpUntilMs = 0
@@ -3483,9 +3493,11 @@ function frame(now: number) {
     resetAirUnit()
   }
 
-  // Heat cooling: after 7s continuously clear of all active hunters' scan range, shed one level
-  // Active Crew Cover compresses that window to a faster decay without touching mission timers or payouts
-  const heatCoolRequiredMs = now < crewCoverUntilMs ? CREW_COVER_FAST_HEAT_COOL_MS : HEAT_COOL_MS
+  // Heat cooling: after 7s continuously clear of all active hunters' scan range, shed one level.
+  // The rank perk compresses that baseline window; Crew Cover composes via Math.min so the
+  // temporary service stays the stronger option whenever its fast window is shorter
+  const perkMult = STREET_CRED_PERKS[streetCredRank(rep)].coolMult
+  const heatCoolRequiredMs = now < crewCoverUntilMs ? Math.min(CREW_COVER_FAST_HEAT_COOL_MS, HEAT_COOL_MS * perkMult) : HEAT_COOL_MS * perkMult
   const hunterInRange =
     wanted > 0 &&
     drones.some(d => now >= d.disabledUntil && Math.hypot(player.x - d.x, player.y - d.y) < POLICE_SCAN_RADIUS)
@@ -5252,6 +5264,8 @@ function frame(now: number) {
   const currentRank = streetCredRank(rep)
   const credText = `STREET CRED // ${currentRank}`
   if (streetCredEl.textContent !== credText) streetCredEl.textContent = credText
+  const perkHudText = `PERK // ${STREET_CRED_PERKS[currentRank].perk}`
+  if (perkEl.textContent !== perkHudText) perkEl.textContent = perkHudText
   const rankOrder = ['RUNNER', 'OPERATOR', 'FIXER', 'KINGPIN']
   if (rankOrder.indexOf(currentRank) > rankOrder.indexOf(lastStreetCredRank)) {
     streetCredRankUpUntilMs = now + STREET_CRED_RANK_UP_HOLD_MS
