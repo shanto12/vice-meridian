@@ -35,7 +35,7 @@ app.innerHTML = `
     <p id="phone-arc" style="margin:0 0 8px;font-size:10px;letter-spacing:2px;line-height:1.5;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.6);"></p>
     <p id="phone-briefing" style="margin:0 0 10px;font-size:10px;letter-spacing:2px;line-height:1.6;color:#c9a4ff;text-shadow:0 0 8px rgba(178,107,255,0.65);"></p>
     <ul id="phone-jobs" style="list-style:none;margin:0;padding:0;font-size:11px;letter-spacing:2px;line-height:2;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);"></ul>
-    <p style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);">PRESS 1-9 TO CALL</p>
+    <p id="phone-hint" style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);">PRESS 1-9 TO CALL</p>
     <p id="phone-status" style="margin:12px 0 0;font-size:11px;letter-spacing:2px;color:#39ff88;text-shadow:0 0 8px rgba(57,255,136,0.55);">CASH $0 / REP 0 / WANTED 0</p>
     <p id="phone-feedback" style="display:none;margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#39ff88;text-shadow:0 0 8px rgba(57,255,136,0.55);"></p>
     <p id="phone-close" style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ff2d96;text-shadow:0 0 8px rgba(255,45,150,0.6);">TAB TOGGLE // ESC CLOSE</p>
@@ -123,6 +123,15 @@ window.addEventListener('keydown', e => {
     phoneOpen = false
     return
   }
+  // Kingpin contract accept: Digit0 in the open phone menu once the network is online
+  if (e.code === 'Digit0' && phoneOpen) {
+    e.preventDefault()
+    if (kingpinOnline && networkJobState === 'available') {
+      networkJobRequested = true
+      phoneOpen = false
+      return
+    }
+  }
   if (e.code === 'Tab') {
     e.preventDefault()
     if (!phoneOpen) phoneStatusBusy = false
@@ -149,9 +158,12 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyZ') stashRequested = true
   if (e.code === 'KeyY') {
-    // Y toggles Night Shift on foot and activates the Kingpin node during the epilogue;
-    // the epilogue handler consumes the request first when it applies
+    // Y toggles Night Shift on foot and drives the Kingpin epilogue/contract beats:
+    // node activation first, then vault secure, then safehouse delivery; everywhere
+    // else it stays the cosmetic night-shift toggle
     if (missionComplete && !kingpinOnline && playerNearKingpinNode()) kingpinRequested = true
+    else if (networkJobState === 'active' && playerNearNetworkVault()) networkSecureRequested = true
+    else if (networkJobState === 'returning' && playerAtSafehouse()) networkDeliverRequested = true
     else nightShiftEnabled = !nightShiftEnabled
   }
   if (e.code === 'KeyP') saveRequested = true
@@ -607,9 +619,11 @@ function campaignAct(): CampaignAct {
 function campaignActObjective(act: CampaignAct): string {
   if (act === 'ACT I // SIGNAL SWEEP') return 'Recover 3 relay signals across the grid'
   if (act === 'ACT II // EXTRACTION') return 'Reach the extraction gate before the city closes in'
-  return kingpinOnline
-    ? 'Network online — free roam the city'
-    : 'Activate the Kingpin Network node'
+  if (!kingpinOnline) return 'Activate the Kingpin Network node'
+  if (networkJobState === 'available') return 'Call the Kingpin contract — press 0'
+  if (networkJobState === 'active') return 'Reach the data vault and press Y'
+  if (networkJobState === 'returning') return 'Deliver the data to the safehouse'
+  return 'Network online — free roam the city'
 }
 const phoneArcEl = document.getElementById('phone-arc')!
 const ACT_COMPLETE_HOLD_MS = 2600
@@ -632,6 +646,24 @@ function playerNearKingpinNode(): boolean {
   return (
     !driving &&
     Math.hypot(player.x - KINGPIN_NODE.x, player.y - KINGPIN_NODE.y) < KINGPIN_NODE.radius
+  )
+}
+
+// Kingpin network contract: a repeatable-once-per-run postgame data sweep offered through
+// the phone after the network is online. Reach the vault, secure the data on foot (heat +2),
+// then return home to deliver. Entirely transient — resetRun-cleared, never persisted
+const NETWORK_VAULT_SITE = { x: WORLD_W * 0.14, y: WORLD_H * 0.20, radius: 95 }
+type NetworkJobState = 'available' | 'active' | 'returning' | 'complete'
+let networkJobState: NetworkJobState = 'available'
+let networkJobRequested = false
+let networkSecureRequested = false
+let networkDeliverRequested = false
+let networkNoticeText = ''
+let networkNoticeUntilMs = 0
+function playerNearNetworkVault(): boolean {
+  return (
+    !driving &&
+    Math.hypot(player.x - NETWORK_VAULT_SITE.x, player.y - NETWORK_VAULT_SITE.y) < NETWORK_VAULT_SITE.radius
   )
 }
 
@@ -855,6 +887,7 @@ const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
 const phoneBriefingEl = document.getElementById('phone-briefing')!
 const phoneJobsEl = document.getElementById('phone-jobs')!
+const phoneHintEl = document.getElementById('phone-hint')!
 const phoneFeedbackEl = document.getElementById('phone-feedback')!
 const hullEl = document.getElementById('hud-hull')!
 const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
@@ -953,6 +986,12 @@ function resetRun(nowMs: number) {
   kingpinRequested = false
   kingpinOnline = false
   kingpinRestoreAtMs = 0
+  networkJobRequested = false
+  networkSecureRequested = false
+  networkDeliverRequested = false
+  networkJobState = 'available'
+  networkNoticeText = ''
+  networkNoticeUntilMs = 0
   signalBannerText = ''
   signalBannerUntilMs = 0
   signalPulses.length = 0
@@ -1062,7 +1101,14 @@ const gate = {
 // node until the network is online. Purely a derived HUD readout; no rewards or save fields
 type RouteTarget = { label: string; x: number; y: number }
 function campaignRouteTarget(): RouteTarget | null {
-  if (missionComplete) return kingpinOnline ? null : { label: 'KINGPIN NODE', x: KINGPIN_NODE.x, y: KINGPIN_NODE.y }
+  if (missionComplete) {
+    if (kingpinOnline) {
+      if (networkJobState === 'active') return { label: 'DATA VAULT', x: NETWORK_VAULT_SITE.x, y: NETWORK_VAULT_SITE.y }
+      if (networkJobState === 'returning') return { label: 'SAFEHOUSE', x: SAFEHOUSE.x, y: SAFEHOUSE.y }
+      return null
+    }
+    return null
+  }
   if (signalsFound === 3) return { label: 'EXTRACTION GATE', x: gate.x, y: gate.y }
   const nextSignal = signals[signalsFound]
   if (!nextSignal) return null
@@ -1260,6 +1306,9 @@ function objectiveMarkers(): ObjectiveMarker[] {
   }
   if (missionComplete && !kingpinOnline) {
     markers.push({ x: KINGPIN_NODE.x, y: KINGPIN_NODE.y, label: 'KINGPIN', color: '#b26bff' })
+  }
+  if (networkJobState === 'active') {
+    markers.push({ x: NETWORK_VAULT_SITE.x, y: NETWORK_VAULT_SITE.y, label: 'DATA VAULT', color: '#00f0ff' })
   }
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[Math.min(raceCheckpointIndex, RACE_CHECKPOINTS.length - 1)]
@@ -1664,7 +1713,25 @@ function frame(now: number) {
       const dim = phase === 'complete' ? ' style="opacity:0.55;"' : ''
       return `<li>${index + 1} ${job.label} — ${stateText}${dim}</li>`
     }).join('')
-    if (phoneJobsEl.innerHTML !== listHtml) phoneJobsEl.innerHTML = listHtml
+    // Kingpin contract entry appended after the network is online; 0 accepts when available
+    let networkEntryHtml = ''
+    if (kingpinOnline) {
+      const networkStateText =
+        networkJobState === 'available'
+          ? 'READY — PRESS 0'
+          : networkJobState === 'active'
+            ? 'REACH THE VAULT'
+            : networkJobState === 'returning'
+              ? PHONE_RETURN_TEXT
+              : 'COMPLETE'
+      const dim = networkJobState === 'complete' ? ' style="opacity:0.55;"' : ''
+      networkEntryHtml = `<li>0 KINGPIN CONTRACT — ${networkStateText}${dim}</li>`
+    }
+    const fullListHtml = listHtml + networkEntryHtml
+    if (phoneJobsEl.innerHTML !== fullListHtml) phoneJobsEl.innerHTML = fullListHtml
+    // Hint reads 0-9 only while the kingpin contract entry is callable
+    const phoneHintText = kingpinOnline && networkJobState === 'available' ? 'PRESS 0-9 TO CALL' : 'PRESS 1-9 TO CALL'
+    if (phoneHintEl.textContent !== phoneHintText) phoneHintEl.textContent = phoneHintText
     const briefingText = campaignMissionText()
     if (phoneBriefingEl.textContent !== briefingText) phoneBriefingEl.textContent = briefingText
     // Campaign arc line: current act + its concise objective, recomputed while the menu is open
@@ -2387,6 +2454,40 @@ function frame(now: number) {
     }
   }
 
+  // Kingpin contract beats: accept via Digit0, secure the vault on foot (heat +2),
+  // then deliver at the safehouse on foot for +$750/+4 rep
+  if (networkJobRequested) {
+    networkJobRequested = false
+    if (kingpinOnline && networkJobState === 'available' && missionComplete) {
+      networkJobState = 'active'
+      networkNoticeText = 'NETWORK SWEEP // REACH THE DATA VAULT'
+      networkNoticeUntilMs = now + KINGPIN_HOLD_MS
+      missionEl.textContent = networkNoticeText
+    }
+  }
+  if (networkSecureRequested) {
+    networkSecureRequested = false
+    if (kingpinOnline && networkJobState === 'active' && playerNearNetworkVault()) {
+      networkJobState = 'returning'
+      setWanted(wanted + 2)
+      networkNoticeText = 'NETWORK SWEEP // DATA SECURED // RETURN TO SAFEHOUSE'
+      networkNoticeUntilMs = now + KINGPIN_HOLD_MS
+      missionEl.textContent = networkNoticeText
+    }
+  }
+  if (networkDeliverRequested) {
+    networkDeliverRequested = false
+    if (kingpinOnline && networkJobState === 'returning' && playerAtSafehouse()) {
+      networkJobState = 'complete'
+      cash += 750
+      rep += 4
+      setWanted(0)
+      networkNoticeText = 'NETWORK CONTRACT // DELIVERED +$750 // REP +4'
+      networkNoticeUntilMs = now + KINGPIN_HOLD_MS
+      missionEl.textContent = networkNoticeText
+    }
+  }
+
   // Chop Shop timer: expiring mid-job safely returns to available with no payout
   if ((chopShopState === 'steal' || chopShopState === 'return') && chopShopDeadlineMs > 0 && now >= chopShopDeadlineMs) {
     chopShopState = 'available'
@@ -2907,6 +3008,10 @@ function frame(now: number) {
   if (airSupportBannerUntilMs > 0 && now >= airSupportBannerUntilMs) {
     airSupportBannerUntilMs = 0
   }
+  if (networkNoticeUntilMs > 0 && now >= networkNoticeUntilMs) {
+    networkNoticeUntilMs = 0
+    networkNoticeText = ''
+  }
   for (let i = signalPulses.length - 1; i >= 0; i--) {
     if (now >= signalPulses[i].untilMs) signalPulses.splice(i, 1)
   }
@@ -2940,7 +3045,8 @@ function frame(now: number) {
     actCompleteUntilMs > 0 ||
     kingpinRestoreAtMs > 0 ||
     signalBannerUntilMs > 0 ||
-    airSupportBannerUntilMs > 0
+    airSupportBannerUntilMs > 0 ||
+    networkNoticeUntilMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -2995,6 +3101,8 @@ function frame(now: number) {
     if (missionEl.textContent !== signalBannerText) missionEl.textContent = signalBannerText
   } else if (airSupportBannerUntilMs > 0) {
     if (missionEl.textContent !== AIR_SUPPORT_INBOUND_TEXT) missionEl.textContent = AIR_SUPPORT_INBOUND_TEXT
+  } else if (networkNoticeUntilMs > 0 && networkNoticeText) {
+    if (missionEl.textContent !== networkNoticeText) missionEl.textContent = networkNoticeText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -3869,6 +3977,46 @@ function frame(now: number) {
     ctx.fillStyle = '#b26bff'
     ctx.fillText('KINGPIN NETWORK', knx, kny - KINGPIN_NODE.radius - 26)
     ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - knx, player.y - kny))}M`, knx, kny - KINGPIN_NODE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
+  // Network data vault: cyan dashed ring + vault glyph while the contract is active,
+  // with the on-foot secure prompt inside the radius
+  if (networkJobState === 'active') {
+    const nvx = NETWORK_VAULT_SITE.x
+    const nvy = NETWORK_VAULT_SITE.y
+    const nearVault = playerNearNetworkVault()
+    const breathe = Math.sin(now / 300) * 5
+    ctx.strokeStyle = '#00f0ff'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 20 + breathe
+    ctx.lineWidth = nearVault ? 3.5 : 3
+    ctx.setLineDash([12, 9])
+    ctx.beginPath()
+    ctx.arc(nvx, nvy, NETWORK_VAULT_SITE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    // vault glyph: safe box with dial
+    ctx.lineWidth = 2.5
+    ctx.strokeRect(nvx - 14, nvy - 11, 28, 22)
+    ctx.beginPath()
+    ctx.arc(nvx + 4, nvy, 6, 0, Math.PI * 2)
+    ctx.moveTo(nvx + 4, nvy - 4)
+    ctx.lineTo(nvx + 4, nvy + 4)
+    ctx.moveTo(nvx - 10, nvy - 7)
+    ctx.lineTo(nvx - 6, nvy - 7)
+    ctx.stroke()
+    if (nearVault) {
+      ctx.font = '600 11px ui-monospace, Consolas, monospace'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#00f0ff'
+      ctx.fillText('PRESS Y TO SECURE DATA', nvx, nvy + NETWORK_VAULT_SITE.radius - 10)
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#00f0ff'
+    ctx.fillText('DATA VAULT', nvx, nvy - NETWORK_VAULT_SITE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - nvx, player.y - nvy))}M`, nvx, nvy - NETWORK_VAULT_SITE.radius - 12)
     ctx.shadowBlur = 0
   }
 
