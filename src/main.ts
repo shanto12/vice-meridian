@@ -57,6 +57,8 @@ window.addEventListener('resize', () => {
 const WORLD_W = 2400
 const WORLD_H = 1600
 let camera = { x: 0, y: 0 }
+// Visual-only overdrive feedback window after the boost pool drains to zero
+let overdriveImpactUntilMs = 0
 
 // Purely visual city districts: dashed boundary + label + center coordinate line
 const CITY_DISTRICTS = [
@@ -711,6 +713,7 @@ function resetRun(nowMs: number) {
   turfState = 'available'
   turfDeadlineMs = 0
   turfRestoreAtMs = 0
+  overdriveImpactUntilMs = 0
   resetRivalCrew()
   smugglerRequested = false
   smugglerState = 'available'
@@ -1425,6 +1428,7 @@ function frame(now: number) {
       if (boost.energy <= 0) {
         boost.cooldown = true
         boost.active = false
+        overdriveImpactUntilMs = now + 260
       }
     } else {
       boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * dt))
@@ -2194,11 +2198,23 @@ function frame(now: number) {
 
   camera.x = Math.max(0, Math.min(Math.max(0, WORLD_W - w), player.x - w / 2))
   camera.y = Math.max(0, Math.min(Math.max(0, WORLD_H - h), player.y - h / 2))
+  // Overdrive impact: visual-only shake applied after clamping so world/player coords stay untouched
+  if (driving && now < overdriveImpactUntilMs) {
+    camera.x += (Math.random() * 2 - 1) * 5
+    camera.y += (Math.random() * 2 - 1) * 5
+  }
   if (!driving && moving) facing = { dx: dx / len, dy: dy / len }
 
   const pct = boost.energy.toFixed(0)
   boostEls.fill.style.width = `${pct}%`
-  boostEls.state.textContent = boost.active ? 'ACTIVE' : boost.cooldown ? 'RECHARGING' : 'READY'
+  const overdriveImpact = now < overdriveImpactUntilMs
+  boostEls.state.textContent = overdriveImpact
+    ? 'IMPACT'
+    : boost.active
+      ? 'ACTIVE'
+      : boost.cooldown
+        ? 'RECHARGING'
+        : 'READY'
   boostEls.fill.classList.toggle('is-active', boost.active)
   boostEls.fill.classList.toggle('is-cooling', boost.cooldown)
 
