@@ -1948,3 +1948,56 @@ runtime remains NOT FULLY VERIFIED, carried forward from prior passes. VICE//MER
 remains an evolving GTA-style browser vertical slice rather than a literal complete
 GTA 7; auth/backend/API/runner jobs are N/A for this static Vite game. All prior sections
 remain intact as historical records superseded by this release.
+
+---
+
+# District Control Notice Priority Polish - Release Evidence (2026-08-24)
+
+Final production release verification for the district notice priority polish, source
+commit `05764e5` "Prioritize district control notices" (parent `1f39a66` "Add postgame
+district control"). This is the current release record; every earlier section in this file
+is a historical record superseded by it. Rows are separated so agent provenance, shell
+gates, live HTTP/header checks, bundle checks, real-Chrome sessions, and runtime caveats
+are never mixed inside one evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git rev-list against origin/main | PASS | Commit `05764e5` "Prioritize district control notices" (parent `1f39a66`) is HEAD on main, pushed to origin/main; working tree clean |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bdf21666a3e991278ccc1` is ready at https://vice-meridian.netlify.app/ with unique URL https://6a8bdf21666a3e991278ccc1--vice-meridian.netlify.app |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and /assets/index-C_thB_6P.js | PASS | Both return HTTP 200; live JS asset index-C_thB_6P.js confirmed on this deploy |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS preload, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Notice-priority change source/build review | Source review of the mission banner chain plus build output | PASS | The districtNoticeUntilMs branch now sits immediately after networkNotice and before streetCredRankUpUntilMs, so District Control notices outrank a simultaneous rank-up for their hold window; rewards, state machine, save schema unchanged |
+| Final Midtown one-shot banner recapture after 05764e5 | Manual replay of contract delivery on deploy `6a8bdf21666a3e991278ccc1` | NOT CLAIMED | The final one-shot Midtown banner has not been recaptured as a standalone string after `05764e5`; the prior real-Chrome District Control traversal on deploy `6a8bdc9dc998249035697fbe` remains the live behavioral evidence and is preserved below |
+| Prior traversal evidence preserved | Historical section: Kingpin Contract Release / District Control Production Evidence | PRESERVED | Full first-district traversal on deploy `6a8bdc9dc998249035697fbe`: 0 DISTRICT CONTROL 0/3 READY → Digit0 accept → route DISTRICT 1 → Y secure (RETURN TO SAFEHOUSE, WANTED 2) → delivery CASH $2750 / REP 12 / WANTED 0 → phone 1/3 READY for INDUSTRIAL |
+| Real Chrome mobile baseline | Real Chrome session at 390x844 against production | PASS | Document/canvas exactly 390x844; zero app console errors; no document overflow |
+| Real Chrome desktop baseline | Real Chrome desktop session at 1440x660 against production | PASS | Canvas/document exactly 1440x660; no overflow; no app-reported errors (carried from prior passes) |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+The final production release pairs commit `05764e5` "Prioritize district control notices"
+(parent `1f39a66`) with Netlify production deploy `6a8bdf21666a3e991278ccc1`, live at
+https://vice-meridian.netlify.app/ and uniquely at
+https://6a8bdf21666a3e991278ccc1--vice-meridian.netlify.app. Root and the live JS asset
+/assets/index-C_thB_6P.js return HTTP 200 under the current CSP, HSTS preload,
+X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy headers.
+Source/build review confirms the notice-priority reorder: the districtNotice branch now
+precedes streetCredRankUpUntilMs in the mission banner chain, letting District Control
+notices hold their window over a simultaneous Street Cred rank-up with RANK UP following
+afterward — no reward, state-machine, or save-schema changes. npm audit --omit=dev reports
+0 vulnerabilities. The final mobile baseline records document/canvas exactly 390x844 with
+zero app console errors, and desktop 1440x660 evidence is retained. The prior real-Chrome
+District Control traversal evidence on deploy `6a8bdc9dc998249035697fbe` is preserved:
+full first-district run from 0 DISTRICT CONTROL 0/3 READY through secure (wanted 2),
+return, delivery to CASH $2750 / REP 12 / WANTED 0, and phone advancing to 1/3 READY for
+INDUSTRIAL. Stated honestly: the final one-shot Midtown banner has not been recaptured as
+a standalone string after `05764e5` and is not claimed as such. The wanted-three air-unit
+runtime remains NOT FULLY VERIFIED, carried forward. VICE//MERIDIAN remains an evolving
+GTA-style browser vertical slice rather than a literal complete GTA 7;
+auth/backend/API/runner jobs are N/A for this static Vite game. All prior sections remain
+intact as historical records superseded by this release.
