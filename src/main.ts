@@ -30,6 +30,7 @@ app.innerHTML = `
   </div>
   <div id="phone-menu" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;width:min(320px,86vw);max-height:70vh;overflow-y:auto;padding:18px 20px;background:rgba(8,4,24,0.92);border:1px solid #ff2d96;border-radius:10px;box-shadow:0 0 28px rgba(255,45,150,0.55),inset 0 0 14px rgba(255,45,150,0.2);color:#f4ecff;font-family:ui-monospace,Consolas,monospace;text-align:left;display:none;">
     <p id="phone-title" style="margin:0 0 12px;font-size:13px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 12px rgba(0,240,255,0.75);">VICE//MERIDIAN // CONTACTS</p>
+    <p id="phone-arc" style="margin:0 0 8px;font-size:10px;letter-spacing:2px;line-height:1.5;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.6);"></p>
     <p id="phone-briefing" style="margin:0 0 10px;font-size:10px;letter-spacing:2px;line-height:1.6;color:#c9a4ff;text-shadow:0 0 8px rgba(178,107,255,0.65);"></p>
     <ul id="phone-jobs" style="list-style:none;margin:0;padding:0;font-size:11px;letter-spacing:2px;line-height:2;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);"></ul>
     <p style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);">PRESS 1-9 TO CALL</p>
@@ -586,6 +587,27 @@ let lastStreetCredRank: ReturnType<typeof streetCredRank> = 'RUNNER'
 const STREET_CRED_RANK_UP_HOLD_MS = 2200
 let streetCredRankUpUntilMs = 0
 
+// Campaign journal: a three-act arc derived purely from existing progression state —
+// ACT I sweeps signals, ACT II runs the extraction gate, ACT III opens after the run
+// completes. The phone menu shows the current act + objective; crossing into a new act
+// raises a one-shot ACT COMPLETE banner through the standard timing/priority system
+type CampaignAct = 'ACT I // SIGNAL SWEEP' | 'ACT II // EXTRACTION' | 'ACT III // KINGPIN NETWORK'
+function campaignAct(): CampaignAct {
+  if (missionComplete) return 'ACT III // KINGPIN NETWORK'
+  if (signalsFound === 3) return 'ACT II // EXTRACTION'
+  return 'ACT I // SIGNAL SWEEP'
+}
+function campaignActObjective(act: CampaignAct): string {
+  if (act === 'ACT I // SIGNAL SWEEP') return 'Recover 3 relay signals across the grid'
+  if (act === 'ACT II // EXTRACTION') return 'Reach the extraction gate before the city closes in'
+  return 'Run the network — jobs, stash, and street cred'
+}
+const phoneArcEl = document.getElementById('phone-arc')!
+const ACT_COMPLETE_HOLD_MS = 2600
+let lastCampaignAct: CampaignAct = 'ACT I // SIGNAL SWEEP'
+let actCompleteBannerText = ''
+let actCompleteUntilMs = 0
+
 // Local browser save slot: durable campaign progress only; transient state never persists
 const SAVE_KEY = 'vice-meridian-save-v1'
 const SAVE_HOLD_MS = 2600
@@ -878,6 +900,9 @@ function resetRun(nowMs: number) {
   stashRestoreAtMs = 0
   lastStreetCredRank = streetCredRank(rep)
   streetCredRankUpUntilMs = 0
+  lastCampaignAct = campaignAct()
+  actCompleteBannerText = ''
+  actCompleteUntilMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1563,6 +1588,10 @@ function frame(now: number) {
     if (phoneJobsEl.innerHTML !== listHtml) phoneJobsEl.innerHTML = listHtml
     const briefingText = campaignMissionText()
     if (phoneBriefingEl.textContent !== briefingText) phoneBriefingEl.textContent = briefingText
+    // Campaign arc line: current act + its concise objective, recomputed while the menu is open
+    const arcAct = campaignAct()
+    const arcText = `${arcAct} — ${campaignActObjective(arcAct)}`
+    if (phoneArcEl.textContent !== arcText) phoneArcEl.textContent = arcText
     if (phoneStatusBusy) {
       const busyText = `CASH $${cash} / REP ${rep} / WANTED ${wanted} / CRED ${streetCredRank(rep)} // ${PHONE_BUSY_TEXT}`
       if (phoneStatusEl.textContent !== busyText) phoneStatusEl.textContent = busyText
@@ -2772,6 +2801,10 @@ function frame(now: number) {
   if (streetCredRankUpUntilMs > 0 && now >= streetCredRankUpUntilMs) {
     streetCredRankUpUntilMs = 0
   }
+  if (actCompleteUntilMs > 0 && now >= actCompleteUntilMs) {
+    actCompleteUntilMs = 0
+    actCompleteBannerText = ''
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -2798,7 +2831,8 @@ function frame(now: number) {
     smugglerRestoreAtMs > 0 ||
     chopShopRestoreAtMs > 0 ||
     stashRestoreAtMs > 0 ||
-    streetCredRankUpUntilMs > 0
+    streetCredRankUpUntilMs > 0 ||
+    actCompleteUntilMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -2845,6 +2879,8 @@ function frame(now: number) {
   } else if (streetCredRankUpUntilMs > 0) {
     const rankUpText = `STREET CRED // ${streetCredRank(rep)} // RANK UP`
     if (missionEl.textContent !== rankUpText) missionEl.textContent = rankUpText
+  } else if (actCompleteUntilMs > 0 && actCompleteBannerText) {
+    if (missionEl.textContent !== actCompleteBannerText) missionEl.textContent = actCompleteBannerText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -3937,6 +3973,18 @@ function frame(now: number) {
   // Air support tag: pale steel line while the spotlight helicopter is overhead
   if (airUnitEl.style.display !== (airUnit.active ? '' : 'none')) {
     airUnitEl.style.display = airUnit.active ? '' : 'none'
+  }
+
+  // Campaign act tracking: detect a genuine forward act transition and raise a one-shot
+  // ACT COMPLETE banner naming the next act through the standard banner system
+  const currentAct = campaignAct()
+  if (currentAct !== lastCampaignAct) {
+    if (actCompleteUntilMs <= now) {
+      actCompleteBannerText = `ACT COMPLETE // ${currentAct}`
+      actCompleteUntilMs = now + ACT_COMPLETE_HOLD_MS
+      missionEl.textContent = actCompleteBannerText
+    }
+    lastCampaignAct = currentAct
   }
 
   // Wallet readout: mirrors the live cash/rep values every frame

@@ -433,4 +433,12 @@ canvas {
     font-size: 10px;
     letter-spacing: 3px;
   }
+
+  /* Campaign arc line inside the phone menu: compact but readable next to the
+     touch dock and bottom legend on small screens */
+  #phone-arc {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    line-height: 1.6;
+  }
 }
