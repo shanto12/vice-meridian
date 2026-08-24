@@ -4485,8 +4485,16 @@ function frame(now: number) {
     scanEl.style.display = 'none'
   }
 
-  // Police dispatch readout: mirrors the wanted level while any heat is up
-  const pursuitText = wanted > 0 ? `POLICE PURSUIT // HEAT ${wanted}/3 // Q JAM // H SAFEHOUSE` : `POLICE PURSUIT // HEAT ${wanted}/3`
+  // Police dispatch readout: mirrors the wanted level while any heat is up.
+  // While heat passively cools (player continuously clear of hunter scan range) the line
+  // shows a live countdown to the next shed so escaping visibly makes progress
+  let pursuitText: string
+  if (wanted > 0 && heatCoolStartMs !== 0 && heatCoolRequiredMs > 0) {
+    const coolLeftSec = Math.ceil((heatCoolRequiredMs - (now - heatCoolStartMs)) / 1000)
+    pursuitText = `POLICE PURSUIT // HEAT ${wanted}/3 // COOLING -1 IN ${Math.max(1, coolLeftSec)}S // Q JAM // H SAFEHOUSE`
+  } else {
+    pursuitText = `POLICE PURSUIT // HEAT ${wanted}/3 // Q JAM // H SAFEHOUSE`
+  }
   if (pursuitEl.textContent !== pursuitText) pursuitEl.textContent = pursuitText
   if (pursuitEl.style.display !== (wanted > 0 ? '' : 'none')) {
     pursuitEl.style.display = wanted > 0 ? '' : 'none'
