@@ -1107,7 +1107,7 @@ function campaignRouteTarget(): RouteTarget | null {
       if (networkJobState === 'returning') return { label: 'SAFEHOUSE', x: SAFEHOUSE.x, y: SAFEHOUSE.y }
       return null
     }
-    return null
+    return { label: 'KINGPIN NODE', x: KINGPIN_NODE.x, y: KINGPIN_NODE.y }
   }
   if (signalsFound === 3) return { label: 'EXTRACTION GATE', x: gate.x, y: gate.y }
   const nextSignal = signals[signalsFound]
