@@ -632,6 +632,9 @@ function resetRun(nowMs: number) {
     d.angle = i * 2.1
     d.disabledUntil = 0
   })
+  pedestrians.forEach(p => {
+    Object.assign(p, makePedestrian(pedestrians.indexOf(p)))
+  })
   missionEl.textContent = 'MISSION // Sweep the grid — recover 3 relay signals'
   runCompleteEl.hidden = true
   driving = false
@@ -746,6 +749,41 @@ const traffic = Array.from({ length: 6 }, (_, i) => {
     length: 30 + ((i * 37) % 14),
   }
 })
+
+// Ambient pedestrian crowd: fixed cosmetic walkers on the north/south sidewalk bands.
+// The layout derives purely from the index so resetRun reproduces it exactly.
+const PEDESTRIAN_COLORS = ['#ff2d96', '#00f0ff', '#ffe05a', '#b26bff', '#39ff88']
+const PEDESTRIAN_BAND_TOP = WORLD_H * 0.62 + 24
+const PEDESTRIAN_BAND_BOTTOM = WORLD_H - 44
+type Pedestrian = {
+  x: number
+  y: number
+  homeY: number
+  fleeY: number
+  dir: number
+  speed: number
+  color: string
+  phase: number
+  turnTimer: number
+}
+function makePedestrian(i: number): Pedestrian {
+  const northSide = i % 2 === 0
+  const homeY = northSide
+    ? PEDESTRIAN_BAND_TOP + ((i * 53) % 22)
+    : PEDESTRIAN_BAND_BOTTOM - ((i * 71) % 22)
+  return {
+    x: ((i * 487 + 131) % (WORLD_W - 160)) + 80,
+    y: homeY,
+    homeY,
+    fleeY: 0,
+    dir: northSide ? 1 : -1,
+    speed: 24 + ((i * 41) % 18),
+    color: PEDESTRIAN_COLORS[i % PEDESTRIAN_COLORS.length],
+    phase: (i * 137) % 360,
+    turnTimer: 5 + ((i * 29) % 6),
+  }
+}
+const pedestrians: Pedestrian[] = Array.from({ length: 11 }, (_, i) => makePedestrian(i))
 
 // Second-act objective: extraction gate (revealed once all signals are found)
 const gate = {
@@ -3467,6 +3505,50 @@ function frame(now: number) {
     ctx.fillRect(t.x + front - (t.dir > 0 ? 0 : 4), t.laneY + 4, 4, 3)
     ctx.shadowBlur = 0
   })
+
+  // Ambient pedestrians: bounded walk on the sidewalk bands with a brief deterministic
+  // flee away from the player while heat is up; drawn beneath the player/courier layers
+  const fleeRefX = driving ? courierCar.x : player.x
+  const fleeRefY = driving ? courierCar.y : player.y
+  for (const ped of pedestrians) {
+    const fleeing = wanted > 0 && Math.hypot(ped.x - fleeRefX, ped.y - fleeRefY) < 170
+    if (fleeing) {
+      ped.fleeY = Math.sign(ped.homeY - fleeRefY) * 26
+    } else {
+      ped.fleeY *= Math.max(0, 1 - dt * 3)
+      ped.turnTimer -= dt
+      if (ped.turnTimer <= 0) {
+        ped.dir = -ped.dir
+        ped.turnTimer = 5 + ((Math.floor(ped.x / 40) + ped.phase) % 6)
+      }
+    }
+    ped.x += ped.dir * ped.speed * (fleeing ? 1.9 : 1) * dt
+    if (ped.dir > 0 && ped.x > WORLD_W + 24) ped.x = -24
+    if (ped.dir < 0 && ped.x < -24) ped.x = WORLD_W + 24
+    const targetY = ped.homeY + ped.fleeY
+    ped.y += (targetY - ped.y) * Math.min(1, dt * 4)
+    ped.y = Math.max(PEDESTRIAN_BAND_TOP - 6, Math.min(WORLD_H + 10, ped.y))
+  }
+  for (const ped of pedestrians) {
+    const walkBob = Math.sin(now / 130 + ped.phase) > 0 ? 1.5 : 0
+    ctx.strokeStyle = ped.color
+    ctx.shadowColor = ped.color
+    ctx.shadowBlur = 8
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    const px = ped.x
+    const py = ped.y + walkBob
+    ctx.beginPath()
+    ctx.arc(px, py - 11, 3.2, 0, Math.PI * 2)
+    ctx.moveTo(px, py - 7.5)
+    ctx.lineTo(px, py + 2)
+    ctx.moveTo(px, py + 2)
+    ctx.lineTo(px - 4, py + 8)
+    ctx.moveTo(px, py + 2)
+    ctx.lineTo(px + 4, py + 8)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+  }
 
   // Neon street-runner: small car with body, windshield, headlights, direction
   // hidden while driving the courier so only the coupe renders
