@@ -28,7 +28,7 @@ app.innerHTML = `
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
-    <p class="hud-jobboard" id="hud-jobboard" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff6bd6;text-shadow:0 0 10px rgba(255,107,214,0.6);">JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // N RACE</p>
+    <p class="hud-jobboard" id="hud-jobboard" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff6bd6;text-shadow:0 0 10px rgba(255,107,214,0.6);">JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // Z STASH // N RACE</p>
   </div>
   <div id="phone-menu" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;width:min(320px,86vw);max-height:70vh;overflow-y:auto;padding:18px 20px;background:rgba(8,4,24,0.92);border:1px solid #ff2d96;border-radius:10px;box-shadow:0 0 28px rgba(255,45,150,0.55),inset 0 0 14px rgba(255,45,150,0.2);color:#f4ecff;font-family:ui-monospace,Consolas,monospace;text-align:left;display:none;">
     <p id="phone-title" style="margin:0 0 12px;font-size:13px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 12px rgba(0,240,255,0.75);">VICE//MERIDIAN // CONTACTS</p>
@@ -747,6 +747,7 @@ interface SaveData {
   carX?: number
   carY?: number
   carAngle?: number
+  stashCollected?: boolean
 }
 
 function writeSave(): boolean {
@@ -766,6 +767,7 @@ function writeSave(): boolean {
       carX: courierCar.x,
       carY: courierCar.y,
       carAngle: courierCar.angle,
+      stashCollected,
     }
     window.localStorage.setItem(SAVE_KEY, JSON.stringify(data))
     return true
@@ -801,6 +803,7 @@ function readSave(): SaveData | null {
     // them stay valid and default the unlock state off
     if (data.kingpinOnline !== undefined && typeof data.kingpinOnline !== 'boolean') return null
     if (data.networkJobComplete !== undefined && typeof data.networkJobComplete !== 'boolean') return null
+    if (data.stashCollected !== undefined && typeof data.stashCollected !== 'boolean') return null
     if (
       data.garageUpgradeLevel !== undefined &&
       (!Number.isInteger(data.garageUpgradeLevel) ||
@@ -2756,6 +2759,7 @@ function frame(now: number) {
         courierCar.y = Math.max(24, Math.min(WORLD_H - 24, data.carY))
       }
       if (typeof data.carAngle === 'number' && Number.isFinite(data.carAngle)) courierCar.angle = data.carAngle
+      stashCollected = data.stashCollected === true
       saveBannerText = SAVE_LOADED_TEXT
     } else {
       saveBannerText = SAVE_NO_SLOT_TEXT
@@ -4351,11 +4355,16 @@ function frame(now: number) {
     safehouseEl.style.display = nearSafehouse ? '' : 'none'
   }
 
-  // Job board legend: static neon line, visible only on foot inside the safehouse
+  // Job board legend: visible only on foot inside the safehouse; the stash entry
+  // flips to a secured note so the board never advertises an already-claimed pickup
   const jobboardVisible = !driving && nearSafehouse
   if (jobboardEl.style.display !== (jobboardVisible ? '' : 'none')) {
     jobboardEl.style.display = jobboardVisible ? '' : 'none'
   }
+  const jobboardText = stashCollected
+    ? 'JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // STASH SECURED // N RACE'
+    : 'JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // Z STASH // N RACE'
+  if (jobboardEl.textContent !== jobboardText) jobboardEl.textContent = jobboardText
 
   // Crew Cover HUD countdown: compact cyan readout only while the temporary effect is live
   const crewCoverSec = Math.max(0, Math.ceil((crewCoverUntilMs - now) / 1000))
@@ -4949,6 +4958,7 @@ function frame(now: number) {
       courierCar.y = Math.max(24, Math.min(WORLD_H - 24, bootData.carY))
     }
     if (typeof bootData.carAngle === 'number' && Number.isFinite(bootData.carAngle)) courierCar.angle = bootData.carAngle
+    stashCollected = bootData.stashCollected === true
   }
 }
 
