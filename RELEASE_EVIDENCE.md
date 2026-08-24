@@ -1,7 +1,12 @@
 # Release Evidence
 
-Verification matrix for the courier-contract release. Evidence surfaces refer to the
-Netlify production deploy of this repository.
+> HISTORICAL: the courier-contract section below is superseded by the Live Objective
+> Markers release evidence at the bottom of this file. It is retained as a record only.
+
+Verification matrix for each release, appended chronologically — the newest release
+section is at the bottom, and every earlier section is a historical record superseded
+by the latest one. Evidence surfaces refer to the Netlify production deploy of this
+repository.
 
 | Requirement | Evidence surface | Result | Notes |
 | --- | --- | --- | --- |
@@ -1007,3 +1012,42 @@ contact states end to end) was NOT FULLY VERIFIED manually and must not be assum
 VICE//MERIDIAN remains an evolving GTA-style vertical slice — not complete GTA 7 and not
 an enterprise-grade product. Prior evidence sections remain intact as historical records;
 their gaps still stand.
+
+# Live Objective Markers - Release Evidence (2026-08-23)
+
+Verification matrix for the live objective-marker release. This is the current release
+record; every earlier section in this file is a historical record superseded by it.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Cursor-authored source commit 497d9c4 "Add live objective markers" is HEAD and equals origin/main; working tree clean before this docs-only update | Cursor Git verification (git log, git rev-parse HEAD origin/main) | PASS | Feature commit touches src/main.ts only; main is up to date with origin/main |
+| Netlify production deploy 6a8b95079dd71dddac00c602 is live at https://vice-meridian.netlify.app/ serving assets/index-DiR34ab7.js | Netlify deploy record plus live curl of root and asset | PASS | Root HTTP 200; assets/index-DiR34ab7.js HTTP 200; the served HTML references exactly index-DiR34ab7.js |
+| Build gate: npm run build passed | Local build against the source commit | PASS | Vite output 64.05 kB JS / 17.19 kB gzip |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the production dependency tree | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed | Local check on tracked changes | PASS | Clean output |
+| Security headers present on production responses | Live curl response headers for root and asset | PASS | Existing CSP, HSTS, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy headers all passed unchanged |
+| Feature scope recorded accurately: a shared ObjectiveMarker projection renders the existing SAFEHOUSE coordinate as a cyan marker with label/distance on CITY MAP (M) plus a matching NEON RADAR blip; no new mission state or control was added | Source inspection of src/main.ts and live behavior | PASS | One ordered world-space list currently contains only SAFEHOUSE (#00f0ff) and feeds both the map overlay and radar through the identical projection; gameplay state machine and controls are untouched |
+| Real Chrome desktop map evidence at 1440x660 | Real Chrome production screenshot of CITY MAP (M) | PASS | Map visibly showed the SAFEHOUSE marker and its 853M distance readout |
+| Real Chrome desktop radar evidence at 1440x660 | Real Chrome production screenshot of NEON RADAR | PASS | Radar showed the matching SAFEHOUSE 853M blip |
+| Desktop layout integrity and console cleanliness | Real Chrome DOM measurement and console capture during the desktop pass | PASS | Canvas and document widths matched the viewport; console error capture was empty |
+| Mobile 390x844 map pass | Real Chrome mobile session at 390x844 | PASS | Marker ring rendered; canvas/document widths matched 390; console errors were empty; the narrow layout intentionally omits the text label by design |
+| Auth, backend, and API integration | Static Vite architecture review | NOT APPLICABLE | No auth, backend, or API surface exists for this static game |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice — not complete GTA 7 and not an enterprise-grade product |
+
+## Summary
+
+Cursor-authored commit 497d9c4 "Add live objective markers" is HEAD and origin/main; the
+live Netlify deploy 6a8b95079dd71dddac00c602 serves the matching bundle
+assets/index-DiR34ab7.js. Build (Vite 64.05 kB JS / 17.19 kB gzip), npm audit --omit=dev
+(0 vulnerabilities), git diff --check, root/asset HTTP 200, and the existing
+CSP/HSTS/X-Content-Type-Options/Referrer-Policy/Permissions-Policy headers all passed.
+In real Chrome desktop at 1440x660, the CITY MAP (M) screenshot visibly showed the cyan
+SAFEHOUSE marker with 853M, the NEON RADAR showed the matching SAFEHOUSE 853M blip,
+canvas/document widths matched the viewport, and the console error capture was empty. On
+mobile 390x844 the marker ring rendered, canvas/document widths matched 390, and console
+errors were empty; the narrow layout intentionally omits the text label. The feature adds
+no new mission state or control — it projects the existing SAFEHOUSE coordinate through
+one shared ObjectiveMarker list onto both the city map and the radar. Auth/backend/API is
+NOT APPLICABLE for the static Vite site, and VICE//MERIDIAN remains an evolving GTA-style
+vertical slice — not complete GTA 7 and not an enterprise-grade product. All prior
+sections above are preserved as historical records superseded by this release.
