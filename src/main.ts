@@ -46,7 +46,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — TAB contacts — P save — L load — R restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — TAB contacts — M map — P save — L load — R restart</p>
   <div id="touch-controls" aria-label="Touch controls">
     <div class="touch-dpad">
       <button id="touch-up" type="button" aria-label="Move up">▲</button>
@@ -1593,7 +1593,7 @@ function drawCityMap() {
   ctx.fillText('CITY MAP', padX, padTop - 16)
   ctx.textAlign = 'right'
   ctx.fillStyle = '#ffe05a'
-  ctx.fillText('MAP OPEN // PRESS M TO CLOSE', mx + mw, padTop - 16)
+  ctx.fillText('MAP OPEN // M TO CLOSE // ESC CLOSE', mx + mw, padTop - 16)
 }
 
 // Compact top-right NEON RADAR: abstract blocks/streets + live entity blips
