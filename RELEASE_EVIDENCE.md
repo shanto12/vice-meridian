@@ -2663,3 +2663,56 @@ to this static Vite game. This section records current production evidence for e
 tests listed above — it is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an
 evolving GTA-style browser vertical slice rather than a literal complete GTA 7. All prior
 sections remain intact as historical records superseded by this release.
+
+---
+
+# Add Rival Return Fire to District Takeover Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the rival return-fire slice
+(`ee6f8c5e731a215183dbabf9c472b7e0427cb8b2`, "Add rival return fire to district takeover").
+Documentation only this pass — src/main.ts, package files, netlify.toml, and _headers were
+not modified. Current production evidence covers exactly what was tested; every earlier
+section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Shell/git: commit `ee6f8c5e731a215183dbabf9c472b7e0427cb8b2` on main == origin/main with a clean tree | Changes only src/main.ts. Behavior scope: typed transient RivalBolt pool capped at 6; deterministic 900ms alive-rival cadence while on foot inside the existing District Takeover arena; spawn-time aimed projectiles expire after about 1.5s or outside the arena; 220ms neon telegraph/muzzle flash and bolt/trail renderer; hits apply only a 650ms on-foot slowdown/stagger and at most one wanted level, with no cash/rep/hull/mission/save changes; reset paths clear transient rival-fire state |
+| Build gate passed | PASS | Shell/build: local npm run build (tsc && vite build) at the working tree atop `ee6f8c5` | Passed; output dist/assets/index-DGfV15A0.js 99.37 kB (gzip 28.40 kB) |
+| Diff hygiene passed | PASS | Shell/git: git diff --check at the same tree | Clean |
+| Dependency hygiene passed | PASS | Shell/build: npm audit --omit=dev --audit-level=high | Found 0 vulnerabilities |
+| Netlify production deploy live/ready | PASS | Live HTTP/bundle: deploy ID `6a8c43821863d66c6ada8734` reached live/ready | Production URL https://vice-meridian.netlify.app/; unique deploy URL https://6a8c43821863d66c6ada8734--vice-meridian.netlify.app |
+| Live HTTP bundle markers verified | PASS | Live HTTP/bundle: GET / returned HTTP/2 200 on production | Served bundle marker RIVAL CREW // INCOMING FIRE present, plus PERK // and STREET CRED // — confirming the shipped bundle spans this slice and its predecessors |
+| Live response headers verified | PASS | Live HTTP/headers: response capture from https://vice-meridian.netlify.app/ | CSP default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; Strict-Transport-Security max-age=31536000; includeSubDomains; preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy camera=(), microphone=(), geolocation=() |
+| Real Chrome interaction this release | NOT COMPLETED (ATTEMPTED, BLOCKED) | Real Chrome attempted/blocked: current-release navigation/body inspection against https://vice-meridian.netlify.app/ after deploy | The Chrome tab/CDP automation timed out twice, so current-release real-Chrome desktop AND mobile interaction are NOT COMPLETED. The prior Street Cred release's Chrome pass is historical context only and is NOT reused as evidence for this release. No screenshots, clicks, timings, gameplay completion, or auth claims are asserted |
+
+## Summary
+
+Source commit `ee6f8c5e731a215183dbabf9c472b7e0427cb8b2` "Add rival return fire to
+district takeover" sits on main == origin/main behind a clean tree, changing only
+src/main.ts: a typed transient RivalBolt pool capped at 6, a deterministic 900ms
+alive-rival cadence while the player is on foot inside the existing District Takeover
+arena, spawn-time aimed projectiles that expire after about 1.5s or outside the arena,
+a 220ms neon telegraph/muzzle flash with bolt/trail renderer, hits that apply only a
+650ms on-foot slowdown/stagger and at most one wanted level with no cash/rep/hull/mission/
+save changes, and reset paths that clear all transient rival-fire state.
+Independent local verification: npm run build passed producing dist/assets/index-DGfV15A0.js
+(99.37 kB, gzip 28.40 kB); git diff --check passed; npm audit --omit=dev
+--audit-level=high found 0 vulnerabilities. Netlify production: deploy ID
+`6a8c43821863d66c6ada8734` reached live/ready at https://vice-meridian.netlify.app/
+(unique deploy URL https://6a8c43821863d66c6ada8734--vice-meridian.netlify.app); live
+HTTP verification returned HTTP/2 200 on / with served bundle markers RIVAL CREW //
+INCOMING FIRE plus PERK // and STREET CRED //; live response headers verified the full CSP
+(default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'
+data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'),
+Strict-Transport-Security max-age=31536000; includeSubDomains; preload,
+X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, and
+Permissions-Policy camera=(), microphone=(), geolocation=(). Disclosed limitation: a
+current-release real-Chrome navigation/body inspection was attempted after deploy but the
+Chrome tab/CDP automation timed out twice, so current-release real-Chrome desktop and
+mobile interaction are marked NOT COMPLETED — no prior-release Chrome pass is reused as
+evidence, and no screenshots, clicks, timings, gameplay completion, or auth claims are
+asserted beyond what is listed above. This section records current production evidence for
+exactly the tests listed above — it is not a claim of full GTA 7 completion;
+VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather than a literal
+complete GTA 7. All prior sections remain intact as historical records superseded by this
+release.
