@@ -1097,6 +1097,9 @@ function resetRun(nowMs: number) {
   for (let i = 0; i < pedestrians.length; i++) {
     pedestrians[i] = makePedestrian(i)
   }
+  for (let i = 0; i < traffic.length; i++) {
+    traffic[i] = makeCivilianCar(i)
+  }
   missionEl.textContent = 'MISSION // Sweep the grid — recover 3 relay signals'
   runCompleteEl.hidden = true
   driving = false
@@ -1239,7 +1242,7 @@ const drones = Array.from({ length: 3 }, (_, i) => ({
 }))
 
 const TRAFFIC_COLORS = ['#ff9d3c', '#b26bff', '#00e5b0', '#ff6b8a', '#4da6ff', '#e8e84a']
-const traffic: CivilianCar[] = Array.from({ length: 6 }, (_, i) => {
+function makeCivilianCar(i: number): CivilianCar {
   const laneIndex = i % 3
   const dir = laneIndex === 0 ? 1 : -1
   const laneY = WORLD_H * 0.62 + 55 + laneIndex * ((WORLD_H * 0.38 - 90) / 2)
@@ -1253,7 +1256,8 @@ const traffic: CivilianCar[] = Array.from({ length: 6 }, (_, i) => {
     color: TRAFFIC_COLORS[i],
     length: 30 + ((i * 37) % 14),
   }
-})
+}
+const traffic: CivilianCar[] = Array.from({ length: 6 }, (_, i) => makeCivilianCar(i))
 
 // Ambient pedestrian crowd: eight fixed cosmetic walkers on the lower sidewalk bands.
 // The layout derives purely from the index so resetRun reproduces it exactly.
@@ -4458,6 +4462,7 @@ function frame(now: number) {
 
   // Civilian traffic: continuous lane movement with edge wrap
   traffic.forEach(t => {
+    if (t === stolenCar) return
     t.x += t.dir * t.speed * dt
     if (t.dir > 0 && t.x > WORLD_W + t.length) t.x = -t.length
     if (t.dir < 0 && t.x < -t.length) t.x = WORLD_W + t.length
@@ -4863,6 +4868,7 @@ function frame(now: number) {
 
   // Civilian traffic cars (drawn under player + drones)
   traffic.forEach(t => {
+    if (t === stolenCar) return
     const half = t.length / 2
     const rear = t.dir > 0 ? -half : half
     const front = -rear
