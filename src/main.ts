@@ -2984,13 +2984,13 @@ function frame(now: number) {
     if (missionEl.textContent !== chopShopBannerText) missionEl.textContent = chopShopBannerText
   } else if (stashRestoreAtMs > 0) {
     if (missionEl.textContent !== STASH_SECURED_TEXT) missionEl.textContent = STASH_SECURED_TEXT
+  } else if (kingpinRestoreAtMs > 0) {
+    if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
   } else if (streetCredRankUpUntilMs > 0) {
     const rankUpText = `STREET CRED // ${streetCredRank(rep)} // RANK UP`
     if (missionEl.textContent !== rankUpText) missionEl.textContent = rankUpText
   } else if (actCompleteUntilMs > 0 && actCompleteBannerText) {
     if (missionEl.textContent !== actCompleteBannerText) missionEl.textContent = actCompleteBannerText
-  } else if (kingpinRestoreAtMs > 0) {
-    if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
   } else if (signalBannerUntilMs > 0 && signalBannerText) {
     if (missionEl.textContent !== signalBannerText) missionEl.textContent = signalBannerText
   } else if (airSupportBannerUntilMs > 0) {
