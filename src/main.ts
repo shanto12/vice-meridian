@@ -3092,6 +3092,8 @@ function frame(now: number) {
     if (missionEl.textContent !== STASH_SECURED_TEXT) missionEl.textContent = STASH_SECURED_TEXT
   } else if (kingpinRestoreAtMs > 0) {
     if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
+  } else if (networkNoticeUntilMs > 0 && networkNoticeText) {
+    if (missionEl.textContent !== networkNoticeText) missionEl.textContent = networkNoticeText
   } else if (streetCredRankUpUntilMs > 0) {
     const rankUpText = `STREET CRED // ${streetCredRank(rep)} // RANK UP`
     if (missionEl.textContent !== rankUpText) missionEl.textContent = rankUpText
@@ -3101,8 +3103,6 @@ function frame(now: number) {
     if (missionEl.textContent !== signalBannerText) missionEl.textContent = signalBannerText
   } else if (airSupportBannerUntilMs > 0) {
     if (missionEl.textContent !== AIR_SUPPORT_INBOUND_TEXT) missionEl.textContent = AIR_SUPPORT_INBOUND_TEXT
-  } else if (networkNoticeUntilMs > 0 && networkNoticeText) {
-    if (missionEl.textContent !== networkNoticeText) missionEl.textContent = networkNoticeText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
