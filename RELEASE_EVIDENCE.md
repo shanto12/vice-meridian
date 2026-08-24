@@ -1283,3 +1283,52 @@ runtime state was NOT reached manually — it remains NOT FULLY VERIFIED pending
 completed manual high-heat escalation. Auth/backend/API stay NOT APPLICABLE for this
 static Vite app. All prior sections remain intact as historical records superseded by
 this release.
+
+---
+
+# Mobile Touch Controls - Release Evidence (2026-08-23)
+
+Verification matrix for the mobile touch-control dock release (`3988a3b`). This is the
+current release record; every earlier section in this file is a historical record
+superseded by it. Rows are separated so agent provenance, shell gates, live HTTP checks,
+real-Chrome sessions, and not-yet-verified runtime states are never mixed inside one
+evidence surface.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `3988a3b` "Add mobile touch controls" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat 3988a3b | PASS | Source-only: src/main.ts (+47) and src/style.css (+71); RELEASE_EVIDENCE.md untouched by the feature commit |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced assets/index-BEDBPCyh.js and assets/index-CqTXp__1.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bbda4c5b97c3a9d17c789` is ready at https://vice-meridian.netlify.app/ |
+| Root and CSS serve over HTTPS | Live HTTP: GET production root and CSS asset | PASS | Both return HTTP/2 200; current assets index-BEDBPCyh.js and index-CqTXp__1.css are live |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Real Chrome mobile layout and touch geometry | Real Chrome mobile session at 390x844 on production with rect capture | PASS | Canvas 390x844; document scroll 390x844; all six touch-dock buttons at 44-48px targets with d-pad/control rects inside the viewport; .hint top=781.625 bottom=836 height=54.375 shows no overlap with the dock |
+| Real Chrome mobile touch exercise | Real Chrome mobile session at 390x844 on production | PASS | All six touch controls clicked (d-pad holds, BOOST hold, PULSE tap); M opened and closed the map; F pulse and E action exercised — zero game console errors |
+| Real Chrome desktop isolation | Real Chrome desktop session at 1440x660 on production | PASS | Canvas 1440x660; document scroll 1440x660; #touch-controls computed display none; no game errors |
+| Wanted-3 air-unit runtime path | Manual Chrome escalation attempt | NOT FULLY VERIFIED | The wanted-3 air-unit spotlight was not reached manually — source/build/bundle verification only, not active-state proof |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | VICE//MERIDIAN is an evolving GTA-style vertical slice, not complete GTA 7 and not an enterprise-complete release |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas app; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the mobile touch-control dock
+in commit `3988a3b` "Add mobile touch controls", changing only src/main.ts and
+src/style.css; HEAD and origin/main are aligned with a clean tree. Local gates passed:
+npm run build (assets index-BEDBPCyh.js + index-CqTXp__1.css), npm audit --omit=dev
+(0 vulnerabilities), and git diff --check. Netlify production deploy
+`6a8bbda4c5b97c3a9d17c789` is ready at https://vice-meridian.netlify.app/: root and CSS
+return HTTP/2 200 with CSP, HSTS, nosniff, Referrer-Policy, and Permissions-Policy headers.
+In real Chrome mobile at 390x844 the canvas and document scroll measured exactly 390x844,
+all six touch controls rendered as 44-48px targets inside the viewport with no overlap of
+the bottom legend (.hint top=781.625 bottom=836 height=54.375), every control clicked,
+M map open/close plus F pulse and E action were exercised, and game console errors were
+zero. In real Chrome desktop at 1440x660 the canvas and document scroll measured
+1440x660, #touch-controls stayed display:none, and game console errors were zero.
+Honestly scoped: the wanted-three air-unit runtime remains NOT FULLY VERIFIED — manual
+high-heat escalation was not completed — and VICE//MERIDIAN remains an evolving GTA-style
+vertical slice, not complete GTA 7. Auth/backend/API stay NOT APPLICABLE for this static
+Vite app. All prior sections remain intact as historical records superseded by this
+release.
