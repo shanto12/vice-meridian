@@ -1670,3 +1670,51 @@ this pass and remain NOT FULLY VERIFIED, as does the wanted-three air-unit runti
 VICE//MERIDIAN remains an evolving GTA-style browser vertical slice, not literal complete
 GTA 7; auth/backend/API/runner jobs are N/A for this static Vite app. All prior sections
 remain intact as historical records superseded by this release.
+
+---
+
+# Full Campaign Runtime Verification - Release Evidence (2026-08-23)
+
+Follow-up manual runtime verification for the signal-recovery feedback slice and the full
+main campaign path, against source commit `8e58566` and Netlify production deploy
+`6a8bcaef9dd71dc4ea00c5e7` at https://vice-meridian.netlify.app/. This section extends the
+signal-feedback record above; every earlier section remains a historical record. Rows are
+separated so runtime observations, banner-capture caveats, and carried-forward limitations
+are never mixed inside one evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Signal 1 collection with live feedback | Real Chrome mobile session at 390x844 using touch controls and the route compass | PASS | Collected signal 1; observed the SIGNAL RECOVERED // 1/3 banner and the route advancing to SIGNAL 2 |
+| Signal 2 collection with live feedback | Same mobile session, continued route | PASS | Collected signal 2; observed SIGNAL RECOVERED // 2/3 and the route advancing to SIGNAL 3 |
+| Act I → Act II transition | Same mobile session at the third signal | PASS | Collected signal 3; observed signals 3/3, the ACT COMPLETE // ACT II // EXTRACTION banner, and the route flipping to EXTRACTION GATE |
+| Gate completion with act transition | Same mobile session, driving to the gate | PASS | Reached the extraction gate; observed ACT COMPLETE // ACT III // KINGPIN NETWORK and the route flipping to KINGPIN NODE |
+| Kingpin activation state, wallet, and rank | Pressed Y at 8M from the node in the same session | PASS | Wallet flipped to CASH $500 // REP 3; STREET CRED // OPERATOR // RANK UP banner appeared; route line hid after activation; zero app errors |
+| ACT III phone debrief | Opened TAB after activation | PASS | Phone arc read ACT III // KINGPIN NETWORK — Network online — free roam the city; status read CASH $500 / REP 3 / WANTED 0 / CRED OPERATOR |
+| KINGPIN NETWORK // ONLINE banner string capture | Console/DOM capture during the 2600ms activation window | NOT FULLY VERIFIED | The one-shot KINGPIN NETWORK // ONLINE +$500 // REP +3 canvas banner was not captured as a standalone string because the higher-priority STREET CRED // OPERATOR // RANK UP banner overlapped its 2600ms window; wallet, route removal, and phone debrief prove the activation state |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | The full campaign path stayed below wanted 3; air-unit spotlight remains source/build/bundle verified only |
+| Desktop isolation recheck | Real Chrome desktop session at 1440x660 on production | PASS | Canvas/document exactly 1440x660; touch dock display:none; no overflow; no app-reported errors |
+| Mobile layout/header evidence | Prior mobile passes on this deploy | PASS | Canvas/document 390x844; touch dock display:flex; security headers unchanged on the production origin |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+
+## Summary
+
+A real Chrome mobile session at 390x844 completed the main campaign path end-to-end on
+commit `8e58566` / deploy `6a8bcaef9dd71dc4ea00c5e7` using the live route compass and
+touch controls. Signal 1 produced SIGNAL RECOVERED // 1/3 with the route advancing to
+SIGNAL 2; signal 2 produced SIGNAL RECOVERED // 2/3 with the route advancing to SIGNAL 3;
+signal 3 showed 3/3, raised ACT COMPLETE // ACT II // EXTRACTION, and flipped the route to
+EXTRACTION GATE; reaching the gate raised ACT COMPLETE // ACT III // KINGPIN NETWORK and
+flipped the route to KINGPIN NODE. Pressing Y at 8M from the node flipped the wallet to
+CASH $500 // REP 3, raised STREET CRED // OPERATOR // RANK UP, hid the route line, and
+kept the session error-free; TAB afterward showed the phone arc ACT III // KINGPIN
+NETWORK — Network online — free roam the city with status CASH $500 / REP 3 / WANTED 0 /
+CRED OPERATOR. Precise limitation: the one-shot KINGPIN NETWORK // ONLINE +$500 // REP +3
+canvas banner was not captured as a standalone string because the higher-priority STREET
+CRED // OPERATOR // RANK UP banner overlapped its 2600ms window — wallet, route removal,
+and phone debrief prove the activation state. The wanted-three air-unit runtime remains
+NOT FULLY VERIFIED (the run stayed below wanted 3). Desktop 1440x660 isolation and prior
+mobile layout/header evidence are unchanged. VICE//MERIDIAN remains an evolving GTA-style
+browser vertical slice rather than literal complete GTA 7; auth/backend/API/runner jobs
+are N/A for this static Vite app. All prior sections remain intact as historical records
+superseded by this release.
