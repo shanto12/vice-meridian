@@ -1718,3 +1718,60 @@ mobile layout/header evidence are unchanged. VICE//MERIDIAN remains an evolving 
 browser vertical slice rather than literal complete GTA 7; auth/backend/API/runner jobs
 are N/A for this static Vite app. All prior sections remain intact as historical records
 superseded by this release.
+
+---
+
+# Wanted-Three Air Support Feedback - Release Evidence (2026-08-23)
+
+Verification matrix for the wanted-three air support feedback release (`9f62e19`). This is
+the current release record; every earlier section in this file is a historical record
+superseded by it. Rows are separated so agent provenance, shell gates, live HTTP/header
+checks, bundle-content checks, real-Chrome sessions, and not-yet-verified runtime states
+are never mixed inside one evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `9f62e19` "Add wanted three air support feedback" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat 9f62e19 | PASS | Source-only: src/main.ts (+31/-1) and src/style.css (+1); RELEASE_EVIDENCE.md untouched by the feature commit; pursuit, damage, rewards, coordinates, and save schema unchanged |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced /assets/index-DRBsayg7.js and /assets/index-B0aOl8ke.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bcdf5f946cc7db0bf2afc` is ready at https://vice-meridian.netlify.app/ |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and /assets/index-DRBsayg7.js | PASS | Both return HTTP 200; live JS /assets/index-DRBsayg7.js and CSS /assets/index-B0aOl8ke.css confirmed |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS preload, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Live bundle contains air support markers | Bundle content check of the deployed JS | PASS | Contains AIR SUPPORT, HELO INBOUND, AIR UNIT, SIGNAL RECOVERED, KINGPIN NETWORK, and ROUTE // markers |
+| Air support logic source/build verification | Source review + build output: one-shot AIR SUPPORT // HELO INBOUND // WANTED 3 banner on first reaching wanted 3, existing air-unit behavior preservation, hud-air-support show/hide at wanted === 3, and resetRun cleanup of transient banner/readout state | PASS | All verified in source and build output; setWanted escalation semantics otherwise unchanged |
+| Wanted-3 runtime banner/active HUD observed | Manual gameplay attempt to reach wanted 3 | NOT FULLY VERIFIED | The full campaign traversal stayed below wanted 3 — the inbound banner and AIR SUPPORT // ACTIVE readout were not observed live this pass; source/build verified only |
+| Real Chrome mobile layout at wanted 0 | Real Chrome mobile session at 390x844 on production with rect capture | PASS | Canvas/document exactly 390x844; route read ROUTE // SIGNAL 1 // 924M // W; #hud-air-support correctly display:none at wanted 0; touch dock display:flex; no overflow; no app-reported errors |
+| Phone menu state at mobile | TAB-opened phone menu inspection at 390x844 | PASS | Phone arc/status checks still pass (arc ACT I // SIGNAL SWEEP — Recover 3 relay signals across the grid; status CASH $0 / REP 0 / WANTED 0 / CRED RUNNER) |
+| Mobile control exercise | Real Chrome mobile session at 390x844 on production | PASS | Touch controls exercised with no app-reported errors |
+| Real Chrome desktop isolation | Real Chrome desktop session at 1440x660 on production | PASS | Canvas/document exactly 1440x660; route present; #hud-air-support display:none at wanted 0; touch dock display:none; no overflow; no app-reported errors |
+| Wanted-3 air-unit spotlight runtime | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the wanted-three air support
+feedback in commit `9f62e19` "Add wanted three air support feedback", changing only
+src/main.ts and src/style.css; HEAD and origin/main are aligned with a clean tree. Local
+gates passed: npm run build (assets index-DRBsayg7.js + index-B0aOl8ke.css),
+npm audit --omit=dev (0 vulnerabilities), and git diff --check. Netlify production deploy
+`6a8bcdf5f946cc7db0bf2afc` is ready at https://vice-meridian.netlify.app/: root and JS
+return HTTP 200 with CSP, HSTS preload, nosniff, Referrer-Policy, and Permissions-Policy
+headers; the live bundle contains AIR SUPPORT, HELO INBOUND, AIR UNIT, SIGNAL RECOVERED,
+KINGPIN NETWORK, and ROUTE // markers. In real Chrome mobile at 390x844 canvas/document
+measured exactly 390x844; the route line read ROUTE // SIGNAL 1 // 924M // W;
+#hud-air-support was correctly display:none at wanted 0; the touch dock stayed
+display:flex; phone arc/status checks still pass; no overflow and no app-reported errors.
+In real Chrome desktop at 1440x660 canvas/document measured exactly 1440x660, the route
+was present, #hud-air-support stayed display:none at wanted 0, the touch dock was
+display:none, and no app errors appeared. Honestly scoped: the one-shot inbound banner,
+air-unit preservation, HUD show/hide logic, and resetRun cleanup are source/build
+verified — but wanted 3 was never reached during the full campaign traversal, so the live
+inbound banner/AIR SUPPORT // ACTIVE readout remain NOT FULLY VERIFIED, as does the
+wanted-three air-unit spotlight runtime. VICE//MERIDIAN remains an evolving GTA-style
+browser vertical slice rather than literal complete GTA 7; auth/backend/API/runner jobs
+are N/A for this static Vite app. All prior sections remain intact as historical records
+superseded by this release.
