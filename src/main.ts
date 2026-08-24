@@ -225,6 +225,38 @@ const NIGHT_SHIFT_OFF_TEXT = 'NIGHT SHIFT // CITY LIGHTS OFF'
 let nightShiftEnabled = false
 let nightShiftHideAtMs = 0
 
+// City clock: one full 24h day over eight real minutes, derived purely from the run
+// clock so resetRun rewinds it deterministically. Darkness settles between 19:00 and
+// 05:30 with soft dusk/dawn ramps; the manual Night Shift toggle forces full night
+const CITY_DAY_REAL_MS = 480_000
+const CITY_NIGHT_START_MIN = 19 * 60
+const CITY_NIGHT_END_MIN = 5 * 60 + 30
+const CITY_DUSK_RAMP_MIN = 75
+function cityClockMinutes(nowMs: number): number {
+  return Math.floor((((nowMs - runStartMs) % CITY_DAY_REAL_MS) / CITY_DAY_REAL_MS) * 24 * 60)
+}
+function cityDarkness(nowMs: number): number {
+  const minutes = ((nowMs - runStartMs) % CITY_DAY_REAL_MS) / (CITY_DAY_REAL_MS / (24 * 60))
+  if (minutes >= CITY_NIGHT_START_MIN) {
+    return Math.min(1, (minutes - CITY_NIGHT_START_MIN) / CITY_DUSK_RAMP_MIN)
+  }
+  if (minutes <= CITY_NIGHT_END_MIN) return 1
+  if (minutes < CITY_NIGHT_END_MIN + CITY_DUSK_RAMP_MIN) {
+    return 1 - (minutes - CITY_NIGHT_END_MIN) / CITY_DUSK_RAMP_MIN
+  }
+  return 0
+}
+function isCityNight(nowMs: number): boolean {
+  // explicit single source of truth: manual override wins, otherwise clock darkness window
+  return nightShiftEnabled || cityDarkness(nowMs) > 0.5
+}
+function cityClockText(nowMs: number): string {
+  const minutes = cityClockMinutes(nowMs)
+  const hh = Math.floor(minutes / 60).toString().padStart(2, '0')
+  const mm = (minutes % 60).toString().padStart(2, '0')
+  return `CITY CLOCK // ${hh}:${mm}`
+}
+
 const player = { x: WORLD_W / 2, y: WORLD_H / 2, size: 28, speed: 320 }
 const grid = 48
 
@@ -3738,7 +3770,8 @@ function frame(now: number) {
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
   }
 
-  // Night Shift HUD banner: temporary notice that fades after the toggle, independent of mission banners
+  // Night Shift HUD banner: temporary notice that fades after the toggle, then the same
+  // hud-night line settles into a live CITY CLOCK readout so the element never idles
   const nightBannerText = nightShiftEnabled ? NIGHT_SHIFT_ON_TEXT : NIGHT_SHIFT_OFF_TEXT
   if (nightEl.dataset.state !== nightShiftEnabled.toString()) {
     nightEl.dataset.state = nightShiftEnabled.toString()
@@ -3748,7 +3781,11 @@ function frame(now: number) {
   }
   if (nightShiftHideAtMs > 0 && now >= nightShiftHideAtMs) {
     nightShiftHideAtMs = 0
-    nightEl.style.display = 'none'
+  }
+  if (nightShiftHideAtMs === 0) {
+    const clockText = cityClockText(now)
+    if (nightEl.textContent !== clockText) nightEl.textContent = clockText
+    if (nightEl.style.display === 'none') nightEl.style.display = ''
   }
 
   // Restart on R
@@ -3767,21 +3804,28 @@ function frame(now: number) {
     heatCoolStartMs = 0
   }
 
+  const nightOn = isCityNight(now)
+  const darkness = nightShiftEnabled ? 1 : cityDarkness(now)
   const bg = ctx.createLinearGradient(0, 0, 0, h)
-  if (nightShiftEnabled) {
-    bg.addColorStop(0, '#04010f')
-    bg.addColorStop(0.55, '#08021c')
-    bg.addColorStop(1, '#020008')
-  } else {
-    bg.addColorStop(0, '#0a0325')
-    bg.addColorStop(0.55, '#12063a')
-    bg.addColorStop(1, '#05010f')
-  }
+  // day/dusk/night sky palettes blended by clock-driven darkness for a smooth cycle
+  const dayTop = [10, 3, 37]
+  const dayMid = [18, 6, 58]
+  const dayBot = [5, 1, 15]
+  const nightTop = [4, 1, 15]
+  const nightMid = [8, 2, 28]
+  const nightBot = [2, 0, 8]
+  const mix = (day: number[], night: number[]) =>
+    `rgb(${Math.round(day[0] + (night[0] - day[0]) * darkness)},${Math.round(day[1] + (night[1] - day[1]) * darkness)},${Math.round(day[2] + (night[2] - day[2]) * darkness)})`
+  bg.addColorStop(0, mix(dayTop, nightTop))
+  bg.addColorStop(0.55, mix(dayMid, nightMid))
+  bg.addColorStop(1, mix(dayBot, nightBot))
   ctx.fillStyle = bg
   ctx.fillRect(0, 0, w, h)
 
-  // Night Shift street-light pools: soft warm ellipses along the road band under the horizon
-  if (nightShiftEnabled) {
+  // Night Shift street-light pools: soft warm ellipses along the road band under the horizon.
+  // Clock-driven cycles fade the pools with dusk instead of hard-flipping them on
+  if (nightOn) {
+    const poolAlpha = 0.25 + darkness * 0.75
     ctx.save()
     ctx.translate(-camera.x, -camera.y)
     for (let i = 0; i < 7; i++) {
@@ -3789,12 +3833,17 @@ function frame(now: number) {
       const poolY = WORLD_H * 0.62 + 90 + ((i * 331) % (WORLD_H - WORLD_H * 0.62 - 200))
       const flicker = 0.1 + (i % 2 === 0 ? Math.sin(now / 700 + i) : 0) * 0.02
       const pool = ctx.createRadialGradient(poolX, poolY, 4, poolX, poolY, 110)
-      pool.addColorStop(0, `rgba(255, 224, 90, ${flicker})`)
+      pool.addColorStop(0, `rgba(255, 224, 90, ${flicker * poolAlpha})`)
       pool.addColorStop(1, 'rgba(255, 224, 90, 0)')
       ctx.fillStyle = pool
       ctx.beginPath()
       ctx.ellipse(poolX, poolY, 110, 62, 0, 0, Math.PI * 2)
       ctx.fill()
+    }
+    // clock-lit road band: a faint cool sheen that strengthens as darkness deepens
+    if (darkness > 0.05) {
+      ctx.fillStyle = `rgba(120, 200, 255, ${(darkness - 0.05) * 0.08})`
+      ctx.fillRect(camera.x, WORLD_H * 0.62, w, WORLD_H - WORLD_H * 0.62)
     }
     ctx.restore()
   }
@@ -3820,9 +3869,11 @@ function frame(now: number) {
   ctx.translate(-camera.x, -camera.y)
   buildings.forEach((b, i) => {
     neonRect(b.x, b.y, b.width, b.height, i % 3 === 0 ? '#00f0ff' : '#ff2d96')
-    ctx.fillStyle = nightShiftEnabled ? 'rgba(255, 248, 160, 0.95)' : 'rgba(255, 240, 90, 0.85)'
-    ctx.shadowColor = nightShiftEnabled ? '#fff8d6' : '#ffe05a'
-    ctx.shadowBlur = nightShiftEnabled ? 14 : 8
+    // windows brighten and glow harder as darkness settles over the cycle
+    const winGlow = 0.85 + darkness * 0.15
+    ctx.fillStyle = `rgba(255, 240, 90, ${winGlow})`
+    ctx.shadowColor = darkness > 0.5 ? '#fff8d6' : '#ffe05a'
+    ctx.shadowBlur = 8 + darkness * 6
     for (let wx = b.x + 10; wx < b.x + b.width - 8; wx += 18) {
       for (let wy = b.y + 10; wy < b.y + b.height - 8; wy += 22) {
         if ((wx + wy + i) % 3 !== 0) ctx.fillRect(wx, wy, 5, 7)
@@ -3841,12 +3892,12 @@ function frame(now: number) {
     const left = d.x - half
     const top = d.y - half
     ctx.strokeStyle = d.color
-    ctx.globalAlpha = nightShiftEnabled ? 0.55 : 0.28
+    ctx.globalAlpha = 0.28 + darkness * 0.27
     ctx.lineWidth = 1
     ctx.setLineDash([10, 8])
     ctx.strokeRect(left, top, half * 2, half * 2)
     ctx.setLineDash([])
-    if (nightShiftEnabled) {
+    if (nightOn) {
       ctx.shadowColor = d.color
       ctx.shadowBlur = 14
       ctx.lineWidth = 1.5
@@ -5150,12 +5201,12 @@ function frame(now: number) {
     ctx.fillStyle = 'rgba(191, 255, 255, 0.5)'
     ctx.fillRect(t.x - half + t.length * 0.28, t.laneY - 6, t.length * 0.44, 5)
 
-    // taillights at rear, headlights at front
+    // taillights at rear, headlights at front — beams brighten through the night cycle
     ctx.shadowBlur = 8
     ctx.fillStyle = '#ff2d96'
     ctx.fillRect(t.x + rear - (t.dir > 0 ? 4 : 0), t.laneY - 7, 4, 3)
     ctx.fillRect(t.x + rear - (t.dir > 0 ? 4 : 0), t.laneY + 4, 4, 3)
-    ctx.fillStyle = 'rgba(255, 248, 214, 0.85)'
+    ctx.fillStyle = `rgba(255, 248, 214, ${0.55 + darkness * 0.35})`
     ctx.fillRect(t.x + front - (t.dir > 0 ? 0 : 4), t.laneY - 7, 4, 3)
     ctx.fillRect(t.x + front - (t.dir > 0 ? 0 : 4), t.laneY + 4, 4, 3)
     ctx.shadowBlur = 0
