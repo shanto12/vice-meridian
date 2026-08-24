@@ -14,7 +14,7 @@ app.innerHTML = `
       <span class="boost-bar"><span class="boost-fill" id="boost-fill"></span></span>
       <span class="boost-state" id="boost-state">READY</span>
     </p>
-    <p class="hud-wanted" id="hud-wanted">WANTED <span id="wanted-count">0</span>/3</p>
+    <p class="hud-wanted" id="hud-wanted">WANTED <span id="wanted-stars" style="letter-spacing:1px;"></span> <span id="wanted-count">0</span>/3</p>
     <p class="hud-pulse">PULSE F <span class="pulse-state" id="pulse-state">READY</span></p>
     <p class="hud-courier" id="hud-courier" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff9d3c;text-shadow:0 0 10px rgba(255,157,60,0.6);">COURIER // PRESS E TO DRIVE</p>
     <p class="hud-safehouse" id="hud-safehouse" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 10px rgba(0,240,255,0.6);">SAFEHOUSE // HOLD H TO CLEAR HEAT</p>
@@ -46,7 +46,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — TAB contacts — M map — P save — L load — R restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — E near traffic to carjack — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — TAB contacts — M map — P save — L load — R restart</p>
   <div id="touch-controls" aria-label="Touch controls">
     <div class="touch-dpad">
       <button id="touch-up" type="button" aria-label="Move up">▲</button>
@@ -245,6 +245,80 @@ const courierCar = {
 const COURIER_ENTER_RADIUS = 70
 let driving = false
 let courierToggleRequested = false
+
+// Carjacking: walk up to any civilian traffic car and press E to yank the driver out.
+// The stolen car drives on the same physics as the courier; its owner flees on foot and
+// despawns once clear. Wrecking a stolen ride (hull to zero) ejects you beside it and
+// leaves a smoking husk. Everything here is transient free-roam state — resetRun-cleared,
+// never persisted, and it never touches the save schema
+type CivilianCar = {
+  x: number
+  y: number
+  laneY: number
+  dir: number
+  angle: number
+  speed: number
+  color: string
+  length: number
+}
+const CARJACK_RADIUS = 64
+const CARJACK_HEAT = 1
+const CARJACK_CASH_REWARD = 40
+const STOLEN_MAX_SPEED = 330
+const STOLEN_BOOST_SPEED = 520
+const STOLEN_REVERSE_SPEED = 140
+const STOLEN_ACCEL = 400
+const STOLEN_BRAKE = 540
+const STOLEN_FRICTION = 230
+const STOLEN_TURN_RATE = 2.5
+const CIVILIAN_HULL_MAX = 70
+const CIV_HIT_DAMAGE = 10
+const DRIVER_FLEE_SPEED = 150
+const DRIVER_DESPAWN_DIST = 620
+const WRECK_DESPAWN_DIST = 260
+const CARJACK_HOLD_MS = 2600
+const CARJACK_COOLDOWN_MS = 700
+const CARJACK_FLASH_MS = 420
+const CARJACKED_TEXT = 'CARJACKED // DRIVER FLED // +$40'
+const STOLEN_RIDE_TEXT = 'STOLEN RIDE'
+const CAR_WRECKED_TEXT = 'CAR WRECKED // BAIL OUT'
+let stolenCar: CivilianCar | null = null
+let stolenHull = CIVILIAN_HULL_MAX
+let fleeingDriver: { x: number; y: number; angle: number; color: string } | null = null
+let jackFlashUntilMs = 0
+let carjackRestoreAtMs = 0
+function activeCar() {
+  return stolenCar ?? courierCar
+}
+function isStolenRide(): boolean {
+  return stolenCar !== null
+}
+// Nearest lane car within reach that is not already the stolen ride; null when none qualify
+function nearestJackableCar(): { car: CivilianCar; dist: number } | null {
+  if (stolenCar) return null
+  let best: { car: CivilianCar; dist: number } | null = null
+  for (const t of traffic) {
+    const dist = Math.hypot(player.x - t.x, player.y - t.laneY)
+    if (dist > CARJACK_RADIUS) continue
+    if (!best || dist < best.dist) best = { car: t, dist }
+  }
+  return best
+}
+// A wrecked stolen ride only despawns once you have walked clear of it
+function stolenWreckAbandoned(): boolean {
+  return !!stolenCar && !driving && stolenHull <= 0 && Math.hypot(player.x - stolenCar.x, player.y - stolenCar.y) > WRECK_DESPAWN_DIST
+}
+// Hull-zero outcome for a stolen ride: eject beside the wreck, leave it smoking in place.
+// Walking far enough away despawns the husk and frees you to jack another car this run
+function bailOutOfStolenCar(nowMs: number) {
+  driving = false
+  const angle = stolenCar?.angle ?? courierCar.angle
+  player.x = Math.max(player.size, Math.min(WORLD_W - player.size, (stolenCar?.x ?? courierCar.x) + Math.cos(angle) * 36))
+  player.y = Math.max(player.size, Math.min(WORLD_H - player.size, (stolenCar?.y ?? courierCar.y) + Math.sin(angle) * 36))
+  if (stolenCar) stolenCar.speed = 0
+  missionEl.textContent = CAR_WRECKED_TEXT
+  vehicleDisabledRestoreAtMs = nowMs + VEHICLE_DISABLED_HOLD_MS
+}
 
 // Midnight Sprint street race: three mandatory courier-car checkpoints against the clock (KeyN)
 const RACE_CHECKPOINTS = [
@@ -966,6 +1040,7 @@ const boostEls = {
 const wantedEls = {
   row: document.getElementById('hud-wanted')!,
   count: document.querySelector<HTMLSpanElement>('#wanted-count')!,
+  stars: document.getElementById('wanted-stars')!,
 }
 const pulseEls = {
   state: document.querySelector<HTMLSpanElement>('#pulse-state')!,
@@ -1076,6 +1151,11 @@ function resetRun(nowMs: number) {
   stashRequested = false
   stashCollected = false
   stashRestoreAtMs = 0
+  stolenCar = null
+  stolenHull = CIVILIAN_HULL_MAX
+  fleeingDriver = null
+  jackFlashUntilMs = 0
+  carjackRestoreAtMs = 0
   lastStreetCredRank = streetCredRank(rep)
   streetCredRankUpUntilMs = 0
   lastCampaignAct = campaignAct()
@@ -1159,13 +1239,16 @@ const drones = Array.from({ length: 3 }, (_, i) => ({
 }))
 
 const TRAFFIC_COLORS = ['#ff9d3c', '#b26bff', '#00e5b0', '#ff6b8a', '#4da6ff', '#e8e84a']
-const traffic = Array.from({ length: 6 }, (_, i) => {
+const traffic: CivilianCar[] = Array.from({ length: 6 }, (_, i) => {
   const laneIndex = i % 3
   const dir = laneIndex === 0 ? 1 : -1
+  const laneY = WORLD_H * 0.62 + 55 + laneIndex * ((WORLD_H * 0.38 - 90) / 2)
   return {
     x: (WORLD_W / 6) * i + 40,
-    laneY: WORLD_H * 0.62 + 55 + laneIndex * ((WORLD_H * 0.38 - 90) / 2),
+    y: laneY,
+    laneY,
     dir,
+    angle: dir > 0 ? Math.PI / 2 : -Math.PI / 2,
     speed: 70 + ((i * 53) % 90),
     color: TRAFFIC_COLORS[i],
     length: 30 + ((i * 37) % 14),
@@ -1234,6 +1317,7 @@ function setWanted(next: number) {
   const previous = wanted
   wanted = Math.max(0, Math.min(3, next))
   wantedEls.count.textContent = String(wanted)
+  wantedEls.stars.textContent = '★'.repeat(wanted) + '☆'.repeat(3 - wanted)
   wantedEls.row.classList.toggle('is-hot', wanted > 0)
   if (wanted === 3 && previous < 3 && !airSupportBannerShown) {
     airSupportBannerShown = true
@@ -1251,15 +1335,30 @@ function neonRect(x: number, y: number, width: number, height: number, color: st
   ctx.shadowBlur = 0
 }
 
-// Amber neon coupe with cyan glass and a two-cell roof light bar — distinct from green runner and traffic
-function drawCourierCar(isDriving: boolean) {
+// Amber neon coupe with cyan glass and a two-cell roof light bar — distinct from green runner and traffic.
+// The pose helper keeps one car renderer shared by the courier and any stolen ride without
+// structural casts: callers pass every visual property explicitly, nothing else.
+// Wrecked husks render dark with smoke; the roof bar cells tint by hull so damage reads live
+function drawCarPose(
+  x: number,
+  y: number,
+  angle: number,
+  bodyColor: string,
+  isDriving: boolean,
+  speed: number,
+  maxSpeed: number,
+  hullPct: number,
+  wrecked = false,
+  nowMs = 0,
+) {
   ctx.save()
-  ctx.translate(courierCar.x, courierCar.y)
-  ctx.rotate(courierCar.angle)
+  ctx.translate(x, y)
+  ctx.rotate(angle)
 
-  // speed streaks while driving fast
-  if (isDriving && Math.abs(courierCar.speed) > 120) {
-    const tail = Math.abs(courierCar.speed) > courierCar.maxSpeed * 0.9 ? 36 : 28
+  const glowBase = wrecked ? 4 : isDriving ? 26 : 18
+  if (!wrecked && isDriving && Math.abs(speed) > 120) {
+    // speed streaks while driving fast
+    const tail = Math.abs(speed) > maxSpeed * 0.9 ? 36 : 28
     ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)'
     ctx.lineWidth = 2
     for (const off of [-7, 7]) {
@@ -1270,10 +1369,36 @@ function drawCourierCar(isDriving: boolean) {
     }
   }
 
+  if (wrecked) {
+    // dead shell: dark hull, cracked glass, guttering smoke
+    ctx.strokeStyle = '#20242f'
+    ctx.shadowColor = 'rgba(255, 60, 60, 0.5)'
+    ctx.shadowBlur = 6 + Math.sin(nowMs / 160) * 2
+    ctx.lineWidth = 2.5
+    ctx.strokeRect(-11, -17, 22, 34)
+    ctx.fillStyle = 'rgba(40, 44, 56, 0.9)'
+    ctx.fillRect(-11, -17, 22, 34)
+    ctx.strokeStyle = 'rgba(120, 130, 150, 0.55)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(-6, -10)
+    ctx.lineTo(4, -4)
+    ctx.moveTo(-4, 8)
+    ctx.lineTo(5, 12)
+    ctx.stroke()
+    const smokeRise = ((nowMs % 900) / 900) * 34
+    ctx.fillStyle = `rgba(140, 140, 150, ${0.3 * (1 - smokeRise / 34)})`
+    ctx.beginPath()
+    ctx.arc(Math.sin(nowMs / 240) * 4, -20 - smokeRise, 5 + smokeRise * 0.16, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+    return
+  }
+
   // headlight beams along the heading
   const beam = ctx.createLinearGradient(0, -18, 0, -58)
-  beam.addColorStop(0, 'rgba(255, 157, 60, 0.4)')
-  beam.addColorStop(1, 'rgba(255, 157, 60, 0)')
+  beam.addColorStop(0, `${bodyColor}66`)
+  beam.addColorStop(1, `${bodyColor}00`)
   ctx.fillStyle = beam
   ctx.beginPath()
   ctx.moveTo(-9, -16)
@@ -1284,9 +1409,9 @@ function drawCourierCar(isDriving: boolean) {
   ctx.fill()
 
   // body
-  ctx.shadowColor = '#ff9d3c'
-  ctx.shadowBlur = isDriving ? 26 : 18
-  ctx.strokeStyle = '#ff9d3c'
+  ctx.shadowColor = bodyColor
+  ctx.shadowBlur = glowBase
+  ctx.strokeStyle = bodyColor
   ctx.lineWidth = 2.5
   ctx.strokeRect(-11, -17, 22, 34)
 
@@ -1296,11 +1421,11 @@ function drawCourierCar(isDriving: boolean) {
   ctx.fillStyle = 'rgba(191, 255, 255, 0.35)'
   ctx.fillRect(-6, 6, 12, 5)
 
-  // roof light bar: amber/cyan cells
+  // roof light bar: amber/cyan cells dim toward red as the hull wears down
   ctx.shadowBlur = 10
-  ctx.fillStyle = '#ffe05a'
+  ctx.fillStyle = hullPct > 50 ? '#ffe05a' : '#ff6b4a'
   ctx.fillRect(-7, -3, 6, 4)
-  ctx.fillStyle = '#00f0ff'
+  ctx.fillStyle = hullPct > 50 ? '#00f0ff' : '#ff3c3c'
   ctx.fillRect(1, -3, 6, 4)
 
   // headlights / taillights
@@ -1314,7 +1439,10 @@ function drawCourierCar(isDriving: boolean) {
   ctx.fillRect(-9, 14, 5, 3)
   ctx.fillRect(4, 14, 5, 3)
   ctx.restore()
-  ctx.shadowBlur = 0
+}
+
+function drawCourierCar(isDriving: boolean) {
+  drawCarPose(courierCar.x, courierCar.y, courierCar.angle, '#ff9d3c', isDriving, courierCar.speed, courierCar.maxSpeed, carHealth)
 }
 
 // Red/white neon cruiser with alternating roof lights and siren glow — distinct from courier and traffic.
@@ -1928,29 +2056,38 @@ function frame(now: number) {
 
   const speedNow = player.speed * (boost.active ? boost.multiplier : 1)
   if (driving) {
-    // arcade car physics: steering authority scales with roll speed
+    // arcade car physics: steering authority scales with roll speed.
+    // The active car is the courier by default or the stolen ride while it lasts
+    const car = activeCar()
+    const maxSpeed = isStolenRide() ? STOLEN_MAX_SPEED : courierCar.maxSpeed
+    const boostSpeed = isStolenRide() ? STOLEN_BOOST_SPEED : courierCar.boostSpeed
+    const reverseSpeed = isStolenRide() ? STOLEN_REVERSE_SPEED : courierCar.reverseSpeed
+    const accel = isStolenRide() ? STOLEN_ACCEL : courierCar.accel
+    const brake = isStolenRide() ? STOLEN_BRAKE : courierCar.brake
+    const friction = isStolenRide() ? STOLEN_FRICTION : courierCar.friction
+    const turnRate = isStolenRide() ? STOLEN_TURN_RATE : courierCar.turnRate
     let throttle = 0
     for (const code of keys) {
       const [kx, ky] = MOVE_KEYS[code]
       if (ky < 0) throttle = 1
       else if (ky > 0) throttle = -1
       if (kx !== 0) {
-        const turnEff = 0.35 + 0.65 * Math.min(1, Math.abs(courierCar.speed) / 160)
-        courierCar.angle += kx * courierCar.turnRate * dt * (courierCar.speed < 0 ? -1 : 1) * turnEff
+        const turnEff = 0.35 + 0.65 * Math.min(1, Math.abs(car.speed) / 160)
+        car.angle += kx * turnRate * dt * (car.speed < 0 ? -1 : 1) * turnEff
       }
     }
     if (throttle > 0) {
-      courierCar.speed = Math.min(courierCar.maxSpeed, courierCar.speed + courierCar.accel * dt)
+      car.speed = Math.min(maxSpeed, car.speed + accel * dt)
     } else if (throttle < 0) {
-      const rate = courierCar.speed > 0 ? courierCar.brake : courierCar.accel
-      courierCar.speed = Math.max(-courierCar.reverseSpeed, courierCar.speed - rate * dt)
+      const rate = car.speed > 0 ? brake : accel
+      car.speed = Math.max(-reverseSpeed, car.speed - rate * dt)
     } else {
-      const drop = courierCar.friction * dt
-      courierCar.speed = courierCar.speed > 0 ? Math.max(0, courierCar.speed - drop) : Math.min(0, courierCar.speed + drop)
+      const drop = friction * dt
+      car.speed = car.speed > 0 ? Math.max(0, car.speed - drop) : Math.min(0, car.speed + drop)
     }
 
     // Space boosts forward, sharing the runner's energy pool
-    const carBoost = keys.has('Space') && boost.energy > 1 && !boost.cooldown && courierCar.speed > 0
+    const carBoost = keys.has('Space') && boost.energy > 1 && !boost.cooldown && car.speed > 0
     boost.active = carBoost
     if (carBoost) {
       boost.energy = Math.max(0, boost.energy - boost.drain * dt)
@@ -1963,42 +2100,49 @@ function frame(now: number) {
       boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * (garageUpgradeLevel >= 3 ? BOOST_CELL_REGEN_MULTIPLIER : 1) * dt))
       if (boost.cooldown && boost.energy >= 40) boost.cooldown = false
     }
-    if (carBoost) courierCar.speed = Math.min(courierCar.boostSpeed, courierCar.speed)
+    if (carBoost) car.speed = Math.min(boostSpeed, car.speed)
 
-    courierCar.x += Math.sin(courierCar.angle) * courierCar.speed * dt
-    courierCar.y -= Math.cos(courierCar.angle) * courierCar.speed * dt
-    courierCar.x = Math.max(24, Math.min(WORLD_W - 24, courierCar.x))
-    courierCar.y = Math.max(24, Math.min(WORLD_H - 24, courierCar.y))
+    car.x += Math.sin(car.angle) * car.speed * dt
+    car.y -= Math.cos(car.angle) * car.speed * dt
+    car.x = Math.max(24, Math.min(WORLD_W - 24, car.x))
+    car.y = Math.max(24, Math.min(WORLD_H - 24, car.y))
 
-    // Forgiving traffic contact: sharp slowdown plus heat and hull damage, one registration per window
+    // Forgiving traffic contact: sharp slowdown plus heat and hull damage, one registration per window.
+    // Stolen rides take the hit on their own lighter hull; a wrecked one ejects you beside it
     if (now >= trafficHitCooldownUntilMs) {
       for (const t of traffic) {
-        if (Math.abs(courierCar.x - t.x) < t.length / 2 + 20 && Math.abs(courierCar.y - t.laneY) < 28) {
-          courierCar.speed *= -0.25
+        if (Math.abs(car.x - t.x) < t.length / 2 + 20 && Math.abs(car.y - t.laneY) < 28) {
+          car.speed *= -0.25
           setWanted(wanted + 1)
           trafficHitUntilMs = now + TRAFFIC_HIT_HOLD_MS
           trafficHitCooldownUntilMs = now + TRAFFIC_HIT_COOLDOWN_MS
           trafficHitRestoreAtMs = now + TRAFFIC_HIT_HOLD_MS
-          carHealth = Math.max(0, carHealth - VEHICLE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
-          missionEl.textContent = `VEHICLE DAMAGE // ${carHealth}%`
-          if (carHealth <= 0) {
-            driving = false
-            player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
-            player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
-            courierCar.speed = 0
-            missionEl.textContent = VEHICLE_DISABLED_TEXT
-            vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+          if (isStolenRide()) {
+            stolenHull = Math.max(0, stolenHull - CIV_HIT_DAMAGE)
+            missionEl.textContent = `STOLEN RIDE // HULL ${stolenHull}%`
+            if (stolenHull <= 0) bailOutOfStolenCar(now)
+          } else {
+            carHealth = Math.max(0, carHealth - VEHICLE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
+            missionEl.textContent = `VEHICLE DAMAGE // ${carHealth}%`
+            if (carHealth <= 0) {
+              driving = false
+              player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
+              player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
+              courierCar.speed = 0
+              missionEl.textContent = VEHICLE_DISABLED_TEXT
+              vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+            }
           }
           break
         }
       }
     }
 
-    // rider sits in the hull; facing tracks the hood so pulses fire forward
-    player.x = courierCar.x
-    player.y = courierCar.y
-    facing.dx = Math.sin(courierCar.angle)
-    facing.dy = -Math.cos(courierCar.angle)
+    // Rider sits in the active hull; facing tracks the hood so pulses fire forward
+    player.x = car.x
+    player.y = car.y
+    facing.dx = Math.sin(car.angle)
+    facing.dy = -Math.cos(car.angle)
 
     // Midnight Sprint: only the driving courier advances checkpoints, in mandatory order
     if (raceState === 'active') {
@@ -2019,15 +2163,15 @@ function frame(now: number) {
     }
 
     // E steps out beside the door once nearly stopped; stopped inside the active drop-off delivers the run
-    if (courierToggleRequested && Math.abs(courierCar.speed) <= 80) {
+    if (courierToggleRequested && Math.abs(car.speed) <= 80) {
       const stoppedAtDrop =
         contractState === 'active' &&
         Math.hypot(courierCar.x - SKYWAY_DROP_OFF.x, courierCar.y - SKYWAY_DROP_OFF.y) < DROP_OFF_RADIUS &&
         Math.abs(courierCar.speed) <= 20
       driving = false
-      player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
-      player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
-      courierCar.speed = 0
+      player.x = Math.max(player.size, Math.min(WORLD_W - player.size, car.x + Math.cos(car.angle) * 36))
+      player.y = Math.max(player.size, Math.min(WORLD_H - player.size, car.y + Math.sin(car.angle) * 36))
+      car.speed = 0
       if (stoppedAtDrop) {
         contractState = 'complete'
         contractDeadlineMs = 0
@@ -2043,18 +2187,36 @@ function frame(now: number) {
     player.x = Math.max(player.size, Math.min(WORLD_W - player.size, player.x + (dx / len) * speedNow * dt))
     player.y = Math.max(player.size, Math.min(WORLD_H - player.size, player.y + (dy / len) * speedNow * dt))
 
-    // E hops in when close and the courier is not disabled; first pickup starts a hot delivery
-    if (
-      courierToggleRequested &&
-      carHealth > 0 &&
-      Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS
-    ) {
+    // E hops in when close and the courier is not disabled; first pickup starts a hot delivery.
+    // Near a moving civilian instead: yank the driver out and take the car. A wrecked husk
+    // left far behind despawns so another jack stays possible this run
+    if (courierToggleRequested && carHealth > 0 && Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS) {
       driving = true
+      stolenCar = null
+      fleeingDriver = null
       if (contractState === 'available') {
         contractState = 'active'
         contractDeadlineMs = now + CONTRACT_TIME_LIMIT_MS
         setWanted(Math.max(1, wanted))
         missionEl.textContent = HOT_DELIVERY_TEXT
+      }
+    } else if (courierToggleRequested && !stolenCar) {
+      // a wreck left far behind clears out so the next jack stays available
+      if (stolenWreckAbandoned()) stolenCar = null
+      const target = nearestJackableCar()
+      if (target && now >= jackFlashUntilMs + CARJACK_COOLDOWN_MS) {
+        stolenCar = target.car
+        // the jacked car keeps its lane heading; its owner bails out beside the door and flees
+        const doorX = stolenCar.x - (stolenCar.dir > 0 ? 22 : -22)
+        fleeingDriver = { x: doorX, y: stolenCar.laneY, angle: 0, color: stolenCar.color }
+        stolenHull = CIVILIAN_HULL_MAX
+        driving = true
+        stolenCar.speed = 0
+        cash += CARJACK_CASH_REWARD
+        setWanted(Math.max(wanted + CARJACK_HEAT, 1))
+        jackFlashUntilMs = now + CARJACK_FLASH_MS
+        carjackRestoreAtMs = now + CARJACK_HOLD_MS
+        missionEl.textContent = CARJACKED_TEXT
       }
     }
 
@@ -2984,7 +3146,8 @@ function frame(now: number) {
 
   // Roadblock escalation: deterministic single interceptor while driving under heavy heat in a live mission.
   // Spawn sits on the stable leading edge of the current camera view toward the car's travel direction;
-  // deactivation is fully hidden/reset whenever heat drops, the mission ends, the player exits, or resetRun runs
+  // deactivation is fully hidden/reset whenever heat drops, the mission ends, the player exits, or resetRun runs.
+  // The active car — courier or stolen ride — is the pursuit target
   const roadblockShouldEngage = driving && wanted >= ROADBLOCK_WANTED_MIN && roadblockMissionRunning()
   if (roadblockShouldEngage) {
     if (!roadblock.active) {
@@ -2999,7 +3162,7 @@ function frame(now: number) {
       roadblock.angle = Math.atan2(courierCar.y - roadblock.y, courierCar.x - roadblock.x) + Math.PI / 2
       roadblock.active = true
     }
-    // lightweight pursuit: fixed speed and turn rate steering at the courier hull
+    // lightweight pursuit: fixed speed and turn rate steering at the car hull
     const ang = Math.atan2(courierCar.y - roadblock.y, courierCar.x - roadblock.x)
     let diff = ang - (roadblock.angle - Math.PI / 2)
     while (diff > Math.PI) diff -= Math.PI * 2
@@ -3010,22 +3173,32 @@ function frame(now: number) {
     roadblock.x = Math.max(24, Math.min(WORLD_W - 24, roadblock.x))
     roadblock.y = Math.max(WORLD_H * 0.62, Math.min(WORLD_H - 30, roadblock.y))
 
-    // impact reuses the police-impact semantics through the shared cooldown: one capped hull/heat hit per window
+    // impact reuses the police-impact semantics through the shared cooldown: one capped hull/heat hit per window.
+    // Stolen rides take it on their own lighter hull; a wrecked one ejects you beside it
     if (now >= policeHitCooldownUntilMs && Math.hypot(courierCar.x - roadblock.x, courierCar.y - roadblock.y) < 34) {
       courierCar.speed *= -0.25
       setWanted(Math.min(3, wanted + 1))
-      carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
-      policeHitUntilMs = now + POLICE_HIT_HOLD_MS
-      policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
-      policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
-      missionEl.textContent = POLICE_IMPACT_TEXT
-      if (carHealth <= 0) {
-        driving = false
-        player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
-        player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
-        courierCar.speed = 0
-        missionEl.textContent = VEHICLE_DISABLED_TEXT
-        vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+      if (isStolenRide()) {
+        stolenHull = Math.max(0, stolenHull - POLICE_HIT_DAMAGE)
+        policeHitUntilMs = now + POLICE_HIT_HOLD_MS
+        policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
+        policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
+        missionEl.textContent = `STOLEN RIDE // HULL ${stolenHull}%`
+        if (stolenHull <= 0) bailOutOfStolenCar(now)
+      } else {
+        carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
+        policeHitUntilMs = now + POLICE_HIT_HOLD_MS
+        policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
+        policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
+        missionEl.textContent = POLICE_IMPACT_TEXT
+        if (carHealth <= 0) {
+          driving = false
+          player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
+          player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
+          courierCar.speed = 0
+          missionEl.textContent = VEHICLE_DISABLED_TEXT
+          vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+        }
       }
     }
   } else {
@@ -3203,6 +3376,9 @@ function frame(now: number) {
   if (stashRestoreAtMs > 0 && now >= stashRestoreAtMs) {
     stashRestoreAtMs = 0
   }
+  if (carjackRestoreAtMs > 0 && now >= carjackRestoreAtMs) {
+    carjackRestoreAtMs = 0
+  }
   if (streetCredRankUpUntilMs > 0 && now >= streetCredRankUpUntilMs) {
     streetCredRankUpUntilMs = 0
   }
@@ -3257,6 +3433,7 @@ function frame(now: number) {
     smugglerRestoreAtMs > 0 ||
     chopShopRestoreAtMs > 0 ||
     stashRestoreAtMs > 0 ||
+    carjackRestoreAtMs > 0 ||
     streetCredRankUpUntilMs > 0 ||
     actCompleteUntilMs > 0 ||
     kingpinRestoreAtMs > 0 ||
@@ -3306,6 +3483,8 @@ function frame(now: number) {
     if (missionEl.textContent !== chopShopBannerText) missionEl.textContent = chopShopBannerText
   } else if (stashRestoreAtMs > 0) {
     if (missionEl.textContent !== STASH_SECURED_TEXT) missionEl.textContent = STASH_SECURED_TEXT
+  } else if (carjackRestoreAtMs > 0) {
+    if (missionEl.textContent !== CARJACKED_TEXT) missionEl.textContent = CARJACKED_TEXT
   } else if (kingpinRestoreAtMs > 0) {
     if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
   } else if (networkNoticeUntilMs > 0 && networkNoticeText) {
@@ -4285,7 +4464,7 @@ function frame(now: number) {
   })
 
   // Courier coupe under the signal/traffic layer; HUD prompt tracks proximity and drive state
-  // Restrained amber impact ring while a traffic hit is registering
+  // Restrained amber impact ring while a traffic hit is registering (rider sits in the active hull)
   if (driving && now < trafficHitUntilMs) {
     const hitT = (trafficHitUntilMs - now) / TRAFFIC_HIT_HOLD_MS
     ctx.strokeStyle = `rgba(255, 157, 60, ${0.35 + hitT * 0.4})`
@@ -4293,7 +4472,7 @@ function frame(now: number) {
     ctx.shadowBlur = 12
     ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.arc(courierCar.x, courierCar.y, 30 + (1 - hitT) * 14, 0, Math.PI * 2)
+    ctx.arc(player.x, player.y, 30 + (1 - hitT) * 14, 0, Math.PI * 2)
     ctx.stroke()
     ctx.shadowBlur = 0
   }
@@ -4309,7 +4488,7 @@ function frame(now: number) {
     ctx.shadowBlur = 12
     ctx.lineWidth = 2
     ctx.beginPath()
-    ctx.arc(courierCar.x, courierCar.y, 30 + (1 - hitT) * 14, 0, Math.PI * 2)
+    ctx.arc(player.x, player.y, 30 + (1 - hitT) * 14, 0, Math.PI * 2)
     ctx.stroke()
     ctx.shadowBlur = 0
   }
@@ -4341,15 +4520,81 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
   drawCourierCar(driving)
+  // Stolen ride renders in its own paint; a wrecked one keeps smoking where it died
+  if (stolenCar) {
+    drawCarPose(stolenCar.x, stolenCar.y, stolenCar.angle, stolenCar.color, driving, stolenCar.speed, STOLEN_MAX_SPEED, stolenHull, !driving && stolenHull <= 0, now)
+  }
+  // Fleeing jacked driver: sprint away from the player until far enough to despawn
+  if (fleeingDriver) {
+    const dxFlee = fleeingDriver.x - player.x
+    const dyFlee = fleeingDriver.y - player.y
+    const distFlee = Math.hypot(dxFlee, dyFlee) || 1
+    if (distFlee < DRIVER_DESPAWN_DIST) {
+      const ang = Math.atan2(dyFlee, dxFlee)
+      fleeingDriver.angle = ang
+      fleeingDriver.x += Math.cos(ang) * DRIVER_FLEE_SPEED * dt
+      fleeingDriver.y += Math.sin(ang) * DRIVER_FLEE_SPEED * dt
+    }
+    if (distFlee >= DRIVER_DESPAWN_DIST) {
+      fleeingDriver = null
+    } else {
+      const runBob = Math.sin(now / 110) > 0 ? 1.5 : 0
+      const fx = fleeingDriver.x
+      const fy = fleeingDriver.y + runBob
+      ctx.strokeStyle = '#ff6b8a'
+      ctx.shadowColor = '#ff6b8a'
+      ctx.shadowBlur = 9
+      ctx.lineWidth = 2
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.arc(fx, fy - 11, 3.2, 0, Math.PI * 2)
+      ctx.moveTo(fx, fy - 7.5)
+      ctx.lineTo(fx, fy + 2)
+      ctx.moveTo(fx, fy + 2)
+      ctx.lineTo(fx - 4, fy + 8)
+      ctx.moveTo(fx, fy + 2)
+      ctx.lineTo(fx + 4, fy + 8)
+      ctx.stroke()
+      ctx.shadowBlur = 0
+    }
+  }
+  // Carjack flash: sharp white/pink burst at the door the moment the driver is yanked out
+  if (now < jackFlashUntilMs) {
+    const flashT = (jackFlashUntilMs - now) / CARJACK_FLASH_MS
+    ctx.strokeStyle = `rgba(255, 45, 150, ${0.5 + flashT * 0.5})`
+    ctx.shadowColor = '#ff2d96'
+    ctx.shadowBlur = 18 * flashT + 6
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.arc(player.x, player.y, 26 + (1 - flashT) * 30, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = `rgba(255, 248, 214, ${0.35 * flashT})`
+    ctx.beginPath()
+    ctx.arc(player.x, player.y, 16, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.shadowBlur = 0
+  }
   const nearCourier = Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS
+  const jackTarget = !driving && !stolenCar ? nearestJackableCar() : null
   const dropDist = Math.round(Math.hypot(player.x - SKYWAY_DROP_OFF.x, player.y - SKYWAY_DROP_OFF.y))
-  const courierText = driving
-    ? contractState === 'active'
+  let courierText: string
+  if (driving && isStolenRide()) {
+    courierText = `STOLEN RIDE // HULL ${Math.round(stolenHull)}% — ${STOLEN_RIDE_TEXT} — SLOWS UNDER 80 FOR E`
+  } else if (driving) {
+    courierText = contractState === 'active'
       ? `COURIER RUN // HOT DELIVERY — ${dropDist}M — ${deliveryTimeLeftSec ?? 45}S LEFT — STOP + E TO DELIVER`
       : `COURIER // DRIVING ${Math.round(Math.abs(courierCar.speed) * 0.6)} KMH — SPACE BOOST — SLOWS UNDER 80 FOR E`
-    : nearCourier
-      ? 'COURIER // PRESS E TO DRIVE'
-      : ''
+  } else if (stolenCar && stolenHull <= 0) {
+    courierText = 'WRECK ABANDONED // FIND ANOTHER CAR OR RETURN TO THE COURIER'
+  } else if (jackTarget) {
+    courierText = 'PRESS E TO CARJACK'
+  } else if (nearCourier) {
+    courierText = stolenHull <= 0 || !stolenCar ? 'COURIER // PRESS E TO DRIVE' : 'COURIER // PRESS E TO RECOVER'
+  } else if (stolenCar) {
+    courierText = 'COURIER PARKED — PRESS E NEARBY TO RECOVER'
+  } else {
+    courierText = ''
+  }
   if (courierEl.textContent !== courierText) courierEl.textContent = courierText
   courierEl.style.display = courierText ? '' : 'none'
 
