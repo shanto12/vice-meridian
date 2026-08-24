@@ -1322,6 +1322,7 @@ const RADIO_HOLD_MS = 2200
 const RADIO_BUSTED_TEXT = 'RADIO // SUSPECT BUSTED'
 const RADIO_DISPATCHED_TEXT = 'RADIO // UNIT DISPATCHED'
 const RADIO_PURSUIT_TEXT = 'RADIO // PURSUIT ACTIVE'
+const RADIO_CLEAR_TEXT = 'RADIO // ALL UNITS CLEAR'
 let radioText = ''
 let radioRestoreAtMs = 0
 function setRadioStatus(text: string, nowMs: number) {
@@ -3385,7 +3386,11 @@ function frame(now: number) {
   } else if (heatCoolStartMs === 0) {
     heatCoolStartMs = now
   } else if (now - heatCoolStartMs >= heatCoolRequiredMs) {
+    const heatBeforeCool = wanted
     setWanted(wanted - 1)
+    // passive cooling alone can zero the heat: announce all-clear from this call site only,
+    // so safehouse clears, extractions, busts, and jams never echo the dispatch line
+    if (heatBeforeCool === 1 && wanted === 0) setRadioStatus(RADIO_CLEAR_TEXT, now)
     heatCoolStartMs = wanted > 0 ? now : 0
     heatCoolRestoreAtMs = now + HEAT_COOL_HOLD_MS
     missionEl.textContent = HEAT_COOLING_TEXT
@@ -4706,15 +4711,34 @@ function frame(now: number) {
   }
   // Police-radio tag: small amber/red neon label near the player while a dispatch echoes
   if (radioRestoreAtMs > now && radioText) {
-    const radioBlink = Math.sin(now / 140) > 0 ? 1 : 0.5
-    ctx.font = 'bold 9px ui-monospace, Consolas, monospace'
-    ctx.textAlign = 'center'
-    ctx.fillStyle = `rgba(255, 179, 0, ${0.55 + 0.4 * radioBlink})`
-    ctx.shadowColor = '#ff3c3c'
-    ctx.shadowBlur = 8
-    ctx.fillText('RADIO ▮▮▮', player.x, player.y + 44)
-    ctx.shadowBlur = 0
-    ctx.textAlign = 'left'
+    if (radioText === RADIO_CLEAR_TEXT) {
+      // pursuit-clear echo: calm cyan ring pulse with a CLEAN tag, distinct from hot dispatches
+      const clearT = (radioRestoreAtMs - now) / RADIO_HOLD_MS
+      ctx.strokeStyle = `rgba(0, 240, 255, ${0.3 + clearT * 0.4})`
+      ctx.shadowColor = '#00f0ff'
+      ctx.shadowBlur = 12
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(player.x, player.y, 34 + (1 - clearT) * 16, 0, Math.PI * 2)
+      ctx.stroke()
+      const cleanBlink = Math.sin(now / 150) > 0 ? 1 : 0.55
+      ctx.font = 'bold 9px ui-monospace, Consolas, monospace'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = `rgba(57, 255, 136, ${0.5 + 0.45 * cleanBlink})`
+      ctx.fillText('CLEAN', player.x, player.y + 44)
+      ctx.shadowBlur = 0
+      ctx.textAlign = 'left'
+    } else {
+      const radioBlink = Math.sin(now / 140) > 0 ? 1 : 0.5
+      ctx.font = 'bold 9px ui-monospace, Consolas, monospace'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = `rgba(255, 179, 0, ${0.55 + 0.4 * radioBlink})`
+      ctx.shadowColor = '#ff3c3c'
+      ctx.shadowBlur = 8
+      ctx.fillText('RADIO ▮▮▮', player.x, player.y + 44)
+      ctx.shadowBlur = 0
+      ctx.textAlign = 'left'
+    }
   }
   // Ambient pedestrians: simple cosmetic walk with bounded horizontal wrap;
   // a panicked witness sprints directly away from the player until its panic window ends
