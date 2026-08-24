@@ -28,6 +28,7 @@ app.innerHTML = `
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-weather" id="hud-weather" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#4da6ff;text-shadow:0 0 10px rgba(77,166,255,0.6);">WEATHER // CLEAR</p>
     <p class="hud-grip" id="hud-grip" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">GRIP // DRY</p>
+    <p class="hud-traffic" id="hud-traffic" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00e5b0;text-shadow:0 0 10px rgba(0,229,176,0.6);">TRAFFIC // FLOWING</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
     <p class="hud-jobboard" id="hud-jobboard" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff6bd6;text-shadow:0 0 10px rgba(255,107,214,0.6);">JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // Z STASH // N RACE</p>
@@ -1148,6 +1149,7 @@ const airSupportEl = document.getElementById('hud-air-support')!
 const walletEl = document.getElementById('hud-wallet')!
 const weatherEl = document.getElementById('hud-weather')!
 const gripEl = document.getElementById('hud-grip')!
+const trafficFlowEl = document.getElementById('hud-traffic')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
 const phoneBriefingEl = document.getElementById('phone-briefing')!
@@ -3886,6 +3888,10 @@ function frame(now: number) {
   const gripState = weather.wet < 0.25 ? 'DRY' : weather.wet < 0.7 ? 'WET' : 'SLIPPERY'
   const gripHudText = `GRIP // ${gripState}`
   if (gripEl.textContent !== gripHudText) gripEl.textContent = gripHudText
+  // traffic flow readout: civilians react to heat — calm, cautious, or clearing out
+  const trafficFlowState = wanted === 0 ? 'FLOWING' : wanted === 1 ? 'CAUTIOUS' : 'CLEARING'
+  const trafficFlowText = `TRAFFIC // ${trafficFlowState}`
+  if (trafficFlowEl.textContent !== trafficFlowText) trafficFlowEl.textContent = trafficFlowText
   const bg = ctx.createLinearGradient(0, 0, 0, h)
   // day/dusk/night sky palettes blended by clock-driven darkness for a smooth cycle;
   // storm skies darken slightly on top so lightning reads as a brightening flash
@@ -4828,7 +4834,9 @@ function frame(now: number) {
     if (t === stolenCar) return
     // wet-weather speed wobble: deterministic shimmer on the lane advance, visual only
     const sway = weather.wet > 0.2 ? Math.sin((now + t.x) / 1400) * weather.wet * 3 : 0
-    t.x += t.dir * (t.speed + sway) * dt
+    // heat flow: civilians ease off the gas as wanted rises — never mutates t.speed
+    const flowFactor = wanted >= 2 ? 0.82 : wanted === 1 ? 0.94 : 1
+    t.x += t.dir * (t.speed + sway) * flowFactor * dt
     if (t.dir > 0 && t.x > WORLD_W + t.length) t.x = -t.length
     if (t.dir < 0 && t.x < -t.length) t.x = WORLD_W + t.length
   })
@@ -5321,7 +5329,14 @@ function frame(now: number) {
     const swayAmp = weather.wet * 3 + weather.storm * 4
     const sway = Math.sin((now - runStartMs) / 700 + t.x * 0.05) * weather.wet * 6 * dt
     const wobbleX = t.x + sway
-    const laneY = t.laneY + Math.sin((now - runStartMs) / 1100 + t.x * 0.03) * swayAmp
+    // heat clearing: under heavy pursuit cars hug their lane edge — bounded constant-magnitude
+    // offset, deterministic from run clock and index, purely visual
+    let laneY = t.laneY + Math.sin((now - runStartMs) / 1100 + t.x * 0.03) * swayAmp
+    if (wanted >= 2) {
+      const edgeDir = t.dir > 0 ? -1 : 1
+      const edgeT = Math.min(1, Math.max(0, Math.sin(now / 1600 + ((t.x * 13 + t.laneY * 7) % 10)) * 0.5 + 0.5))
+      laneY += edgeDir * edgeT * 7
+    }
 
     ctx.shadowColor = t.color
     ctx.shadowBlur = 10
