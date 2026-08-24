@@ -947,3 +947,22 @@ The Cursor-authored phone-call slice is live and verified for the desktop produc
 ## Summary
 
 The Cursor-authored mission-control phone slice is live and desktop-verified in real Chrome. Mobile re-check for this exact commit, unavailable-branch execution, and full safehouse mission completion remain NOT FULLY VERIFIED. VICE//MERIDIAN remains an evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product.
+
+# Contacts Phone Briefing - Release Evidence (2026-08-23)
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Cursor source commit 3acfe077539b6e010c8206262b5c1b8b1e11d143 Add live phone mission briefing is on origin/main and the tree is clean | Cursor Git verification | PASS | HEAD equals origin/main; working tree clean |
+| Netlify production deploy 6a8b8b952f9c4a355ab3dab4 is ready at https://vice-meridian.netlify.app/ | Netlify CLI | PASS | Production URL live; served asset assets/index-BKlKXO2P.js |
+| Build and dependency audit | npm run build; npm audit --omit=dev | PASS | tsc + Vite build passed; 62.76 kB JS / 16.58 kB gzip; 0 vulnerabilities |
+| Whitespace hygiene | git diff --check | PASS | Clean output; no whitespace errors |
+| Live reachability and bundle markers | curl root, asset, bundle | PASS | Root and asset HTTP 200; live bundle contains phone-briefing, CALL CONNECTED, and MISSION // Sweep the grid |
+| Security headers | curl response headers | PASS | CSP, HSTS, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy are present |
+| Real Chrome desktop phone briefing flow | Chrome production at 1440x660 | PASS | Opened the phone, showed the live briefing text, all nine contacts, and one PRESS 1-9 TO CALL hint; scrollWidth 1440; Digit1 closed the phone and showed CALL CONNECTED; zero console errors |
+| Exact-commit mobile re-check at 390x844 | Prior mobile baseline for the phone overlay | NOT FULLY VERIFIED | Prior phone releases passed at 390x844; this exact briefing commit was not rerun at that viewport |
+| Auth, backend, and API integration | Static Vite architecture | NOT APPLICABLE | No auth, backend, or API surface exists |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice, not complete GTA 7 |
+
+## Summary
+
+Live phone briefing verified end to end on desktop production Chrome: commit, deploy, build/audit, bundle markers, security headers, and the full open-brief-close call flow passed with zero console errors. The exact-commit mobile 390x844 re-check remains NOT FULLY VERIFIED; auth/backend/API is NOT APPLICABLE for the static Vite site. LIMITATION ACKNOWLEDGED: VICE//MERIDIAN remains an evolving GTA-style vertical slice, not complete GTA 7.
