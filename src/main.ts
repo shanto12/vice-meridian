@@ -26,6 +26,7 @@ app.innerHTML = `
     <p class="hud-airunit" id="hud-airunit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#c8d2eb;text-shadow:0 0 10px rgba(200,210,235,0.7);">AIR UNIT // SPOTLIGHT ACTIVE</p>
     <p class="hud-air-support" id="hud-air-support" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">AIR SUPPORT // ACTIVE</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
+    <p class="hud-weather" id="hud-weather" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#4da6ff;text-shadow:0 0 10px rgba(77,166,255,0.6);">WEATHER // CLEAR</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
     <p class="hud-jobboard" id="hud-jobboard" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff6bd6;text-shadow:0 0 10px rgba(255,107,214,0.6);">JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // Z STASH // N RACE</p>
@@ -255,6 +256,63 @@ function cityClockText(nowMs: number): string {
   const hh = Math.floor(minutes / 60).toString().padStart(2, '0')
   const mm = (minutes % 60).toString().padStart(2, '0')
   return `CITY CLOCK // ${hh}:${mm}`
+}
+
+// Weather: a fixed deterministic cycle over the run clock — CLEAR, RAIN, STORM with
+// crossfades between them — driving purely cosmetic presentation. resetRun rewinds it
+// via runStartMs; no gameplay rules, timers, or persistence are touched
+const WEATHER_CYCLE_MS = 360_000
+const WEATHER_CROSSFADE_MS = 20_000
+type WeatherState = 'CLEAR' | 'RAIN' | 'STORM'
+const RAIN_POOL_SIZE = 90
+const rainDrops: { x: number; y: number; speed: number; len: number }[] = []
+for (let i = 0; i < RAIN_POOL_SIZE; i++) {
+  // index-derived seeding keeps the pool stable and Math.random out of the render path
+  rainDrops.push({
+    x: ((i * 733 + 191) % 1000) / 1000,
+    y: ((i * 449 + 97) % 1000) / 1000,
+    speed: 0.55 + (((i * 271) % 100) / 100) * 0.45,
+    len: 10 + ((i * 137) % 12),
+  })
+}
+// phase within the fixed schedule: 40% clear, 35% rain, 25% storm, crossfaded edges
+function weatherPhase(nowMs: number): { state: WeatherState; wet: number; storm: number } {
+  const t = ((nowMs - runStartMs) % WEATHER_CYCLE_MS + WEATHER_CYCLE_MS) % WEATHER_CYCLE_MS
+  const segClearEnd = WEATHER_CYCLE_MS * 0.4
+  const segRainEnd = WEATHER_CYCLE_MS * 0.75
+  const fade = WEATHER_CROSSFADE_MS
+  let state: WeatherState
+  let wet: number
+  let storm: number
+  if (t < segClearEnd - fade / 2) {
+    state = 'CLEAR'
+    wet = 0
+    storm = 0
+  } else if (t < segClearEnd + fade / 2) {
+    state = 'RAIN'
+    wet = (t - (segClearEnd - fade / 2)) / fade
+    storm = 0
+  } else if (t < segRainEnd - fade / 2) {
+    state = 'RAIN'
+    wet = 1
+    storm = 0
+  } else if (t < segRainEnd + fade / 2) {
+    state = 'STORM'
+    wet = 1
+    storm = (t - (segRainEnd - fade / 2)) / fade
+  } else if (t < WEATHER_CYCLE_MS - fade / 2) {
+    state = 'STORM'
+    wet = 1
+    storm = 1
+  } else {
+    state = 'CLEAR'
+    wet = 1 - (t - (WEATHER_CYCLE_MS - fade / 2)) / fade
+    storm = 1 - (t - (segRainEnd - fade / 2)) / fade
+    if (storm < 0) storm = 0
+  }
+  if (wet > 1) wet = 1
+  if (wet < 0) wet = 0
+  return { state, wet, storm }
 }
 
 const player = { x: WORLD_W / 2, y: WORLD_H / 2, size: 28, speed: 320 }
@@ -1087,6 +1145,7 @@ const roadblockEl = document.getElementById('hud-roadblock')!
 const airUnitEl = document.getElementById('hud-airunit')!
 const airSupportEl = document.getElementById('hud-air-support')!
 const walletEl = document.getElementById('hud-wallet')!
+const weatherEl = document.getElementById('hud-weather')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
 const phoneBriefingEl = document.getElementById('phone-briefing')!
@@ -3806,8 +3865,12 @@ function frame(now: number) {
 
   const nightOn = isCityNight(now)
   const darkness = nightShiftEnabled ? 1 : cityDarkness(now)
+  const weather = weatherPhase(now)
+  const weatherHudText = `WEATHER // ${weather.state}`
+  if (weatherEl.textContent !== weatherHudText) weatherEl.textContent = weatherHudText
   const bg = ctx.createLinearGradient(0, 0, 0, h)
-  // day/dusk/night sky palettes blended by clock-driven darkness for a smooth cycle
+  // day/dusk/night sky palettes blended by clock-driven darkness for a smooth cycle;
+  // storm skies darken slightly on top so lightning reads as a brightening flash
   const dayTop = [10, 3, 37]
   const dayMid = [18, 6, 58]
   const dayBot = [5, 1, 15]
@@ -3821,6 +3884,24 @@ function frame(now: number) {
   bg.addColorStop(1, mix(dayBot, nightBot))
   ctx.fillStyle = bg
   ctx.fillRect(0, 0, w, h)
+
+  // Storm lightning: rare short sky-flashes that brighten the existing gradient.
+  // Deterministic windows (one per ~9s at 30% chance) with a fast attack/decay envelope
+  let lightningFlash = 0
+  if (weather.storm > 0.5) {
+    const boltWindow = Math.floor(now / 9000)
+    const boltSeed = ((boltWindow * 2654435761) % 1000) / 1000
+    if (boltSeed < 0.3) {
+      const boltT = (now % 9000) / 9000
+      const strikeMs = 260
+      if (boltT < strikeMs / 9000) {
+        const phase = boltT * 9000 / strikeMs
+        lightningFlash = (phase < 0.25 ? phase / 0.25 : 1 - (phase - 0.25) / 0.75) * weather.storm
+        ctx.fillStyle = `rgba(200, 220, 255, ${lightningFlash * 0.22})`
+        ctx.fillRect(0, 0, w, h)
+      }
+    }
+  }
 
   // Night Shift street-light pools: soft warm ellipses along the road band under the horizon.
   // Clock-driven cycles fade the pools with dusk instead of hard-flipping them on
@@ -3848,6 +3929,13 @@ function frame(now: number) {
     ctx.restore()
   }
 
+  // Wet-road sheen: rain composes a cool reflective band over the road area, stacking
+  // with the night sheen above rather than replacing it; storm adds a little more
+  if (weather.wet > 0.02) {
+    ctx.fillStyle = `rgba(90, 160, 220, ${weather.wet * (0.05 + weather.storm * 0.04)})`
+    ctx.fillRect(0, h * 0.62, w, h * 0.38)
+  }
+
   ctx.strokeStyle = 'rgba(255, 45, 150, 0.12)'
   ctx.lineWidth = 1
   ctx.beginPath()
@@ -3862,6 +3950,24 @@ function frame(now: number) {
     ctx.lineTo(w, y)
   }
   ctx.stroke()
+
+  // Rain streaks: fixed pool of deterministic diagonal lines during RAIN/STORM.
+  // Positions derive from the clock so no random numbers touch the render path
+  if (weather.wet > 0.02) {
+    const dropCount = Math.floor(RAIN_POOL_SIZE * weather.wet)
+    const stormBoost = 1 + weather.storm * 0.6
+    ctx.strokeStyle = `rgba(160, 200, 255, ${0.18 + weather.storm * 0.14})`
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    for (let i = 0; i < dropCount; i++) {
+      const d = rainDrops[i]
+      const dx = ((d.x * w + now * 0.12) % (w + 40)) - 20
+      const dy = ((d.y * h + now * d.speed * stormBoost) % (h + 60)) - 30
+      ctx.moveTo(dx, dy)
+      ctx.lineTo(dx + 3, dy + d.len)
+    }
+    ctx.stroke()
+  }
 
   ctx.font = '600 13px ui-monospace, Consolas, monospace'
   ctx.textAlign = 'center'
