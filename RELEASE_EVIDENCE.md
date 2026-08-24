@@ -1891,3 +1891,60 @@ carried forward honestly from prior passes. VICE//MERIDIAN remains an evolving G
 browser vertical slice rather than literal complete GTA 7; auth/backend/API/runner jobs
 are N/A for this static Vite app. All prior sections remain intact as historical records
 superseded by this release.
+
+---
+
+# District Control Production Evidence - Release Evidence (2026-08-24)
+
+Release verification for the District Control postgame conquest layer, source commit
+`1f39a66` "Add postgame district control", deployed to production. This is the current
+release record; every earlier section in this file is a historical record superseded by
+it. Rows are separated so agent provenance, shell gates, live HTTP/header checks,
+real-Chrome sessions, runtime traversal, and banner-capture caveats are never mixed
+inside one evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git rev-list against origin/main | PASS | Commit `1f39a66` "Add postgame district control" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat 1f39a66 | PASS | Source-only: src/main.ts (+187/-13); RELEASE_EVIDENCE.md and src/style.css untouched by the feature commit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Production deploy `6a8bd80b3d7b4498cceb34b9`... superseded by current `6a8bdc9dc998249035697fbe`, ready at https://vice-meridian.netlify.app/ with unique URL https://6a8bdc9dc998249035697fbe--vice-meridian.netlify.app |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and /assets/index-B9S-Avkn.js | PASS | Both return HTTP 200; live JS asset index-B9S-Avkn.js confirmed on the current deploy |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS preload, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Real Chrome mobile baseline | Real Chrome session at 390x844 against the live alias | PASS | No document overflow; touch controls rendered and exercised; zero app console errors |
+| Real Chrome desktop baseline | Real Chrome session at 1440x660 against the live alias | PASS | No document overflow; zero app console errors |
+| Save/load round trip | P save and L load exercised live in Chrome | PASS | Both banners appeared (SAVE // PROGRESS STORED / PROGRESS LOADED); postgame state survived the round trip |
+| City map exercise | M map open/close in Chrome | PASS | Map opened and closed cleanly with live objective markers |
+| District Control unlock gating | Source review + live phone state | PASS | Entry appears only when missionComplete && kingpinOnline && networkJobState === complete; pregame contacts 1-9 unchanged |
+| Live postgame traversal: accept | Real Chrome mobile session at 390x844 | PASS | Kingpin online; phone showed 0 DISTRICT CONTROL 0/3 READY for MIDTOWN; Digit0 accepted and closed the menu |
+| Live postgame traversal: secure | Same session, route compass and on-foot Y | PASS | Route read DISTRICT 1 to MIDTOWN; Y at the site produced DISTRICT CONTROL // RETURN TO SAFEHOUSE with WANTED 2; return route pointed to the safehouse |
+| Live postgame traversal: deliver | Same session, Y at safehouse | PASS | Delivery paid out — CASH $2750 / REP 12 / WANTED 0; phone then showed 0 DISTRICT CONTROL 1/3 READY for INDUSTRIAL |
+| Midtown delivery banner capture | Console/DOM capture during the delivery window | NOT CLAIMED | The final Midtown delivery banner was obscured by the simultaneous STREET CRED // KINGPIN // RANK UP banner and was not captured as a standalone string; wallet, phone state, and progression prove completion |
+| Console warning provenance | Real Chrome console capture during all sessions | PASS | Mobile console had no app errors; any MetaMask extension-only warnings from earlier browser history are not app errors |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+The District Control postgame layer is verified live against HEAD commit `1f39a66` "Add
+postgame district control" and Netlify production deploy `6a8bdc9dc998249035697fbe` at
+https://vice-meridian.netlify.app/ (unique URL
+https://6a8bdc9dc998249035697fbe--vice-meridian.netlify.app). Root and the live JS asset
+/assets/index-B9S-Avkn.js return HTTP 200 under the current CSP, HSTS preload,
+X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy headers. Real
+Chrome baselines hold at 390x844 and 1440x660 with no document overflow and zero app
+console errors; P/L save-load banners and M map open/close were exercised, and the mobile
+console contained no app errors — MetaMask warnings from earlier browser history are
+extension-only, not app errors. The full first-district traversal ran live: with the
+network online the phone showed 0 DISTRICT CONTROL 0/3 READY for MIDTOWN, Digit0 accepted,
+the route compass pointed DISTRICT 1, Y at the site secured it (DISTRICT CONTROL //
+RETURN TO SAFEHOUSE, WANTED 2), the return leg routed home, and delivery paid out to
+CASH $2750 / REP 12 / WANTED 0 with the phone advancing to 0 DISTRICT CONTROL 1/3 READY
+for INDUSTRIAL. Stated honestly: the final Midtown delivery banner was obscured by the
+simultaneous STREET CRED // KINGPIN // RANK UP banner and was not captured as a standalone
+string — wallet, phone state, and progression prove completion. The wanted-three air-unit
+runtime remains NOT FULLY VERIFIED, carried forward from prior passes. VICE//MERIDIAN
+remains an evolving GTA-style browser vertical slice rather than a literal complete
+GTA 7; auth/backend/API/runner jobs are N/A for this static Vite game. All prior sections
+remain intact as historical records superseded by this release.
