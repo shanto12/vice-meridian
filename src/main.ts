@@ -4486,7 +4486,7 @@ function frame(now: number) {
   }
 
   // Police dispatch readout: mirrors the wanted level while any heat is up
-  const pursuitText = `POLICE PURSUIT // HEAT ${wanted}/3`
+  const pursuitText = wanted > 0 ? `POLICE PURSUIT // HEAT ${wanted}/3 // Q JAM // H SAFEHOUSE` : `POLICE PURSUIT // HEAT ${wanted}/3`
   if (pursuitEl.textContent !== pursuitText) pursuitEl.textContent = pursuitText
   if (pursuitEl.style.display !== (wanted > 0 ? '' : 'none')) {
     pursuitEl.style.display = wanted > 0 ? '' : 'none'
