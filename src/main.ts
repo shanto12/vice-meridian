@@ -95,7 +95,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'KeyU' || e.code === 'KeyO' || e.code === 'KeyI') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'KeyU' || e.code === 'KeyO' || e.code === 'KeyI' || e.code === 'KeyZ') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -143,6 +143,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyI') chopShopRequested = true
   if (e.code === 'KeyU') crewNetworkRequested = true
   if (e.code === 'KeyN') raceRequested = true
+  if (e.code === 'KeyZ') stashRequested = true
   if (e.code === 'KeyY') nightShiftEnabled = !nightShiftEnabled
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
@@ -423,6 +424,18 @@ type ChopShopState = 'available' | 'steal' | 'return' | 'complete'
 let chopShopState: ChopShopState = 'available'
 let chopShopDeadlineMs = 0
 let chopShopRestoreAtMs = 0
+
+// Black Market Stash: one fixed Harbor-area crate with a one-shot on-foot grab (KeyZ).
+// Cosmetic freebie outside the mission economy — +$200/+1 rep, banner, marker clears;
+// reset by the standard restart flow and never persisted to the save slot
+const STASH_SITE = { x: WORLD_W * 0.86, y: WORLD_H * 0.80, radius: 90 }
+const STASH_CASH_REWARD = 200
+const STASH_REP_REWARD = 1
+const STASH_HOLD_MS = 2600
+const STASH_SECURED_TEXT = 'BLACK MARKET // STASH SECURED +$200 // REP +1'
+let stashRequested = false
+let stashCollected = false
+let stashRestoreAtMs = 0
 
 // Courier contract: available -> active (on first entry near spawn) -> complete (delivered)
 const SKYWAY_DROP_OFF = { x: WORLD_W - 340, y: WORLD_H * 0.26 }
@@ -845,6 +858,9 @@ function resetRun(nowMs: number) {
   chopShopState = 'available'
   chopShopDeadlineMs = 0
   chopShopRestoreAtMs = 0
+  stashRequested = false
+  stashCollected = false
+  stashRestoreAtMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1120,6 +1136,9 @@ function objectiveMarkers(): ObjectiveMarker[] {
   }
   if (chopShopState === 'steal') {
     markers.push({ x: CHOP_SHOP_SITE.x, y: CHOP_SHOP_SITE.y, label: 'CHOP SHOP', color: '#b26bff' })
+  }
+  if (!stashCollected) {
+    markers.push({ x: STASH_SITE.x, y: STASH_SITE.y, label: 'STASH', color: '#39ff88' })
   }
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[Math.min(raceCheckpointIndex, RACE_CHECKPOINTS.length - 1)]
@@ -2217,6 +2236,19 @@ function frame(now: number) {
   }
   chopShopRequested = false
 
+  // Black Market Stash: one-shot on-foot grab inside the crate radius pays +$200/+1 rep,
+  // raises the banner, and permanently clears the marker for the rest of the run
+  if (stashRequested && !stashCollected && !driving) {
+    if (Math.hypot(player.x - STASH_SITE.x, player.y - STASH_SITE.y) < STASH_SITE.radius) {
+      stashCollected = true
+      cash += STASH_CASH_REWARD
+      rep += STASH_REP_REWARD
+      stashRestoreAtMs = now + STASH_HOLD_MS
+      missionEl.textContent = STASH_SECURED_TEXT
+    }
+  }
+  stashRequested = false
+
   // Chop Shop timer: expiring mid-job safely returns to available with no payout
   if ((chopShopState === 'steal' || chopShopState === 'return') && chopShopDeadlineMs > 0 && now >= chopShopDeadlineMs) {
     chopShopState = 'available'
@@ -2717,6 +2749,9 @@ function frame(now: number) {
   if (chopShopRestoreAtMs > 0 && now >= chopShopRestoreAtMs) {
     chopShopRestoreAtMs = 0
   }
+  if (stashRestoreAtMs > 0 && now >= stashRestoreAtMs) {
+    stashRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -2741,7 +2776,8 @@ function frame(now: number) {
     jJobRestoreAtMs > 0 ||
     turfRestoreAtMs > 0 ||
     smugglerRestoreAtMs > 0 ||
-    chopShopRestoreAtMs > 0
+    chopShopRestoreAtMs > 0 ||
+    stashRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -2783,6 +2819,8 @@ function frame(now: number) {
   } else if (chopShopRestoreAtMs > 0) {
     const chopShopBannerText = chopShopState === 'complete' ? CHOP_SHOP_DONE_TEXT : CHOP_SHOP_LOST_TEXT
     if (missionEl.textContent !== chopShopBannerText) missionEl.textContent = chopShopBannerText
+  } else if (stashRestoreAtMs > 0) {
+    if (missionEl.textContent !== STASH_SECURED_TEXT) missionEl.textContent = STASH_SECURED_TEXT
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -3569,6 +3607,52 @@ function frame(now: number) {
     ctx.fillStyle = '#b26bff'
     ctx.fillText('CHOP SHOP', cx2, cy2 - CHOP_SHOP_SITE.radius - 26)
     ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - cx2, player.y - cy2))}M`, cx2, cy2 - CHOP_SHOP_SITE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
+  // Black Market Stash crate: neon slatted crate with a dollar glyph while uncollected
+  if (!stashCollected) {
+    const stx = STASH_SITE.x
+    const sty = STASH_SITE.y
+    const nearStash = !driving && Math.hypot(player.x - stx, player.y - sty) < STASH_SITE.radius
+    const breathe = Math.sin(now / 300) * 5
+    ctx.strokeStyle = '#39ff88'
+    ctx.shadowColor = '#39ff88'
+    ctx.shadowBlur = 20 + breathe
+    ctx.lineWidth = 3
+    ctx.setLineDash([12, 9])
+    ctx.beginPath()
+    ctx.arc(stx, sty, STASH_SITE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    // slatted crate body with a center strap
+    ctx.lineWidth = 2.5
+    ctx.strokeRect(stx - 15, sty - 11, 30, 22)
+    ctx.beginPath()
+    ctx.moveTo(stx - 15, sty)
+    ctx.lineTo(stx + 15, sty)
+    ctx.moveTo(stx, sty - 11)
+    ctx.lineTo(stx, sty + 11)
+    ctx.stroke()
+    // dollar glyph over the strap
+    ctx.font = '700 10px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#bfffff'
+    ctx.fillText('$', stx, sty + 3.5)
+    if (nearStash) {
+      ctx.fillStyle = '#bfffff'
+      ctx.beginPath()
+      ctx.arc(stx, sty, 4 + Math.sin(now / 140) * 1.5, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.font = '600 11px ui-monospace, Consolas, monospace'
+      ctx.fillStyle = '#39ff88'
+      ctx.fillText('PRESS Z TO SECURE', stx, sty + STASH_SITE.radius - 10)
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#39ff88'
+    ctx.fillText('BLACK MARKET STASH', stx, sty - STASH_SITE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - stx, player.y - sty))}M`, stx, sty - STASH_SITE.radius - 12)
     ctx.shadowBlur = 0
   }
 
