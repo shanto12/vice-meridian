@@ -2166,3 +2166,45 @@ VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather than 
 complete GTA 7, and no auth, backend runner, or API endpoint is part of this static Canvas
 release. All prior sections remain intact as historical records superseded by this
 release.
+
+---
+
+# Pursuit HUD Escape Hints Production Evidence - Release Evidence (2026-08-24)
+
+Release verification for the pursuit-HUD escape-hint slice ("Teach Q jam and H safehouse
+escapes in pursuit HUD"). This is current production evidence for exactly what was tested
+this pass — not a claim of full GTA 7 completion; every earlier section remains a historical
+record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `5cf2cb1` "Teach Q jam and H safehouse escapes in pursuit HUD" on GitHub main | One-line src/main.ts change appending "// Q JAM // H SAFEHOUSE" to the existing POLICE PURSUIT HUD line when wanted is above 0 while keeping the wanted-0 HUD text unchanged; pushed and synchronized with origin/main |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at `5cf2cb1` | Completed without errors; produced assets/index-BME-EHwh.js |
+| Dependency hygiene passed | PASS | npm audit --omit=dev | 0 vulnerabilities found in the production dependency tree |
+| Production deploy is live | PASS | Netlify deploy `6a8bfa7e3974a12755ed53a8` at https://vice-meridian.netlify.app/ | Live asset assets/index-BME-EHwh.js served from the production deploy |
+| Root document serves over HTTPS | PASS | Live HTTP GET https://vice-meridian.netlify.app/ | Returned HTTP 200 |
+| Security headers verified | PASS | Production response header capture | CSP, HSTS, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy verified from response headers |
+| Live bundle carries the new HUD hint strings | PASS | Live HTTP GET of assets/index-BME-EHwh.js on the production deploy | Bundle contains Q JAM, H SAFEHOUSE, and nightShiftEnabled markers, confirming a non-stale deploy serving the updated bundle |
+| Desktop browser pass | PASS | Real Chrome desktop session on the live site | Production route loaded, canvas matched the 1440px viewport, keyboard workflow smoke was exercised, and the application console error list was empty |
+| Mobile layout and touch controls | PASS | Real Chrome mobile session at 390x844 on the live site | Canvas and body both stayed 390px with no horizontal overflow; all six visible touch controls were clicked; console errors were empty |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Canvas architecture review | No auth, backend runner, or API endpoint is part of this static Canvas release |
+
+## Summary
+
+Commit `5cf2cb1` "Teach Q jam and H safehouse escapes in pursuit HUD" is live in Netlify
+production deploy `6a8bfa7e3974a12755ed53a8` at https://vice-meridian.netlify.app/,
+serving assets/index-BME-EHwh.js — the bundle the local tsc && vite build produced from
+that commit — with the root document returning HTTP 200 under CSP, HSTS,
+X-Content-Type-Options, Referrer-Policy, and Permissions-Policy verified from response
+headers. The live bundle contains the Q JAM, H SAFEHOUSE, and nightShiftEnabled markers.
+From the same commit, npm run build passed and npm audit --omit=dev found 0
+vulnerabilities, and GitHub main is synchronized with the pushed source commit. A real
+Chrome desktop pass loaded the production route, confirmed the canvas matched the 1440px
+viewport, exercised the keyboard workflow smoke, and logged no console errors. A real
+Chrome mobile pass at 390x844 kept canvas and body at 390px, clicked all six visible touch
+controls, and logged no console errors. This section records current production evidence
+for exactly the tests listed above — it is not a claim of full GTA 7 completion;
+VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather than a literal
+complete GTA 7, and no auth, backend runner, or API endpoint is part of this static Canvas
+release. All prior sections remain intact as historical records superseded by this
+release.
