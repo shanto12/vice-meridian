@@ -1161,6 +1161,10 @@ function resetRun(nowMs: number) {
   jackFlashUntilMs = 0
   carjackRestoreAtMs = 0
   wreckRestoreAtMs = 0
+  witnessPedIndex = -1
+  witnessReportDeadlineMs = 0
+  witnessAlertRestoreAtMs = 0
+  witnessJammedRestoreAtMs = 0
   lastStreetCredRank = streetCredRank(rep)
   streetCredRankUpUntilMs = 0
   lastCampaignAct = campaignAct()
@@ -1263,7 +1267,8 @@ const traffic: CivilianCar[] = Array.from({ length: 6 }, (_, i) => makeCivilianC
 
 // Ambient pedestrian crowd: eight fixed cosmetic walkers on the lower sidewalk bands.
 // The layout derives purely from the index so resetRun reproduces it exactly.
-type Pedestrian = { x: number; y: number; dir: number; speed: number; color: string; phase: number }
+// panicUntilMs is transient witness-panic state (0 = calm) and is never persisted
+type Pedestrian = { x: number; y: number; dir: number; speed: number; color: string; phase: number; panicUntilMs?: number }
 function makePedestrian(i: number): Pedestrian {
   const northSide = i % 2 === 0
   return {
@@ -1278,6 +1283,28 @@ function makePedestrian(i: number): Pedestrian {
   }
 }
 const pedestrians: Pedestrian[] = Array.from({ length: 8 }, (_, i) => makePedestrian(i))
+
+// Witness report: the single nearest pedestrian within WITNESS_RADIUS of a successful
+// carjack panics and calls the cops on a short fuse. One report per carjack, never
+// stacked; Q jams it, H/R clear it. Entirely transient — resetRun-cleared, no save fields
+const WITNESS_RADIUS = 260
+const WITNESS_FLEE_MS = 4000
+const WITNESS_REPORT_MS = 2600
+const WITNESS_ALERT_HOLD_MS = 2200
+const JAM_HOLD_MS = 1800
+const WITNESS_ALERT_TEXT = 'WITNESS // POLICE ALERT'
+const WITNESS_JAMMED_TEXT = 'WITNESS // JAMMED'
+let witnessPedIndex = -1
+let witnessReportDeadlineMs = 0
+let witnessAlertRestoreAtMs = 0
+let witnessJammedRestoreAtMs = 0
+function clearWitnessState() {
+  if (witnessPedIndex >= 0) delete pedestrians[witnessPedIndex].panicUntilMs
+  witnessPedIndex = -1
+  witnessReportDeadlineMs = 0
+  witnessAlertRestoreAtMs = 0
+  witnessJammedRestoreAtMs = 0
+}
 
 // Second-act objective: extraction gate (revealed once all signals are found)
 const gate = {
@@ -2231,6 +2258,21 @@ function frame(now: number) {
         jackFlashUntilMs = now + CARJACK_FLASH_MS
         carjackRestoreAtMs = now + CARJACK_HOLD_MS
         missionEl.textContent = CARJACKED_TEXT
+        // Witness selection: single nearest pedestrian inside the radius panics and starts
+        // one pending report; a fresh jack refreshes any previous witness (no stacking)
+        witnessPedIndex = -1
+        let witnessBestDist = WITNESS_RADIUS
+        for (let i = 0; i < pedestrians.length; i++) {
+          const dist = Math.hypot(player.x - pedestrians[i].x, player.y - pedestrians[i].y)
+          if (dist <= witnessBestDist) {
+            witnessBestDist = dist
+            witnessPedIndex = i
+          }
+        }
+        if (witnessPedIndex >= 0) {
+          pedestrians[witnessPedIndex].panicUntilMs = now + WITNESS_FLEE_MS
+          witnessReportDeadlineMs = now + WITNESS_REPORT_MS
+        }
       }
     }
 
@@ -2238,6 +2280,7 @@ function frame(now: number) {
     if (safehouseRequested && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
       setWanted(0)
       heatCoolStartMs = 0
+      clearWitnessState()
       missionEl.textContent = SAFEHOUSE_CLEAR_TEXT
       safehouseRestoreAtMs = now + SAFEHOUSE_HOLD_MS
     }
@@ -3272,9 +3315,15 @@ function frame(now: number) {
     missionEl.textContent = HEAT_COOLING_TEXT
   }
 
-  // Jammer pulse on Q: disables nearest drone in range, cools heat by 1
+  // Jammer pulse on Q: disables nearest drone in range, cools heat by 1.
+  // A pending witness report jams instantly alongside the pulse; drone/heat logic untouched
   if (jammer.requested) {
     jammer.requested = false
+    if (witnessReportDeadlineMs > 0) {
+      witnessReportDeadlineMs = 0
+      witnessJammedRestoreAtMs = now + JAM_HOLD_MS
+      missionEl.textContent = WITNESS_JAMMED_TEXT
+    }
     if (jammer.cooldown <= 0) {
       jammer.cooldown = 3.5
       jammer.active = now + 420
@@ -3393,6 +3442,19 @@ function frame(now: number) {
   if (carjackRestoreAtMs > 0 && now >= carjackRestoreAtMs) {
     carjackRestoreAtMs = 0
   }
+  if (witnessAlertRestoreAtMs > 0 && now >= witnessAlertRestoreAtMs) {
+    witnessAlertRestoreAtMs = 0
+  }
+  if (witnessJammedRestoreAtMs > 0 && now >= witnessJammedRestoreAtMs) {
+    witnessJammedRestoreAtMs = 0
+  }
+  if (witnessReportDeadlineMs > 0 && now >= witnessReportDeadlineMs) {
+    // The call went through: one heat bump per report, then the pending state clears
+    witnessReportDeadlineMs = 0
+    setWanted(wanted + 1)
+    witnessAlertRestoreAtMs = now + WITNESS_ALERT_HOLD_MS
+    missionEl.textContent = WITNESS_ALERT_TEXT
+  }
   if (wreckRestoreAtMs > 0 && now >= wreckRestoreAtMs) {
     wreckRestoreAtMs = 0
   }
@@ -3452,6 +3514,9 @@ function frame(now: number) {
     stashRestoreAtMs > 0 ||
     carjackRestoreAtMs > 0 ||
     wreckRestoreAtMs > 0 ||
+    witnessReportDeadlineMs > 0 ||
+    witnessAlertRestoreAtMs > 0 ||
+    witnessJammedRestoreAtMs > 0 ||
     streetCredRankUpUntilMs > 0 ||
     actCompleteUntilMs > 0 ||
     kingpinRestoreAtMs > 0 ||
@@ -3503,6 +3568,14 @@ function frame(now: number) {
     if (missionEl.textContent !== STASH_SECURED_TEXT) missionEl.textContent = STASH_SECURED_TEXT
   } else if (carjackRestoreAtMs > 0) {
     if (missionEl.textContent !== CARJACKED_TEXT) missionEl.textContent = CARJACKED_TEXT
+  } else if (witnessReportDeadlineMs > 0) {
+    const witnessCountdown = Math.ceil((witnessReportDeadlineMs - now) / 1000)
+    const witnessText = `WITNESS // CALLING POLICE — ${witnessCountdown}S`
+    if (missionEl.textContent !== witnessText) missionEl.textContent = witnessText
+  } else if (witnessAlertRestoreAtMs > 0) {
+    if (missionEl.textContent !== WITNESS_ALERT_TEXT) missionEl.textContent = WITNESS_ALERT_TEXT
+  } else if (witnessJammedRestoreAtMs > 0) {
+    if (missionEl.textContent !== WITNESS_JAMMED_TEXT) missionEl.textContent = WITNESS_JAMMED_TEXT
   } else if (wreckRestoreAtMs > 0) {
     if (missionEl.textContent !== CAR_WRECKED_TEXT) missionEl.textContent = CAR_WRECKED_TEXT
   } else if (kingpinRestoreAtMs > 0) {
@@ -4514,11 +4587,20 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
   // Ambient pedestrians: simple cosmetic walk with bounded horizontal wrap;
-  // drawn beneath the player/courier/police layers
+  // a panicked witness sprints directly away from the player until its panic window ends
   for (const ped of pedestrians) {
-    ped.x += ped.dir * ped.speed * dt
+    if (ped.panicUntilMs !== undefined && now < ped.panicUntilMs) {
+      const dxPanic = ped.x - player.x
+      const dyPanic = ped.y - player.y
+      const distPanic = Math.hypot(dxPanic, dyPanic) || 1
+      ped.x += (dxPanic / distPanic) * DRIVER_FLEE_SPEED * dt
+      ped.y += (dyPanic / distPanic) * DRIVER_FLEE_SPEED * dt
+    } else {
+      ped.x += ped.dir * ped.speed * dt
+    }
     if (ped.dir > 0 && ped.x > WORLD_W + 24) ped.x = -24
     if (ped.dir < 0 && ped.x < -24) ped.x = WORLD_W + 24
+    ped.y = Math.max(30, Math.min(WORLD_H - 30, ped.y))
   }
   for (const ped of pedestrians) {
     const walkBob = Math.sin(now / 130 + ped.phase) > 0 ? 1.5 : 0
@@ -4538,6 +4620,17 @@ function frame(now: number) {
     ctx.moveTo(px, py + 2)
     ctx.lineTo(px + 4, py + 8)
     ctx.stroke()
+    // Panicked witness marker: pulsing red WITNESS tag while the panic window is live
+    if (ped.panicUntilMs !== undefined && now < ped.panicUntilMs) {
+      ctx.font = '9px ui-monospace, Consolas, monospace'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = `rgba(255, 60, 60, ${0.55 + 0.45 * Math.sin(now / 120)})`
+      ctx.shadowColor = '#ff3c3c'
+      ctx.shadowBlur = 10
+      ctx.fillText('WITNESS', px, py - 20)
+      ctx.shadowBlur = 0
+      ctx.textAlign = 'left'
+    }
     ctx.shadowBlur = 0
   }
   drawCourierCar(driving)
