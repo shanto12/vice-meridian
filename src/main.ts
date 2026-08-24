@@ -1161,6 +1161,7 @@ function resetRun(nowMs: number) {
   jackFlashUntilMs = 0
   carjackRestoreAtMs = 0
   wreckRestoreAtMs = 0
+  clearBustedState()
   witnessIndices.length = 0
   witnessReportDeadlineMs = 0
   witnessAlertRestoreAtMs = 0
@@ -1300,6 +1301,36 @@ let witnessIndices: number[] = []
 let witnessReportDeadlineMs = 0
 let witnessAlertRestoreAtMs = 0
 let witnessJammedRestoreAtMs = 0
+
+// BUSTED: a police cruiser or live-roadblock impact wrecking the driven car under heat
+// freezes control briefly, wipes heat, and takes a capped cash fine. Purely transient —
+// resetRun-cleared, no save fields; the no-heat wreck path keeps its repair flow untouched
+const BUSTED_HOLD_MS = 2200
+const BUSTED_FINE = 200
+const BUSTED_TEXT_BASE = 'BUSTED // FINE'
+let bustedActiveUntilMs = 0
+let bustedRestoreAtMs = 0
+let bustedFineDeducted = 0
+let bustedText = ''
+function clearBustedState() {
+  bustedActiveUntilMs = 0
+  bustedRestoreAtMs = 0
+  bustedFineDeducted = 0
+  bustedText = ''
+}
+function enterBusted(nowMs: number) {
+  // once-per-wreck guard plus heat requirement; zero-heat wrecks stay on the repair flow
+  if (wanted <= 0 || bustedActiveUntilMs > 0) return false
+  bustedFineDeducted = Math.min(BUSTED_FINE, cash)
+  cash -= bustedFineDeducted
+  setWanted(0)
+  heatCoolStartMs = 0
+  bustedActiveUntilMs = nowMs + BUSTED_HOLD_MS
+  bustedRestoreAtMs = nowMs + BUSTED_HOLD_MS
+  bustedText = `${BUSTED_TEXT_BASE} $${bustedFineDeducted}`
+  missionEl.textContent = bustedText
+  return true
+}
 function clearWitnessState() {
   for (const i of witnessIndices) delete pedestrians[i].panicUntilMs
   witnessIndices.length = 0
@@ -2066,13 +2097,16 @@ function frame(now: number) {
 
   let dx = 0
   let dy = 0
-  for (const code of keys) {
-    const [mx, my] = MOVE_KEYS[code]
-    dx += mx
-    dy += my
+  const busted = bustedActiveUntilMs > now
+  if (!busted) {
+    for (const code of keys) {
+      const [mx, my] = MOVE_KEYS[code]
+      dx += mx
+      dy += my
+    }
   }
   const len = Math.hypot(dx, dy) || 1
-  const moving = dx !== 0 || dy !== 0
+  const moving = !busted && (dx !== 0 || dy !== 0)
 
   if (!driving) {
     const wantBoost = keys.has('Space') && boost.energy > 1 && !boost.cooldown
@@ -2437,6 +2471,19 @@ function frame(now: number) {
   blackoutRequested = false
   raceRequested = false
   bankRequested = false
+
+  // BUSTED freeze: while the bust window is live, queued action inputs are swallowed so
+  // the arrest holds; R restart is consumed earlier in the frame and still passes through
+  if (bustedActiveUntilMs > now) {
+    courierToggleRequested = false
+    safehouseRequested = false
+    garageRequested = false
+    repairRequested = false
+    saveRequested = false
+    loadRequested = false
+    jammer.requested = false
+    pulse.requested = false
+  }
 
   // VIP Extraction: V at the safehouse accepts; drive to the client, then bring them home
   const vipAcceptable =
@@ -3195,8 +3242,10 @@ function frame(now: number) {
           player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
           player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
           courierCar.speed = 0
-          missionEl.textContent = VEHICLE_DISABLED_TEXT
-          vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+          if (!enterBusted(now)) {
+            missionEl.textContent = VEHICLE_DISABLED_TEXT
+            vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+          }
         }
         break
       }
@@ -3243,7 +3292,10 @@ function frame(now: number) {
         policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
         policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
         missionEl.textContent = `STOLEN RIDE // HULL ${stolenHull}%`
-        if (stolenHull <= 0) bailOutOfStolenCar(now)
+        if (stolenHull <= 0) {
+          bailOutOfStolenCar(now)
+          enterBusted(now)
+        }
       } else {
         carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
         policeHitUntilMs = now + POLICE_HIT_HOLD_MS
@@ -3255,8 +3307,10 @@ function frame(now: number) {
           player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
           player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
           courierCar.speed = 0
-          missionEl.textContent = VEHICLE_DISABLED_TEXT
-          vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+          if (!enterBusted(now)) {
+            missionEl.textContent = VEHICLE_DISABLED_TEXT
+            vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+          }
         }
       }
     }
@@ -3447,6 +3501,12 @@ function frame(now: number) {
   if (witnessAlertRestoreAtMs > 0 && now >= witnessAlertRestoreAtMs) {
     witnessAlertRestoreAtMs = 0
   }
+  if (bustedActiveUntilMs > 0 && now >= bustedActiveUntilMs) {
+    bustedActiveUntilMs = 0
+  }
+  if (bustedRestoreAtMs > 0 && now >= bustedRestoreAtMs) {
+    bustedRestoreAtMs = 0
+  }
   if (witnessJammedRestoreAtMs > 0 && now >= witnessJammedRestoreAtMs) {
     witnessJammedRestoreAtMs = 0
   }
@@ -3516,6 +3576,7 @@ function frame(now: number) {
     stashRestoreAtMs > 0 ||
     carjackRestoreAtMs > 0 ||
     wreckRestoreAtMs > 0 ||
+    bustedRestoreAtMs > 0 ||
     witnessReportDeadlineMs > 0 ||
     witnessAlertRestoreAtMs > 0 ||
     witnessJammedRestoreAtMs > 0 ||
@@ -3570,6 +3631,8 @@ function frame(now: number) {
     if (missionEl.textContent !== STASH_SECURED_TEXT) missionEl.textContent = STASH_SECURED_TEXT
   } else if (carjackRestoreAtMs > 0) {
     if (missionEl.textContent !== CARJACKED_TEXT) missionEl.textContent = CARJACKED_TEXT
+  } else if (bustedRestoreAtMs > 0 && bustedText) {
+    if (missionEl.textContent !== bustedText) missionEl.textContent = bustedText
   } else if (witnessReportDeadlineMs > 0) {
     const witnessCountdown = Math.ceil((witnessReportDeadlineMs - now) / 1000)
     const witnessText = `WITNESS // CALLING POLICE — ${witnessCountdown}S`
@@ -4587,6 +4650,30 @@ function frame(now: number) {
     ctx.arc(player.x, player.y, 30 + (1 - hitT) * 14, 0, Math.PI * 2)
     ctx.stroke()
     ctx.shadowBlur = 0
+  }
+  // BUSTED arrest pulse: expanding red rings plus a bold marker over the player while held
+  if (bustedActiveUntilMs > now) {
+    const bustT = (bustedActiveUntilMs - now) / BUSTED_HOLD_MS
+    for (let ring = 0; ring < 2; ring++) {
+      const ringT = Math.min(1, Math.max(0, bustT - ring * 0.18))
+      if (ringT <= 0) continue
+      ctx.strokeStyle = `rgba(255, 60, 60, ${0.25 + ringT * 0.45})`
+      ctx.shadowColor = '#ff3c3c'
+      ctx.shadowBlur = 14
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.arc(player.x, player.y, 26 + (1 - ringT) * 34, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+    const blink = Math.sin(now / 110) > 0 ? 1 : 0.55
+    ctx.font = 'bold 13px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = `rgba(255, 60, 60, ${blink})`
+    ctx.shadowColor = '#ff3c3c'
+    ctx.shadowBlur = 12
+    ctx.fillText('BUSTED', player.x, player.y - 34)
+    ctx.shadowBlur = 0
+    ctx.textAlign = 'left'
   }
   // Ambient pedestrians: simple cosmetic walk with bounded horizontal wrap;
   // a panicked witness sprints directly away from the player until its panic window ends
