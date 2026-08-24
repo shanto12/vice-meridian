@@ -490,7 +490,6 @@ type RideProfile = {
   brake: number
   friction: number
   turnRate: number
-  hullMax: number
   damageMult: number
   statTag: string
 }
@@ -504,7 +503,6 @@ const RIDE_PROFILES: RideProfile[] = [
     brake: 560,
     friction: 240,
     turnRate: 2.6,
-    hullMax: 100,
     damageMult: 1,
     statTag: 'SPD+ HULL+',
   },
@@ -517,7 +515,6 @@ const RIDE_PROFILES: RideProfile[] = [
     brake: 600,
     friction: 230,
     turnRate: 2.85,
-    hullMax: 70,
     damageMult: 1.15,
     statTag: 'SPD++ HULL- TURN+',
   },
@@ -530,7 +527,6 @@ const RIDE_PROFILES: RideProfile[] = [
     brake: 520,
     friction: 260,
     turnRate: 2.4,
-    hullMax: 130,
     damageMult: 0.7,
     statTag: 'HULL++ SPD- ARMOR',
   },
@@ -1505,6 +1501,7 @@ function resetRun(nowMs: number) {
   rideRequested = false
   rideRestoreAtMs = 0
   rideBannerText = ''
+  applyActiveRide()
 }
 
 const signals = Array.from({ length: 3 }, (_, i) => ({
@@ -3411,10 +3408,6 @@ function frame(now: number) {
         typeof data.garageUpgradeLevel === 'number' ? data.garageUpgradeLevel : (data.garageTuneInstalled ? 1 : 0)
       garageUpgradeLevel = Math.max(0, Math.min(GARAGE_TIERS.length, restoredGarageLevel))
       garageTuneInstalled = garageUpgradeLevel >= 1
-      if (garageUpgradeLevel >= 1) {
-        courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
-        courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
-      }
       activeRide = typeof data.activeRide === 'number' &&
         Number.isInteger(data.activeRide) && data.activeRide >= 0 && data.activeRide < RIDE_PROFILES.length
         ? data.activeRide
@@ -6027,10 +6020,6 @@ function frame(now: number) {
       typeof bootData.garageUpgradeLevel === 'number' ? bootData.garageUpgradeLevel : (bootData.garageTuneInstalled ? 1 : 0)
     garageUpgradeLevel = Math.max(0, Math.min(GARAGE_TIERS.length, restoredGarageLevel))
     garageTuneInstalled = garageUpgradeLevel >= 1
-    if (garageUpgradeLevel >= 1) {
-      courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
-      courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
-    }
     activeRide = typeof bootData.activeRide === 'number' &&
       Number.isInteger(bootData.activeRide) && bootData.activeRide >= 0 && bootData.activeRide < RIDE_PROFILES.length
       ? bootData.activeRide
