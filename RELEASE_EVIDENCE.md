@@ -1498,3 +1498,61 @@ air-unit runtime remains NOT FULLY VERIFIED, and VICE//MERIDIAN remains an evolv
 GTA-style browser vertical slice rather than a literal complete GTA 7. The phone-menu
 overlay is client-side game UI, not auth; backend/API/runner jobs are N/A. All prior
 sections remain intact as historical records superseded by this release.
+
+---
+
+# Kingpin Network Epilogue - Release Evidence (2026-08-23)
+
+Verification matrix for the kingpin-network epilogue release (`94ce385`). This is the
+current release record; every earlier section in this file is a historical record
+superseded by it. Rows are separated so agent provenance, shell gates, live HTTP/header
+checks, bundle-content checks, real-Chrome sessions, and not-yet-verified runtime states
+are never mixed inside one evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `94ce385` "Add kingpin network epilogue" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat 94ce385 | PASS | Source-only: src/main.ts (+96/-4); RELEASE_EVIDENCE.md untouched by the feature commit; save schema and existing mission rewards unchanged |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced /assets/index-DmsqwmfH.js and /assets/index-DuT43UHT.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bc7d612e8be8dd0b789e6` is ready at https://vice-meridian.netlify.app/ |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and /assets/index-DmsqwmfH.js | PASS | Both return HTTP 200; current assets index-DmsqwmfH.js and index-DuT43UHT.css are live |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS preload, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Live bundle contains epilogue markers | Bundle content check of the deployed JS | PASS | Contains KINGPIN NETWORK, PRESS Y TO ACTIVATE NETWORK, Network online, phone-arc, ACT COMPLETE, STREET CRED, and BLACK MARKET STASH markers |
+| Epilogue logic source/build verification | Source review + build output: Y key routing (epilogue vs Night Shift), KINGPIN objective marker in shared map/radar pipeline, phone arc objective switch, one-shot +$500/+3 reward with banner branch, resetRun transient cleanup, save schema preservation | PASS | All verified in source and build output; node/marker render reuses existing canvas neon patterns |
+| Kingpin runtime path exercised end-to-end | Manual gameplay: reach missionComplete then navigate to the node and activate | NOT FULLY VERIFIED | missionComplete was not reached manually this pass, so the live +$500/+3 activation and ONLINE banner were not observed at runtime — source/build verified only |
+| Real Chrome mobile layout | Real Chrome mobile session at 390x844 on production | PASS | Canvas/document exactly 390x844; touch dock display flex; no overflow; no app-reported errors |
+| Phone menu content at mobile | TAB-opened phone menu inspection at 390x844 | PASS | Arc read ACT I // SIGNAL SWEEP — Recover 3 relay signals across the grid; status line read CASH $0 / REP 0 / WANTED 0 / CRED RUNNER; arc rect stayed inside the phone panel |
+| Mobile control exercise | Real Chrome mobile session at 390x844 on production | PASS | All six touch controls CUA-clicked; M/F/E exercised; no app-reported errors |
+| Real Chrome desktop isolation | Real Chrome desktop session at 1440x660 on production | PASS | Canvas/document exactly 1440x660; touch dock display none; no overflow; no app-reported errors |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the kingpin-network epilogue in
+commit `94ce385` "Add kingpin network epilogue", changing only src/main.ts; HEAD and
+origin/main are aligned with a clean tree. Local gates passed: npm run build (assets
+index-DmsqwmfH.js + index-DuT43UHT.css), npm audit --omit=dev (0 vulnerabilities), and
+git diff --check. Netlify production deploy `6a8bc7d612e8be8dd0b789e6` is ready at
+https://vice-meridian.netlify.app/: root and JS return HTTP 200; CSP, HSTS preload,
+nosniff, Referrer-Policy, and Permissions-Policy headers were observed; the live bundle
+contains KINGPIN NETWORK, PRESS Y TO ACTIVATE NETWORK, Network online, phone-arc, ACT
+COMPLETE, STREET CRED, and BLACK MARKET STASH markers. In real Chrome mobile at 390x844
+canvas/document measured exactly 390x844 with the touch dock at display:flex; the TAB
+phone menu read ACT I // SIGNAL SWEEP — Recover 3 relay signals across the grid with
+status CASH $0 / REP 0 / WANTED 0 / CRED RUNNER and the arc rect inside the panel; all
+six touch controls CUA-clicked plus M/F/E exercised; no overflow and no app-reported
+errors. In real Chrome desktop at 1440x660 canvas/document matched exactly, the touch
+dock was display:none, and no app-reported errors appeared. Honestly scoped: Y routing,
+the KINGPIN marker/radar/map pipeline, the phone objective switch, the one-shot
+reward/banner branch, resetRun cleanup, and save-schema preservation are source/build
+verified — but reaching missionComplete then navigating to the node to observe the live
++$500/+3 runtime banner was not completed this pass and remains NOT FULLY VERIFIED, as
+does the wanted-three air-unit runtime. VICE//MERIDIAN remains an evolving GTA-style
+browser vertical slice, not a literal complete GTA 7; auth/backend/API/runner jobs are
+N/A for this static Vite app. All prior sections remain intact as historical records
+superseded by this release.
