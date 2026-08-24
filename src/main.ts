@@ -27,6 +27,7 @@ app.innerHTML = `
   </div>
   <div id="phone-menu" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;width:min(320px,86vw);max-height:70vh;overflow-y:auto;padding:18px 20px;background:rgba(8,4,24,0.92);border:1px solid #ff2d96;border-radius:10px;box-shadow:0 0 28px rgba(255,45,150,0.55),inset 0 0 14px rgba(255,45,150,0.2);color:#f4ecff;font-family:ui-monospace,Consolas,monospace;text-align:left;display:none;">
     <p id="phone-title" style="margin:0 0 12px;font-size:13px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 12px rgba(0,240,255,0.75);">VICE//MERIDIAN // CONTACTS</p>
+    <p id="phone-briefing" style="margin:0 0 10px;font-size:10px;letter-spacing:2px;line-height:1.6;color:#c9a4ff;text-shadow:0 0 8px rgba(178,107,255,0.65);"></p>
     <ul id="phone-jobs" style="list-style:none;margin:0;padding:0;font-size:11px;letter-spacing:2px;line-height:2;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);">
       <li>B BLACKOUT</li>
       <li>K BANK</li>
@@ -559,6 +560,7 @@ const pursuitEl = document.getElementById('hud-pursuit')!
 const walletEl = document.getElementById('hud-wallet')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
+const phoneBriefingEl = document.getElementById('phone-briefing')!
 const hullEl = document.getElementById('hud-hull')!
 const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
 const hullFillEl = document.querySelector<HTMLSpanElement>('#hull-fill')!
@@ -1137,6 +1139,8 @@ function frame(now: number) {
 
   if (phoneOpen) {
     phoneEl.style.display = 'block'
+    const briefingText = campaignMissionText()
+    if (phoneBriefingEl.textContent !== briefingText) phoneBriefingEl.textContent = briefingText
     if (phoneStatusBusy) {
       const busyText = `CASH $${cash} / REP ${rep} / WANTED ${wanted} // ${PHONE_BUSY_TEXT}`
       if (phoneStatusEl.textContent !== busyText) phoneStatusEl.textContent = busyText
