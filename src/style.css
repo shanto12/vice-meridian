@@ -247,63 +247,89 @@ canvas {
   }
 
   .hud {
-    top: 42px;
-    left: 12px;
-    right: 12px;
+    top: 40px;
+    left: 10px;
+    right: 10px;
   }
 
   .hud-count {
-    font-size: 13px;
-    letter-spacing: 3px;
+    font-size: 12px;
+    letter-spacing: 2px;
   }
 
   .hud-mission {
-    margin: 5px 0 0;
+    margin: 4px 0 0;
     max-width: none;
+    font-size: 9px;
+    letter-spacing: 1px;
+    line-height: 1.5;
+  }
+
+  /* Compact every banner/status row: these carry inline font/margin in markup,
+     so the mobile overrides must win specificity to keep the stack short enough
+     to clear the canvas-drawn radar band below */
+  .hud-courier,
+  .hud-safehouse,
+  .hud-crew,
+  .hud-scan,
+  .hud-pursuit,
+  .hud-roadblock,
+  .hud-airunit,
+  .hud-wallet,
+  .hud-hull,
+  .hud-jobboard {
+    margin: 4px 0 0 !important;
+    font-size: 9px !important;
+    letter-spacing: 1px !important;
+    line-height: 1.5;
+  }
+
+  .hud-boost {
+    margin: 5px 0 0;
+    gap: 6px;
     font-size: 10px;
     letter-spacing: 1.5px;
   }
 
-  .hud-boost {
-    margin: 7px 0 0;
-    gap: 7px;
-    font-size: 10px;
-    letter-spacing: 2px;
-  }
-
   .boost-bar {
-    width: clamp(80px, 30vw, 130px);
+    width: clamp(70px, 24vw, 110px);
     height: 7px;
   }
 
   .boost-state {
-    min-width: 9ch;
-    font-size: 10px;
+    min-width: 8ch;
+    font-size: 9px;
   }
 
   .hud-wanted {
-    margin: 7px 0 0;
-    font-size: 11px;
-    letter-spacing: 3px;
-  }
-
-  .hud-pulse {
     margin: 5px 0 0;
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 2px;
   }
 
-  .pulse-state {
+  .hud-pulse {
+    margin: 4px 0 0;
     font-size: 10px;
+    letter-spacing: 1.5px;
+  }
+
+  .pulse-state {
+    font-size: 9px;
+  }
+
+  /* Night-shift banner floats above the control legend instead of meeting it */
+  .hud-night {
+    bottom: 72px !important;
   }
 
   .hint {
     bottom: 8px;
-    width: 100%;
-    padding: 0 10px;
-    font-size: 9px;
-    letter-spacing: 1.5px;
-    line-height: 1.6;
+    width: auto;
+    max-width: calc(100vw - 20px);
+    padding: 0;
+    font-size: 8px;
+    letter-spacing: 1px;
+    line-height: 1.7;
   }
 
   .complete {
