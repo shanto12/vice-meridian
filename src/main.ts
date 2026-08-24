@@ -21,6 +21,7 @@ app.innerHTML = `
     <p class="hud-scan" id="hud-scan" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE SCAN // NEAREST UNIT ---M</p>
     <p class="hud-pursuit" id="hud-pursuit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE PURSUIT // HEAT 0/3</p>
     <p class="hud-roadblock" id="hud-roadblock" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffb300;text-shadow:0 0 10px rgba(255,179,0,0.7);">ROADBLOCK // INTERCEPTOR EN ROUTE</p>
+    <p class="hud-airunit" id="hud-airunit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#c8d2eb;text-shadow:0 0 10px rgba(200,210,235,0.7);">AIR UNIT // SPOTLIGHT ACTIVE</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
@@ -482,6 +483,31 @@ function roadblockMissionRunning(): boolean {
 function resetRoadblock() {
   roadblock.active = false
 }
+
+// Wanted-3 air support: one deterministic helicopter enters from the live camera edge once
+// the roadblock tier is maxed, sweeping a spotlight over the courier. Capped speed/turn and
+// a stand-off radius keep it from ever cornering the player — no runaway difficulty loop
+const AIR_UNIT_WANTED_MIN = 3
+const AIR_UNIT_SPEED = 240
+const AIR_UNIT_TURN_RATE = 1.5
+const AIR_UNIT_STANDOFF = 150
+type AirUnit = {
+  active: boolean
+  x: number
+  y: number
+  angle: number
+  rotorPhase: number
+}
+const airUnit: AirUnit = {
+  active: false,
+  x: 0,
+  y: 0,
+  angle: -Math.PI / 2,
+  rotorPhase: 0.7,
+}
+function resetAirUnit() {
+  airUnit.active = false
+}
 let cash = 0
 let rep = 0
 
@@ -680,6 +706,7 @@ const crewEl = document.getElementById('hud-crew')!
 const scanEl = document.getElementById('hud-scan')!
 const pursuitEl = document.getElementById('hud-pursuit')!
 const roadblockEl = document.getElementById('hud-roadblock')!
+const airUnitEl = document.getElementById('hud-airunit')!
 const walletEl = document.getElementById('hud-wallet')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
@@ -775,6 +802,7 @@ function resetRun(nowMs: number) {
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
   resetRoadblock()
+  resetAirUnit()
   blackoutRequested = false
   blackoutState = 'available'
   blackoutRestoreAtMs = 0
@@ -2475,6 +2503,42 @@ function frame(now: number) {
     resetRoadblock()
   }
 
+  // Air support escalation: enters once per wanted-3 engagement from the live camera edge,
+  // then shadows the courier at capped speed/turn with a stand-off radius so it can never
+  // force a hit loop; it is a pressure-and-visibility layer, not a damage source
+  const airUnitShouldEngage = driving && wanted >= AIR_UNIT_WANTED_MIN && roadblockMissionRunning()
+  if (airUnitShouldEngage) {
+    if (!airUnit.active) {
+      // stable entry: camera edge opposite the car's travel direction so the rotor sound
+      // arrives from behind the escape line, mirroring real pursuit aviation doctrine
+      const leadX = Math.sin(courierCar.angle)
+      const leadY = -Math.cos(courierCar.angle)
+      const edgeX = leadX >= 0 ? camera.x + 60 : camera.x + w - 60
+      const edgeY = leadY >= 0 ? camera.y + 60 : camera.y + h - 60
+      airUnit.x = Math.max(40, Math.min(WORLD_W - 40, edgeX - leadX * 70))
+      airUnit.y = Math.max(40, Math.min(WORLD_H - 40, edgeY - leadY * 70))
+      airUnit.active = true
+    }
+    // intercept steering toward a stand-off ring around the courier: inside the ring the unit
+    // holds position instead of pushing through, which bounds the encounter deterministically
+    const dxAir = courierCar.x - airUnit.x
+    const dyAir = courierCar.y - airUnit.y
+    const distAir = Math.hypot(dxAir, dyAir) || 1
+    const desiredAng =
+      distAir > AIR_UNIT_STANDOFF ? Math.atan2(dyAir, dxAir) : Math.atan2(-dyAir, -dxAir)
+    let airDiff = desiredAng - airUnit.angle
+    while (airDiff > Math.PI) airDiff -= Math.PI * 2
+    while (airDiff < -Math.PI) airDiff += Math.PI * 2
+    airUnit.angle += Math.max(-AIR_UNIT_TURN_RATE * dt, Math.min(AIR_UNIT_TURN_RATE * dt, airDiff))
+    const airStep = distAir > AIR_UNIT_STANDOFF ? AIR_UNIT_SPEED : 60
+    airUnit.x += Math.cos(airUnit.angle) * airStep * dt
+    airUnit.y += Math.sin(airUnit.angle) * airStep * dt
+    airUnit.x = Math.max(30, Math.min(WORLD_W - 30, airUnit.x))
+    airUnit.y = Math.max(30, Math.min(WORLD_H - 30, airUnit.y))
+  } else {
+    resetAirUnit()
+  }
+
   // Heat cooling: after 7s continuously clear of all active hunters' scan range, shed one level
   // Active Crew Cover compresses that window to a faster decay without touching mission timers or payouts
   const heatCoolRequiredMs = now < crewCoverUntilMs ? CREW_COVER_FAST_HEAT_COOL_MS : HEAT_COOL_MS
@@ -3715,6 +3779,11 @@ function frame(now: number) {
     roadblockEl.style.display = roadblock.active ? '' : 'none'
   }
 
+  // Air support tag: pale steel line while the spotlight helicopter is overhead
+  if (airUnitEl.style.display !== (airUnit.active ? '' : 'none')) {
+    airUnitEl.style.display = airUnit.active ? '' : 'none'
+  }
+
   // Wallet readout: mirrors the live cash/rep values every frame
   const walletText = `CASH $${cash} // REP ${rep}`
   if (walletEl.textContent !== walletText) walletEl.textContent = walletText
@@ -3916,6 +3985,104 @@ function frame(now: number) {
     ctx.shadowColor = '#ff3c3c'
     ctx.shadowBlur = 8
     ctx.fillText('ROADBLOCK', roadblock.x, roadblock.y - 30)
+    ctx.shadowBlur = 0
+  }
+
+  // Wanted-3 air support: dark helicopter silhouette with spinning rotors and a sweeping
+  // spotlight cone that tracks the courier; drawn above vehicles so it reads as airborne
+  if (airUnit.active) {
+    const bobAir = Math.sin(now / 210) * 3
+    // spotlight cone: wide translucent wedge from the unit toward the courier's position
+    const spotAng = Math.atan2(courierCar.y - airUnit.y, courierCar.x - airUnit.x)
+    const spotLen = Math.min(420, Math.hypot(courierCar.x - airUnit.x, courierCar.y - airUnit.y) + 60)
+    const sweep = Math.sin(now / 320) * 0.16
+    ctx.save()
+    ctx.translate(airUnit.x, airUnit.y + bobAir)
+    ctx.rotate(spotAng + sweep)
+    const cone = ctx.createLinearGradient(0, 0, spotLen, 0)
+    cone.addColorStop(0, 'rgba(255, 248, 214, 0.34)')
+    cone.addColorStop(1, 'rgba(255, 248, 214, 0)')
+    ctx.fillStyle = cone
+    ctx.beginPath()
+    ctx.moveTo(0, -6)
+    ctx.lineTo(spotLen, -spotLen * 0.36)
+    ctx.lineTo(spotLen, spotLen * 0.36)
+    ctx.lineTo(0, 6)
+    ctx.closePath()
+    ctx.fill()
+    // bright pool at the target end so the lit ground reads clearly
+    ctx.fillStyle = 'rgba(255, 248, 214, 0.22)'
+    ctx.beginPath()
+    ctx.ellipse(spotLen * 0.92, 0, 46, 26, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+
+    // silhouette: dark fuselage along travel bearing with tail boom and skids
+    ctx.save()
+    ctx.translate(airUnit.x, airUnit.y + bobAir)
+    ctx.rotate(airUnit.angle)
+    ctx.strokeStyle = '#141828'
+    ctx.shadowColor = '#ff3c3c'
+    ctx.shadowBlur = now % 500 < 250 ? 10 : 4
+    ctx.lineWidth = 2.5
+    ctx.strokeRect(-9, -7, 20, 14)
+    ctx.beginPath()
+    ctx.moveTo(11, 0)
+    ctx.lineTo(24, 0)
+    ctx.moveTo(21, -5)
+    ctx.lineTo(21, 5)
+    ctx.stroke()
+    // cockpit glass hint
+    ctx.strokeStyle = 'rgba(191, 255, 255, 0.55)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(3, 0, 4.5, -Math.PI / 2, Math.PI / 2)
+    ctx.stroke()
+    // skids
+    ctx.strokeStyle = '#141828'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(-6, 10)
+    ctx.lineTo(8, 10)
+    ctx.moveTo(-6, -10)
+    ctx.lineTo(8, -10)
+    ctx.stroke()
+    ctx.restore()
+
+    // main rotor disc: spinning blur line pair over the hull
+    ctx.save()
+    ctx.translate(airUnit.x, airUnit.y + bobAir)
+    ctx.rotate(now / 90)
+    ctx.strokeStyle = 'rgba(200, 210, 235, 0.65)'
+    ctx.shadowColor = '#c8d2eb'
+    ctx.shadowBlur = 6
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.beginPath()
+    ctx.moveTo(-22, 0)
+    ctx.lineTo(22, 0)
+    ctx.moveTo(0, -22)
+    ctx.lineTo(0, 22)
+    ctx.stroke()
+    ctx.restore()
+    // tail rotor flicker
+    ctx.strokeStyle = 'rgba(200, 210, 235, 0.8)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    const tailX = airUnit.x + Math.cos(airUnit.angle) * 24
+    const tailY = airUnit.y + Math.sin(airUnit.angle) * 24
+    ctx.moveTo(tailX - 4, tailY)
+    ctx.lineTo(tailX + 4, tailY)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+
+    // world label
+    ctx.font = '600 10px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#c8d2eb'
+    ctx.shadowColor = '#c8d2eb'
+    ctx.shadowBlur = 8
+    ctx.fillText('AIR UNIT', airUnit.x, airUnit.y - 32)
     ctx.shadowBlur = 0
   }
 
