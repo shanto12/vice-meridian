@@ -21,6 +21,7 @@ app.innerHTML = `
     <p class="hud-scan" id="hud-scan" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE SCAN // NEAREST UNIT ---M</p>
     <p class="hud-pursuit" id="hud-pursuit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE PURSUIT // HEAT 0/3</p>
     <p class="hud-roadblock" id="hud-roadblock" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffb300;text-shadow:0 0 10px rgba(255,179,0,0.7);">ROADBLOCK // INTERCEPTOR EN ROUTE</p>
+    <p class="hud-street-cred" id="hud-street-cred" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">STREET CRED // RUNNER</p>
     <p class="hud-airunit" id="hud-airunit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#c8d2eb;text-shadow:0 0 10px rgba(200,210,235,0.7);">AIR UNIT // SPOTLIGHT ACTIVE</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
@@ -571,6 +572,20 @@ function resetAirUnit() {
 let cash = 0
 let rep = 0
 
+// Street Cred: a derived read-only projection of the existing rep value — bands
+// RUNNER < 3 <= OPERATOR < 6 <= FIXER < 10 <= KINGPIN. No new save fields; the HUD row,
+// phone status line, and one-shot rank-up banner all recompute from live rep each frame
+function streetCredRank(repValue: number): 'RUNNER' | 'OPERATOR' | 'FIXER' | 'KINGPIN' {
+  if (repValue >= 10) return 'KINGPIN'
+  if (repValue >= 6) return 'FIXER'
+  if (repValue >= 3) return 'OPERATOR'
+  return 'RUNNER'
+}
+const streetCredEl = document.getElementById('hud-street-cred')!
+let lastStreetCredRank: ReturnType<typeof streetCredRank> = 'RUNNER'
+const STREET_CRED_RANK_UP_HOLD_MS = 2200
+let streetCredRankUpUntilMs = 0
+
 // Local browser save slot: durable campaign progress only; transient state never persists
 const SAVE_KEY = 'vice-meridian-save-v1'
 const SAVE_HOLD_MS = 2600
@@ -861,6 +876,8 @@ function resetRun(nowMs: number) {
   stashRequested = false
   stashCollected = false
   stashRestoreAtMs = 0
+  lastStreetCredRank = streetCredRank(rep)
+  streetCredRankUpUntilMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1547,10 +1564,10 @@ function frame(now: number) {
     const briefingText = campaignMissionText()
     if (phoneBriefingEl.textContent !== briefingText) phoneBriefingEl.textContent = briefingText
     if (phoneStatusBusy) {
-      const busyText = `CASH $${cash} / REP ${rep} / WANTED ${wanted} // ${PHONE_BUSY_TEXT}`
+      const busyText = `CASH $${cash} / REP ${rep} / WANTED ${wanted} / CRED ${streetCredRank(rep)} // ${PHONE_BUSY_TEXT}`
       if (phoneStatusEl.textContent !== busyText) phoneStatusEl.textContent = busyText
     } else {
-      const phoneText = `CASH $${cash} / REP ${rep} / WANTED ${wanted}`
+      const phoneText = `CASH $${cash} / REP ${rep} / WANTED ${wanted} / CRED ${streetCredRank(rep)}`
       if (phoneStatusEl.textContent !== phoneText) phoneStatusEl.textContent = phoneText
     }
     // Banner reconciles against live mission state so it never claims acceptance
@@ -2752,6 +2769,9 @@ function frame(now: number) {
   if (stashRestoreAtMs > 0 && now >= stashRestoreAtMs) {
     stashRestoreAtMs = 0
   }
+  if (streetCredRankUpUntilMs > 0 && now >= streetCredRankUpUntilMs) {
+    streetCredRankUpUntilMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -2777,7 +2797,8 @@ function frame(now: number) {
     turfRestoreAtMs > 0 ||
     smugglerRestoreAtMs > 0 ||
     chopShopRestoreAtMs > 0 ||
-    stashRestoreAtMs > 0
+    stashRestoreAtMs > 0 ||
+    streetCredRankUpUntilMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -2821,6 +2842,9 @@ function frame(now: number) {
     if (missionEl.textContent !== chopShopBannerText) missionEl.textContent = chopShopBannerText
   } else if (stashRestoreAtMs > 0) {
     if (missionEl.textContent !== STASH_SECURED_TEXT) missionEl.textContent = STASH_SECURED_TEXT
+  } else if (streetCredRankUpUntilMs > 0) {
+    const rankUpText = `STREET CRED // ${streetCredRank(rep)} // RANK UP`
+    if (missionEl.textContent !== rankUpText) missionEl.textContent = rankUpText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -3918,6 +3942,18 @@ function frame(now: number) {
   // Wallet readout: mirrors the live cash/rep values every frame
   const walletText = `CASH $${cash} // REP ${rep}`
   if (walletEl.textContent !== walletText) walletEl.textContent = walletText
+
+  // Street Cred row + one-shot rank-up detection: the HUD always mirrors the derived
+  // band; a genuine upward transition after a rep change raises the temporary banner
+  const currentRank = streetCredRank(rep)
+  const credText = `STREET CRED // ${currentRank}`
+  if (streetCredEl.textContent !== credText) streetCredEl.textContent = credText
+  const rankOrder = ['RUNNER', 'OPERATOR', 'FIXER', 'KINGPIN']
+  if (rankOrder.indexOf(currentRank) > rankOrder.indexOf(lastStreetCredRank)) {
+    streetCredRankUpUntilMs = now + STREET_CRED_RANK_UP_HOLD_MS
+    missionEl.textContent = `STREET CRED // ${currentRank} // RANK UP`
+  }
+  lastStreetCredRank = currentRank
 
   // Hull readout: health percentage plus a compact bar that shifts color as damage accrues
   const hullPct = Math.max(0, Math.min(100, Math.round(carHealth)))
