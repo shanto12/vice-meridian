@@ -2609,3 +2609,57 @@ production evidence for exactly the tests listed above — it is not a claim of 
 completion; VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather
 than a literal complete GTA 7. All prior sections remain intact as historical records
 superseded by this release.
+
+---
+
+# Street Cred Cooldown Perks Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the street-cred cooldown perks slice
+(`1372c21548ba35586bf34b45c9f976ca6dadc5e1`, "Add street cred cooldown perks").
+Documentation only this pass — src/main.ts, package files, netlify.toml, and _headers were
+not modified. Current production evidence covers exactly what was tested; every earlier
+section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Shell/git verification: commit `1372c21548ba35586bf34b45c9f976ca6dadc5e1` "Add street cred cooldown perks" on main == origin/main with a clean tree | Scope: STREET_CRED_PERKS maps RUNNER -> RISK RUNNER x1.00, OPERATOR -> HEAT SHIELD x0.90, FIXER -> CLEAN GETAWAY x0.80, KINGPIN -> KINGPIN COVER x0.70; passive heat cooling uses the perk multiplier; Crew Cover remains stronger through Math.min; the pursuit countdown uses the same effective window; PERK // HUD is present; mission timers, payouts, persistence, controls, and wanted semantics were preserved |
+| Build gate passed | PASS | Shell/build: local npm run build (tsc && vite build) at the working tree atop `1372c21` | Completed without errors producing dist/assets/index-DRYUxR0r.js (97.69 kB, gzip 27.91 kB) |
+| Diff hygiene passed | PASS | Shell/git: git diff --check at the same tree | Clean |
+| Dependency hygiene passed | PASS | Shell/build: npm audit --omit=dev --audit-level=high | Passed with 0 vulnerabilities |
+| Production deploy is live | PASS | Live HTTP/bundle: Netlify deploy `6a8c3cf0db143edc53069932` reached ready at https://vice-meridian.netlify.app/ | Alias serves this deploy |
+| Live bundle carries perk and prior markers | PASS | Live HTTP/bundle: live asset fetch on the production deploy | Markers verified: PERK //, RISK RUNNER, HEAT SHIELD, CLEAN GETAWAY, KINGPIN COVER, STREET CRED //, TRAFFIC //, WEATHER //, GRIP // — confirming the shipped bundle spans this slice and its predecessors |
+| Production headers verified | PASS | Live HTTP/headers: response capture from https://vice-meridian.netlify.app/ | CSP default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self', plus HSTS max-age=31536000; includeSubDomains; preload, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera=(), microphone=(), geolocation=() |
+| Real Chrome desktop smoke pass | PASS | Real Chrome desktop tab on https://vice-meridian.netlify.app/ | Visible HUD showed VICE//MERIDIAN, STREET CRED // RUNNER, PERK // RISK RUNNER, WEATHER // STORM, GRIP // SLIPPERY, TRAFFIC // FLOWING, and controls; current tab console error log returned [] (empty). This is a real-Chrome desktop smoke pass |
+| Real Chrome mobile pass | NOT COMPLETED THIS RELEASE | Browser automation attempt timed out | A current-release mobile-control pass was attempted but the browser automation timed out; mobile controls were NOT verified for this release. A prior release had a real-Chrome mobile pass, which is historical context only and is not used as current-release evidence |
+| Full cooldown-perk runtime E2E | NOT RUN THIS PASS | — | The perk multiplier's effect on a complete passive-cooling cycle (including rank transitions and Crew Cover composition) was not driven end-to-end in a browser this pass; behavior stands on source review, live-bundle markers, and the desktop smoke readout |
+
+## Summary
+
+Source commit `1372c21548ba35586bf34b45c9f976ca6dadc5e1` "Add street cred cooldown perks"
+sits on main == origin/main behind a clean tree as a src/main.ts-only slice:
+STREET_CRED_PERKS maps RUNNER -> RISK RUNNER x1.00, OPERATOR -> HEAT SHIELD x0.90,
+FIXER -> CLEAN GETAWAY x0.80, and KINGPIN -> KINGPIN COVER x0.70; passive heat cooling
+uses the perk multiplier while Crew Cover remains the stronger temporary service through
+Math.min; the pursuit countdown reads the same effective window; the PERK // HUD is
+present; and mission timers, payouts, persistence, controls, and wanted semantics were
+preserved. npm run build passed producing dist/assets/index-DRYUxR0r.js (97.69 kB,
+gzip 27.91 kB); git diff --check passed; npm audit --omit=dev --audit-level=high passed
+with 0 vulnerabilities. Netlify deploy `6a8c3cf0db143edc53069932` reached ready at
+https://vice-meridian.netlify.app/, where live bundle markers verified PERK //, RISK
+RUNNER, HEAT SHIELD, CLEAN GETAWAY, KINGPIN COVER, STREET CRED //, TRAFFIC //, WEATHER //,
+and GRIP //, and production headers verified the CSP (default-src 'self'; script-src
+'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self';
+frame-ancestors 'none'; base-uri 'self'; form-action 'self') plus HSTS max-age=31536000;
+includeSubDomains; preload, X-Content-Type-Options nosniff, Referrer-Policy
+strict-origin-when-cross-origin, and Permissions-Policy camera=(), microphone=(),
+geolocation=(). A real-Chrome desktop smoke pass loaded the current production tab and
+showed VICE//MERIDIAN, STREET CRED // RUNNER, PERK // RISK RUNNER, WEATHER // STORM,
+GRIP // SLIPPERY, TRAFFIC // FLOWING, and controls, with an empty console error log.
+Disclosed limitation: a current-release mobile-control pass was attempted but the browser
+automation timed out, so mobile verification is marked not completed for this release —
+a prior release's mobile pass is historical only and is not claimed as current evidence.
+No full runtime cooldown-perk E2E was run this pass. Auth/backend/API are not applicable
+to this static Vite game. This section records current production evidence for exactly the
+tests listed above — it is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an
+evolving GTA-style browser vertical slice rather than a literal complete GTA 7. All prior
+sections remain intact as historical records superseded by this release.
