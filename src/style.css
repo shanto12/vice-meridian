@@ -270,6 +270,14 @@ canvas {
     line-height: 1.5;
   }
 
+  /* Campaign route compass: single compact line under the mission line */
+  .hud-route {
+    margin: 3px 0 0 !important;
+    font-size: 9px !important;
+    letter-spacing: 1px !important;
+    line-height: 1.4;
+  }
+
   /* Compact every banner/status row: these carry inline font/margin in markup,
      so the mobile overrides must win specificity to keep the stack short enough
      to clear the canvas-drawn radar band below */

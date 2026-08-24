@@ -8,6 +8,7 @@ app.innerHTML = `
   <div class="hud">
     <p class="hud-count">SIGNALS <span id="signal-count">0</span>/3</p>
     <p class="hud-mission" id="mission-line">MISSION // Sweep the grid — recover 3 relay signals</p>
+    <p class="hud-route" id="hud-route" style="display:none;margin:4px 0 0;font-size:12px;letter-spacing:3px;color:#bfffff;text-shadow:0 0 10px rgba(191,255,255,0.6);"></p>
     <p class="hud-boost">
       BOOST
       <span class="boost-bar"><span class="boost-fill" id="boost-fill"></span></span>
@@ -839,6 +840,7 @@ const hullEl = document.getElementById('hud-hull')!
 const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
 const hullFillEl = document.querySelector<HTMLSpanElement>('#hull-fill')!
 const missionEl = document.getElementById('mission-line')!
+const routeEl = document.getElementById('hud-route')!
 const nightEl = document.getElementById('hud-night')!
 const jobboardEl = document.getElementById('hud-jobboard')!
 const runCompleteEl = document.getElementById('run-complete')!
@@ -1028,6 +1030,21 @@ const gate = {
     return WORLD_H * 0.62 + 90
   },
   radius: 46,
+}
+
+// Campaign route compass: derives the single next main-path target from existing state —
+// the nearest uncollected signal in ACT I, the extraction gate in ACT II, and the Kingpin
+// node until the network is online. Purely a derived HUD readout; no rewards or save fields
+type RouteTarget = { label: string; x: number; y: number }
+function campaignRouteTarget(): RouteTarget | null {
+  if (missionComplete) return kingpinOnline ? null : { label: 'KINGPIN NODE', x: KINGPIN_NODE.x, y: KINGPIN_NODE.y }
+  if (signalsFound === 3) return { label: 'EXTRACTION GATE', x: gate.x, y: gate.y }
+  const nextSignal = signals[signalsFound]
+  if (!nextSignal) return null
+  return { label: `SIGNAL ${signalsFound + 1}`, x: nextSignal.x, y: nextSignal.y }
+}
+function cardinalDirection(dx: number, dy: number): 'N' | 'E' | 'S' | 'W' {
+  return Math.abs(dy) >= Math.abs(dx) ? (dy < 0 ? 'N' : 'S') : dx > 0 ? 'E' : 'W'
 }
 
 function setWanted(next: number) {
@@ -4082,6 +4099,20 @@ function frame(now: number) {
   // Wallet readout: mirrors the live cash/rep values every frame
   const walletText = `CASH $${cash} // REP ${rep}`
   if (walletEl.textContent !== walletText) walletEl.textContent = walletText
+
+  // Campaign route compass: live label/distance/cardinal bearing toward the current
+  // main-path target; hidden entirely when no campaign target remains
+  const routeTarget = campaignRouteTarget()
+  if (routeTarget) {
+    const dxRoute = routeTarget.x - player.x
+    const dyRoute = routeTarget.y - player.y
+    const routeText = `ROUTE // ${routeTarget.label} // ${Math.round(Math.hypot(dxRoute, dyRoute))}M // ${cardinalDirection(dxRoute, dyRoute)}`
+    if (routeEl.textContent !== routeText) routeEl.textContent = routeText
+    if (routeEl.style.display !== '') routeEl.style.display = ''
+  } else if (routeEl.style.display !== 'none') {
+    routeEl.style.display = 'none'
+    routeEl.textContent = ''
+  }
 
   // Street Cred row + one-shot rank-up detection: the HUD always mirrors the derived
   // band; a genuine upward transition after a rep change raises the temporary banner
