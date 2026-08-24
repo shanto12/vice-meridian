@@ -779,6 +779,16 @@ let missionComplete = false
 let runStartMs = performance.now()
 let runTimeSec = 0
 
+// Signal sweep feedback: one-shot banners per recovered signal plus a short cyan
+// pulse-ring at the collected position. Purely transient presentation — rewards,
+// coordinates, and progression state are untouched, and everything clears in resetRun
+const SIGNAL_BANNER_HOLD_MS = 2200
+const SIGNAL_PULSE_MS = 700
+let signalBannerText = ''
+let signalBannerUntilMs = 0
+type SignalPulse = { x: number; y: number; untilMs: number }
+const signalPulses: SignalPulse[] = []
+
 const jammer = {
   requested: false,
   radius: 190,
@@ -933,6 +943,9 @@ function resetRun(nowMs: number) {
   kingpinRequested = false
   kingpinOnline = false
   kingpinRestoreAtMs = 0
+  signalBannerText = ''
+  signalBannerUntilMs = 0
+  signalPulses.length = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -2869,6 +2882,13 @@ function frame(now: number) {
   if (kingpinRestoreAtMs > 0 && now >= kingpinRestoreAtMs) {
     kingpinRestoreAtMs = 0
   }
+  if (signalBannerUntilMs > 0 && now >= signalBannerUntilMs) {
+    signalBannerUntilMs = 0
+    signalBannerText = ''
+  }
+  for (let i = signalPulses.length - 1; i >= 0; i--) {
+    if (now >= signalPulses[i].untilMs) signalPulses.splice(i, 1)
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -2897,7 +2917,8 @@ function frame(now: number) {
     stashRestoreAtMs > 0 ||
     streetCredRankUpUntilMs > 0 ||
     actCompleteUntilMs > 0 ||
-    kingpinRestoreAtMs > 0
+    kingpinRestoreAtMs > 0 ||
+    signalBannerUntilMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -2948,6 +2969,8 @@ function frame(now: number) {
     if (missionEl.textContent !== actCompleteBannerText) missionEl.textContent = actCompleteBannerText
   } else if (kingpinRestoreAtMs > 0) {
     if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
+  } else if (signalBannerUntilMs > 0 && signalBannerText) {
+    if (missionEl.textContent !== signalBannerText) missionEl.textContent = signalBannerText
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -4134,15 +4157,39 @@ function frame(now: number) {
   hullFillEl.style.background = carHealth > 60 ? '#39ff88' : carHealth > 30 ? '#ffe05a' : '#ff3c3c'
   hullEl.style.color = carHealth > 60 ? '#39ff88' : carHealth > 30 ? '#ffe05a' : '#ff3c3c'
 
+  // Signal recovery pulse: short cyan ring expanding at the collected position
+  for (const pulse of signalPulses) {
+    const t = 1 - (pulse.untilMs - now) / SIGNAL_PULSE_MS
+    if (t < 0 || t > 1) continue
+    ctx.strokeStyle = `rgba(0, 240, 255, ${0.8 * (1 - t)})`
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 16 * (1 - t)
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.arc(pulse.x, pulse.y, 14 + t * 46, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.shadowBlur = 0
+  }
+
   signals.forEach((s, i) => {
     if (signalsFound > i) return
     if (Math.hypot(player.x - s.x, player.y - s.y) < player.size + 16) {
       signalsFound++
       signalEls.count.textContent = String(signalsFound)
+      signalPulses.push({ x: s.x, y: s.y, untilMs: now + SIGNAL_PULSE_MS })
       if (!missionComplete) setWanted(wanted + 1)
       if (signalsFound === 3 && !missionComplete) {
         signalEls.complete.hidden = false
-        if (contractState !== 'active') missionEl.textContent = missionPhase2
+        signalBannerText = 'SIGNAL SWEEP COMPLETE // EXTRACTION UNLOCKED'
+        signalBannerUntilMs = now + SIGNAL_BANNER_HOLD_MS
+        missionEl.textContent = signalBannerText
+        if (contractState !== 'active') {
+          // the sweep banner takes this frame; the phase-2 line follows via campaignMissionText()
+        }
+      } else if (!missionComplete) {
+        signalBannerText = `SIGNAL RECOVERED // ${signalsFound}/3`
+        signalBannerUntilMs = now + SIGNAL_BANNER_HOLD_MS
+        missionEl.textContent = signalBannerText
       }
       return
     }
