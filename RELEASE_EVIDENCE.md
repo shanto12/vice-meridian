@@ -2716,3 +2716,57 @@ exactly the tests listed above — it is not a claim of full GTA 7 completion;
 VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather than a literal
 complete GTA 7. All prior sections remain intact as historical records superseded by this
 release.
+
+---
+
+# Add Territory Control HUD Readout Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the territory-control HUD slice
+(`696fa5134fddcf5c7328b0fd22fd896ef8180f55`, "Add territory control HUD readout").
+Documentation only this pass — src/main.ts, config, package files, assets, and deployment
+were not modified. Current production evidence covers exactly what was tested; every
+earlier section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Shell/git: commit `696fa5134fddcf5c7328b0fd22fd896ef8180f55` on main == origin/main with a clean tree | Changes only src/main.ts. Behavior scope: the existing three-district control is now surfaced in a compact HUD row derived from districtControlIndex, DISTRICT_CONTROL_SITES, districtControlUnlocked(), and districtControlState; it shows TERRITORY // LOCKED before unlock, 0/3 READY, N/3 ACTIVE <site>, N/3 NEXT <site>, and 3/3 CITY IS YOURS; state colors are reconciled only on change; no save field, payout, timer, unlock rule, or mission behavior changed; reset/load/delivery are reflected by the existing frame reconciliation |
+| Build gate passed | PASS | Shell/build: local npm run build (tsc && vite build) at the working tree atop `696fa51` | Passed; output dist/assets/index-D3A5TbvP.js 100.44 kB (gzip 28.68 kB) |
+| Diff hygiene passed | PASS | Shell/git: git diff --check at the same tree | Clean |
+| HEAD == origin/main after source commit | PASS | Shell/git: git log -1 and git rev-parse origin/main compared after the source commit | Matched at `696fa5134fddcf5c7328b0fd22fd896ef8180f55` |
+| Netlify production deploy live/ready | PASS | Live HTTP/bundle: deploy ID `6a8c4a8f3c117a05d3ed3fd3` reached live/ready | Production URL https://vice-meridian.netlify.app/; unique deploy URL https://6a8c4a8f3c117a05d3ed3fd3--vice-meridian.netlify.app |
+| Live HTTP bundle markers verified | PASS | Live HTTP/bundle: GET / returned HTTP/2 200 on production | Served bundle markers TERRITORY //, TERRITORY // LOCKED, CITY IS YOURS, RIVAL CREW // INCOMING FIRE, and STREET CRED // present — confirming the shipped bundle spans this slice and its predecessors |
+| Live response headers verified | PASS | Live HTTP/headers: response capture from https://vice-meridian.netlify.app/ | CSP default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; Strict-Transport-Security max-age=31536000; includeSubDomains; preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy camera=(), microphone=(), geolocation=() |
+| Real Chrome interaction this release | NOT COMPLETED (ATTEMPTED, BLOCKED) | Real Chrome attempted/blocked: current-release real-Chrome tab listing succeeded after deploy, showing two VICE//MERIDIAN tabs at https://vice-meridian.netlify.app/, but reading the page body through Chrome tab/CDP timed out | Current-release real-Chrome desktop AND mobile interaction are marked NOT COMPLETED. Earlier release Chrome passes are historical context only and are NOT reused as current evidence. No screenshots, clicks, timings, gameplay completion, or auth claims are asserted |
+
+## Summary
+
+Source commit `696fa5134fddcf5c7328b0fd22fd896ef8180f55` "Add territory control HUD
+readout" sits on main == origin/main behind a clean tree, changing only src/main.ts: the
+existing three-district control is surfaced in a compact HUD row derived from
+districtControlIndex, DISTRICT_CONTROL_SITES, districtControlUnlocked(), and
+districtControlState — showing TERRITORY // LOCKED before unlock, 0/3 READY,
+N/3 ACTIVE <site>, N/3 NEXT <site>, and 3/3 CITY IS YOURS — with state colors reconciled
+only on change, no new save field, and no payout, timer, unlock-rule, or mission-behavior
+changes; reset/load/delivery are reflected by the existing frame reconciliation.
+Independent local verification: npm run build passed producing dist/assets/index-D3A5TbvP.js
+(100.44 kB, gzip 28.68 kB); git diff --check passed; HEAD == origin/main held after the
+source commit. Netlify production: deploy ID `6a8c4a8f3c117a05d3ed3fd3` reached live/ready
+at https://vice-meridian.netlify.app/ (unique deploy URL
+https://6a8c4a8f3c117a05d3ed3fd3--vice-meridian.netlify.app); live HTTP verification
+returned HTTP/2 200 with served bundle markers TERRITORY //, TERRITORY // LOCKED,
+CITY IS YOURS, RIVAL CREW // INCOMING FIRE, and STREET CRED //; live response headers
+verified the full CSP (default-src 'self'; script-src 'self'; style-src 'self'
+'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none';
+base-uri 'self'; form-action 'self'), Strict-Transport-Security max-age=31536000;
+includeSubDomains; preload, X-Content-Type-Options nosniff, Referrer-Policy
+strict-origin-when-cross-origin, and Permissions-Policy camera=(), microphone=(),
+geolocation=(). Disclosed limitation: after deploy, current-release real-Chrome tab
+listing succeeded (two VICE//MERIDIAN tabs on the production URL) but reading the page
+body through Chrome tab/CDP timed out, so current-release real-Chrome desktop and mobile
+interaction are marked NOT COMPLETED — earlier release Chrome passes are historical only
+and are not reused as current evidence, and no screenshots, clicks, timings, gameplay
+completion, or auth claims are asserted beyond what is listed above. This section records
+current production evidence for exactly the tests listed above — it is not a claim of full
+GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style browser vertical slice
+rather than a literal complete GTA 7. All prior sections remain intact as historical
+records superseded by this release.
