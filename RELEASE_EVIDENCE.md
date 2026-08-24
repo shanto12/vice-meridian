@@ -1234,3 +1234,52 @@ air-unit runtime state was NOT reached in manual Chrome this pass — it is sour
 bundle verified only, not active-state proof; sustained high-heat driving is required to
 reach that tier organically. All prior sections remain intact as historical records
 superseded by this release.
+
+---
+
+# Mobile Control Legend Fix - Release Evidence (2026-08-23)
+
+Verification matrix for the mobile HUD readability pass and the follow-up legend-widening
+fix (`46e60e8`). This is the current release record; every earlier section in this file is
+a historical record superseded by it. Rows are separated so agent provenance, shell gates,
+live HTTP checks, real-Chrome sessions, and not-yet-verified runtime states are never
+mixed inside one evidence surface.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `46e60e8` "Widen mobile control legend" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat 46e60e8 | PASS | Style-only scope: only src/style.css changed (+2/-2), inside the existing max-width:600px media query |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced assets/index-CewCAB1N.js and assets/index-Cg_UI0x-.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bba46a8f152613aa37ff3` is ready at https://vice-meridian.netlify.app/ |
+| Root document serves over HTTPS | Live HTTP: GET https://vice-meridian.netlify.app/ | PASS | HTTP/2 200 |
+| Built assets serve live | Live HTTP: curl of deployed JS/CSS assets | PASS | Current built assets index-CewCAB1N.js and index-Cg_UI0x-.css are served by the production deploy |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Real Chrome desktop load | Real Chrome desktop session at 1440x660 on production | PASS | Canvas measured exactly 1440x660; no horizontal overflow; no game console errors |
+| Real Chrome mobile layout and legend geometry | Real Chrome mobile session at 390x844 on production with .hint rect capture | PASS | Canvas 390x844; document scroll size 390x844; .hint computed rect left=10 right=380 width=370 height=54.375 top=781.625 bottom=836 line-height 13.6px — full-width two-line legend, no clipping, no tall wrap; no game errors |
+| F/M/E controls exercised in production | Prior real-Chrome verification passes on production deploys | PASS | F pulse, M map, and E courier enter were exercised in earlier verified production sessions; unchanged by this style-only fix |
+| Wanted-three air-unit runtime state | Manual Chrome escalation attempt | NOT FULLY VERIFIED | Manual wanted-3 escalation was not completed — air-unit spotlight remains source/build/bundle verified only, not active-state proof |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas app; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the mobile HUD readability pass
+(`56481ee`) and the follow-up legend fix `46e60e8` "Widen mobile control legend" in
+src/style.css only; HEAD and origin/main are aligned with a clean tree. Local gates passed:
+npm run build (assets index-CewCAB1N.js + index-Cg_UI0x-.css), npm audit --omit=dev
+(0 vulnerabilities), git diff --check. Netlify production deploy
+`6a8bba46a8f152613aa37ff3` is ready at https://vice-meridian.netlify.app/ serving
+HTTP/2 200 with CSP, HSTS, nosniff, Referrer-Policy, and Permissions-Policy headers, and
+the current built assets are live. In real Chrome desktop at 1440x660 the canvas measured
+exactly 1440x660 with no overflow and no game errors. In real Chrome mobile at 390x844
+the canvas measured 390x844, document scroll was 390x844, and the widened .hint legend
+measured left=10 right=380 width=370 height=54.375 top=781.625 bottom=836 with 13.6px
+line-height — a centered two-line legend replacing the prior narrow 195px-wide wrap, no
+clipping, no game errors. F/M/E controls were exercised in prior production verification
+and are unaffected by this style-only change. Honestly scoped: the wanted-three air-unit
+runtime state was NOT reached manually — it remains NOT FULLY VERIFIED pending a
+completed manual high-heat escalation. Auth/backend/API stay NOT APPLICABLE for this
+static Vite app. All prior sections remain intact as historical records superseded by
+this release.
