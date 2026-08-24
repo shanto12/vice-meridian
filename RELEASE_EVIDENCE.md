@@ -2344,3 +2344,43 @@ records current production evidence for exactly the tests listed above — it is
 of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style browser vertical
 slice rather than a literal complete GTA 7. All prior sections remain intact as historical
 records superseded by this release.
+
+---
+
+# Police Radio Dispatch Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the police-radio dispatch feedback slice (`94c7f60`). This is
+current production evidence for exactly what was tested this pass — not a claim of full
+GTA 7 completion; every earlier section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `94c7f60` "Add police radio dispatch feedback" on GitHub main with a clean tree | Single src/main.ts change (+41/-0) adding the transient radioText/radioRestoreAtMs dispatch state, setRadioStatus() helper, banner-chain wiring, and the amber/red canvas RADIO tag; resetRun clears it |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the working tree atop `94c7f60` | Completed without errors; git diff --check clean |
+| Dependency hygiene passed | PASS | npm audit --omit=dev | found 0 vulnerabilities in the production dependency tree |
+| Production deploy is live | PASS | Netlify deploy `6a8c26baf44a158c029c9f2d` at https://vice-meridian.netlify.app/ | Alias serves this deploy; live asset assets/index-D-OKCYBx.js returned HTTP 200 |
+| Live bundle carries dispatch and prior markers | PASS | Live HTTP GET of assets/index-D-OKCYBx.js on the production deploy | Bundle contains RADIO // UNIT DISPATCHED, RADIO // PURSUIT ACTIVE, RADIO // SUSPECT BUSTED, BUSTED, and WITNESS // JAMMED — confirming the shipped bundle is current through the radio-dispatch slice and its predecessors |
+| Security headers verified | PASS | Live HTTP response capture from https://vice-meridian.netlify.app/ | Response carried Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, and Permissions-Policy camera=() microphone=() geolocation=() |
+| Real Chrome desktop smoke pass | PASS | Real Chrome desktop session on the live site | Production URL loaded and M (map), F (pulse), Q (jam), R (reset) were exercised with no application-origin console errors |
+| Real Chrome mobile pass | PASS | Real browser session at 390x844 on the live site | body scrollWidth measured exactly 390 with no horizontal overflow; all six touch controls were clicked via pointer events |
+| Radio dispatch behavior | VERIFIED BY SOURCE + LIVE BUNDLE, NOT FULL E2E | src/main.ts review plus live bundle marker check | The deterministic dispatch layer (RADIO // SUSPECT BUSTED from enterBusted; UNIT DISPATCHED vs PURSUIT ACTIVE chosen by heat before/after; witness countdown line preserved verbatim; 2200ms hold cleared by resetRun) is present in source and in the shipped bundle, but a forced witness-to-radio or BUSTED runtime capture was NOT completed in this pass — runtime dispatch behavior stands on source and bundle review only |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Vite architecture review | No auth, backend runner, or API endpoint exists — this is a static Vite site |
+
+## Summary
+
+Source commit `94c7f60` "Add police radio dispatch feedback" is on origin/main behind a
+clean tree. npm run build passed, git diff --check was clean, and npm audit --omit=dev
+found 0 vulnerabilities. Production deploy `6a8c26baf44a158c029c9f2d` serves
+https://vice-meridian.netlify.app/ with assets/index-D-OKCYBx.js returning HTTP 200 and
+carrying all three RADIO // markers plus BUSTED and WITNESS // JAMMED, so the shipped
+bundle spans this slice and its predecessors. Live response headers confirmed CSP, HSTS,
+X-Content-Type-Options, Referrer-Policy, and Permissions-Policy. A real Chrome desktop
+smoke pass loaded production and exercised M/F/Q/R with zero application-origin console
+errors; a real Chrome mobile session at 390x844 measured scrollWidth 390 with all six
+touch controls clicked. The new radio-dispatch behavior is explicitly marked VERIFIED BY
+SOURCE + LIVE BUNDLE, NOT FULL E2E: a forced witness-to-radio or BUSTED runtime capture
+was not completed in this pass. Auth/backend/API remain not applicable for this static
+Vite site. This section records current production evidence for exactly the tests listed
+above — it is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving
+GTA-style browser vertical slice rather than a literal complete GTA 7. All prior sections
+remain intact as historical records superseded by this release.
