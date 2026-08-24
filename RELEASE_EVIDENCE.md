@@ -1387,3 +1387,57 @@ runtime remains NOT FULLY VERIFIED — manual high-heat escalation was not compl
 VICE//MERIDIAN remains an evolving GTA-style vertical slice, not complete GTA 7.
 Auth/backend/API stay NOT APPLICABLE for this static Vite app. All prior sections remain
 intact as historical records superseded by this release.
+
+---
+
+# Street Cred Ranks - Release Evidence (2026-08-23)
+
+Verification matrix for the street-cred rank progression release (`c14f852`). This is the
+current release record; every earlier section in this file is a historical record
+superseded by it. Rows are separated so agent provenance, shell gates, live HTTP checks,
+real-Chrome sessions, and not-yet-verified runtime states are never mixed inside one
+evidence surface.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `c14f852` "Add street cred ranks" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat c14f852 | PASS | Source-only: src/main.ts (+40/-3) and src/style.css (+1); RELEASE_EVIDENCE.md untouched by the feature commit |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced assets/index-DKPpXSVB.js and assets/index-Bh9mtMKe.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bc34f666a3e2bb278ce8a` is ready at https://vice-meridian.netlify.app/ |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and JS asset | PASS | Both return HTTP/2 200; current assets index-DKPpXSVB.js and index-Bh9mtMKe.css are live |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Real Chrome mobile layout with street cred row | Real Chrome mobile session at 390x844 on production with rect capture | PASS | Canvas/document exactly 390x844; touch dock flex; STREET CRED // RUNNER row computed top=126 bottom=139.5 height=13.5 font-size 9px; HUD stack through HULL ended bottom=174.5 with no overflow and the touch dock clear |
+| Phone status shows derived rank | Real Chrome TAB phone open at 390x844 | PASS | Status line read CASH $0 / REP 0 / WANTED 0 / CRED RUNNER — interpolation from live rep confirmed |
+| Mobile control exercise | Real Chrome mobile session at 390x844 on production | PASS | All six touch controls clicked; M map opened/closed; F pulse fired; E action exercised; zero game errors |
+| Real Chrome desktop isolation | Real Chrome desktop session at 1440x660 on production | PASS | Canvas/document exactly 1440x660; #touch-controls display:none; STREET CRED // RUNNER present; zero game errors |
+| Rank logic source/build verification | Source review of streetCredRank helper, thresholds (RUNNER 0-2 / OPERATOR 3-5 / FIXER 6-9 / KINGPIN 10+), phone interpolation, rank-up banner branch, and reset semantics | PASS | Verified in source and build output; save schema unchanged and existing mission rewards untouched |
+| Rank-up banner runtime path | Manual gameplay attempt to cross a rank threshold | NOT FULLY VERIFIED | No rep gain was driven across a threshold during this pass, so the RANK UP banner transition was not observed live — source/build verified only |
+| Wanted-3 air-unit runtime path | Manual Chrome escalation attempt | NOT FULLY VERIFIED | Still unreached manually — carried forward as an honest limitation of prior passes |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | VICE//MERIDIAN is an evolving GTA-style vertical slice, not complete GTA 7 and not an enterprise-complete release |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas app; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the street-cred progression
+slice in commit `c14f852` "Add street cred ranks", changing only src/main.ts and
+src/style.css; HEAD and origin/main are aligned with a clean tree. Local gates passed:
+npm run build (assets index-DKPpXSVB.js + index-Bh9mtMKe.css), npm audit --omit=dev
+(0 vulnerabilities), and git diff --check. Netlify production deploy
+`6a8bc34f666a3e2bb278ce8a` is ready at https://vice-meridian.netlify.app/: root and JS
+return HTTP/2 200 with CSP, HSTS, nosniff, Referrer-Policy, and Permissions-Policy
+headers. In real Chrome mobile at 390x844 the canvas/document measured exactly 390x844;
+the touch dock stayed flex; the new STREET CRED // RUNNER row measured top=126
+bottom=139.5 height=13.5 at 9px inside a compact stack ending at HULL bottom=174.5 with
+no overflow; TAB showed CASH $0 / REP 0 / WANTED 0 / CRED RUNNER confirming live rank
+interpolation; all six touch controls clicked and M/F/E were exercised with zero game
+errors. In real Chrome desktop at 1440x660 canvas and document measured exactly 1440x660,
+#touch-controls stayed display:none, STREET CRED // RUNNER rendered, and game errors were
+zero. Honestly scoped: rank thresholds/helper, phone interpolation, the rank-up banner
+branch, and reset semantics are source/build verified only — crossing a rank threshold
+live was not driven this pass so the RANK UP runtime remains NOT FULLY VERIFIED, as does
+the wanted-three air-unit runtime. VICE//MERIDIAN remains an evolving GTA-style vertical
+slice, not complete GTA 7. Auth/backend/API stay NOT APPLICABLE for this static Vite app.
+All prior sections remain intact as historical records superseded by this release.
