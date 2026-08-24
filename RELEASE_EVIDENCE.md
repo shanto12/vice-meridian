@@ -1556,3 +1556,60 @@ does the wanted-three air-unit runtime. VICE//MERIDIAN remains an evolving GTA-s
 browser vertical slice, not a literal complete GTA 7; auth/backend/API/runner jobs are
 N/A for this static Vite app. All prior sections remain intact as historical records
 superseded by this release.
+
+---
+
+# Campaign Route Compass - Release Evidence (2026-08-23)
+
+Verification matrix for the campaign route compass release (`1d6b5fd`). This is the
+current release record; every earlier section in this file is a historical record
+superseded by it. Rows are separated so agent provenance, shell gates, live HTTP/header
+checks, bundle-content checks, real-Chrome sessions, and not-yet-verified runtime states
+are never mixed inside one evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `1d6b5fd` "Add campaign route compass" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat 1d6b5fd | PASS | Source-only: src/main.ts (+31) and src/style.css (+8); RELEASE_EVIDENCE.md untouched by the feature commit; rewards and save schema unchanged |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced /assets/index-CleTkQGW.js and /assets/index-B--JJqHW.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bc9533645a48efe217ed4` is ready at https://vice-meridian.netlify.app/ |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and /assets/index-CleTkQGW.js | PASS | Both return HTTP 200; live JS /assets/index-CleTkQGW.js and CSS /assets/index-B--JJqHW.css confirmed |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS preload, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Live bundle contains compass markers | Bundle content check of the deployed JS | PASS | Contains ROUTE //, SIGNAL 1, EXTRACTION GATE, KINGPIN NODE, KINGPIN NETWORK, phone-arc, and ACT COMPLETE markers |
+| Route derivation source/build verification | Source review + build output: campaignRouteTarget() signal/gate/Kingpin selection and cardinalDirection() dominant-axis bearing | PASS | Targets derive purely from existing state (signalsFound/missionComplete/kingpinOnline) using existing coordinates; no new save fields or reward changes |
+| ACT II/III route transitions exercised manually | Manual gameplay attempt to cross act boundaries while observing the route line | NOT FULLY VERIFIED | The route line was observed live on the ACT I signal leg only; gate and Kingpin legs were source/build verified but not manually reached this pass |
+| Real Chrome mobile layout and route line | Real Chrome mobile session at 390x844 on production with rect capture | PASS | Canvas/document exactly 390x844; no overflow; route line read ROUTE // SIGNAL 1 // 924M // W with display block, rect top 74.5 bottom 87.09375 inside the HUD stack |
+| Phone menu state at mobile | TAB-opened phone menu inspection at 390x844 | PASS | Arc still read ACT I // SIGNAL SWEEP — Recover 3 relay signals across the grid; status line CASH $0 / REP 0 / WANTED 0 / CRED RUNNER |
+| Mobile touch controls and control exercise | Real Chrome mobile session at 390x844 on production | PASS | Touch dock display flex; all six touch controls CUA-clicked; M/F/E exercised; no app-reported errors |
+| Real Chrome desktop isolation | Real Chrome desktop session at 1440x660 on production | PASS | Same route text rendered; canvas/document exactly 1440x660; touch dock display none; no overflow; no app-reported errors |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the campaign route compass in
+commit `1d6b5fd` "Add campaign route compass", changing only src/main.ts and
+src/style.css; HEAD and origin/main are aligned with a clean tree. Local gates passed:
+npm run build (assets index-CleTkQGW.js + index-B--JJqHW.css), npm audit --omit=dev
+(0 vulnerabilities), and git diff --check. Netlify production deploy
+`6a8bc9533645a48efe217ed4` is ready at https://vice-meridian.netlify.app/: root and JS
+return HTTP 200 with CSP, HSTS preload, nosniff, Referrer-Policy, and Permissions-Policy
+headers; the live bundle contains ROUTE //, SIGNAL 1, EXTRACTION GATE, KINGPIN NODE,
+KINGPIN NETWORK, phone-arc, and ACT COMPLETE markers. In real Chrome mobile at 390x844
+canvas/document measured exactly 390x844 and the route line read ROUTE // SIGNAL 1 //
+924M // W with display block inside the HUD stack (rect top 74.5 bottom 87.09375); the
+phone arc still read ACT I // SIGNAL SWEEP — Recover 3 relay signals across the grid with
+status CASH $0 / REP 0 / WANTED 0 / CRED RUNNER; touch dock stayed display:flex with all
+six controls CUA-clicked and M/F/E exercised; no overflow and no app-reported errors. In
+real Chrome desktop at 1440x660 the same route text rendered, canvas/document measured
+exactly 1440x660, the touch dock stayed display:none, and no app errors appeared.
+Honestly scoped: route target derivation (signal/gate/Kingpin) and cardinal direction are
+source/build verified — but ACT II/III route transitions were not manually reached this
+pass and remain NOT FULLY VERIFIED, as does the wanted-three air-unit runtime.
+VICE//MERIDIAN remains an evolving GTA-style browser vertical slice, not literal complete
+GTA 7; auth/backend/API/runner jobs are N/A for this static Vite app. All prior sections
+remain intact as historical records superseded by this release.
