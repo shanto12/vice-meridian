@@ -952,7 +952,7 @@ The Cursor-authored mission-control phone slice is live and desktop-verified in 
 
 | Requirement | Evidence surface | Result | Notes |
 | --- | --- | --- | --- |
-| Cursor source commit 3acfe077539b6e010c8206262b5c1b8b1e11d143 Add live phone mission briefing is on origin/main and the tree is clean | Cursor Git verification | PASS | HEAD equals origin/main; working tree clean |
+| Feature commit 3acfe077539b6e010c8206262b5c1b8b1e11d143 Add live phone mission briefing is an ancestor of current HEAD 93554d9e0763c76e348baa109873e487a17f1b5f, HEAD equals origin/main, and the working tree is clean | Cursor Git verification | PASS | Ancestry confirmed via git merge-base --is-ancestor; HEAD equals origin/main; working tree clean |
 | Netlify production deploy 6a8b8b952f9c4a355ab3dab4 is ready at https://vice-meridian.netlify.app/ | Netlify CLI | PASS | Production URL live; served asset assets/index-BKlKXO2P.js |
 | Build and dependency audit | npm run build; npm audit --omit=dev | PASS | tsc + Vite build passed; 62.76 kB JS / 16.58 kB gzip; 0 vulnerabilities |
 | Whitespace hygiene | git diff --check | PASS | Clean output; no whitespace errors |
@@ -966,3 +966,5 @@ The Cursor-authored mission-control phone slice is live and desktop-verified in 
 ## Summary
 
 Live phone briefing verified end to end on desktop production Chrome: commit, deploy, build/audit, bundle markers, security headers, and the full open-brief-close call flow passed with zero console errors. The exact-commit mobile 390x844 re-check remains NOT FULLY VERIFIED; auth/backend/API is NOT APPLICABLE for the static Vite site. LIMITATION ACKNOWLEDGED: VICE//MERIDIAN remains an evolving GTA-style vertical slice, not complete GTA 7.
+
+Note: the later district-context experiment (c064211) was reverted before this baseline (93554d9); the live production asset remains assets/index-BKlKXO2P.js and the phone-briefing release remains the deployed feature.
