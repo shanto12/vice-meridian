@@ -319,7 +319,6 @@ type RivalCrewMember = {
   hp: number
   maxHp: number
   phase: number
-  hitFlashUntilMs: number
 }
 function makeRival(index: number): RivalCrewMember {
   const spawns = [
@@ -328,7 +327,7 @@ function makeRival(index: number): RivalCrewMember {
     { x: TURF_SITE.x + 6, y: TURF_SITE.y + 42 },
   ]
   const spot = spawns[index % spawns.length]
-  return { x: spot.x, y: spot.y, hp: RIVAL_MAX_HP, maxHp: RIVAL_MAX_HP, phase: index * 2.1, hitFlashUntilMs: 0 }
+  return { x: spot.x, y: spot.y, hp: RIVAL_MAX_HP, maxHp: RIVAL_MAX_HP, phase: index * 2.1 }
 }
 const rivalCrew: RivalCrewMember[] = Array.from({ length: RIVAL_COUNT }, (_, i) => makeRival(i))
 function resetRivalCrew() {
@@ -2366,7 +2365,6 @@ function frame(now: number) {
       if (rival.hp <= 0) continue
       if (Math.hypot(b.x - rival.x, b.y - rival.y) < RIVAL_HIT_RADIUS) {
         rival.hp = Math.max(0, rival.hp - 1)
-        rival.hitFlashUntilMs = now + 140
         pulse.bolts.splice(i, 1)
         break
       }
@@ -3081,9 +3079,8 @@ function frame(now: number) {
     // drawn here before the player/courier/police layers so they read as world actors
     for (const rival of rivalCrew) {
       if (rival.hp <= 0) continue
-      const flashing = now < rival.hitFlashUntilMs
-      const bodyColor = flashing ? '#ffffff' : '#ff2d55'
-      const glowColor = flashing ? '#ffffff' : now % 400 < 200 ? '#b26bff' : '#ff3c3c'
+      const bodyColor = '#ff2d55'
+      const glowColor = now % 400 < 200 ? '#b26bff' : '#ff3c3c'
       const bob = Math.sin(now / 240 + rival.phase) * 1.5
       const aimAng = Math.atan2(player.y - rival.y, player.x - rival.x)
       const rx = rival.x
@@ -3091,7 +3088,7 @@ function frame(now: number) {
       ctx.lineCap = 'round'
       ctx.strokeStyle = bodyColor
       ctx.shadowColor = glowColor
-      ctx.shadowBlur = flashing ? 22 : 12
+      ctx.shadowBlur = 12
       ctx.lineWidth = 2.5
       ctx.beginPath()
       ctx.arc(rx, ry - 11, 4, 0, Math.PI * 2)
