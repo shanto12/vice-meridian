@@ -889,6 +889,16 @@ function districtFor(x: number): string {
   return 'NEON CORE'
 }
 
+// Shared live-objective projection: one ordered list of world-space points that both
+// the city map overlay and the neon radar render identically (ring + label + distance).
+type ObjectiveMarker = { x: number; y: number; label: string; color: string }
+
+function objectiveMarkers(): ObjectiveMarker[] {
+  return [
+    { x: SAFEHOUSE.x, y: SAFEHOUSE.y, label: 'SAFEHOUSE', color: '#00f0ff' },
+  ]
+}
+
 // Full-screen CITY MAP overlay: static world view, simulation paused while open
 function drawCityMap() {
   const now = performance.now()
@@ -1001,6 +1011,29 @@ function drawCityMap() {
   ctx.stroke()
   ctx.shadowBlur = 0
 
+  // shared live objective markers (label + distance), same projection as the radar
+  ctx.font = narrow ? '600 8px ui-monospace, Consolas, monospace' : '600 10px ui-monospace, Consolas, monospace'
+  for (const marker of objectiveMarkers()) {
+    const ox = mx + marker.x * kx
+    const oy = myTop + marker.y * ky
+    const odist = Math.round(Math.hypot(player.x - marker.x, player.y - marker.y))
+    ctx.strokeStyle = marker.color
+    ctx.shadowColor = marker.color
+    ctx.lineWidth = narrow ? 1.5 : 2
+    ctx.setLineDash([4, 3])
+    ctx.beginPath()
+    ctx.arc(ox, oy, narrow ? 5 : 7, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    if (!narrow) {
+      ctx.textAlign = 'center'
+      ctx.fillStyle = marker.color
+      ctx.fillText(marker.label, ox, oy - 12)
+      ctx.fillText(`${odist}M`, ox, oy + 20)
+    }
+  }
+  ctx.shadowBlur = 0
+
   // district labels
   ctx.font = narrow ? '700 10px ui-monospace, Consolas, monospace' : '700 13px ui-monospace, Consolas, monospace'
   ctx.textAlign = 'center'
@@ -1110,6 +1143,24 @@ function drawRadar(now: number) {
     ctx.arc(mx(gate.x), my(gate.y), 4.5 + Math.sin(now / 300), 0, Math.PI * 2)
     ctx.stroke()
   }
+
+  // shared live objective markers (compact blips; label only on wide screens), same projection as the map
+  for (const marker of objectiveMarkers()) {
+    const odist = Math.round(Math.hypot(player.x - marker.x, player.y - marker.y))
+    ctx.strokeStyle = marker.color
+    ctx.shadowColor = marker.color
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.arc(mx(marker.x), my(marker.y), narrow ? 4 : 5, 0, Math.PI * 2)
+    ctx.stroke()
+    if (!narrow) {
+      ctx.font = '600 8px ui-monospace, Consolas, monospace'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = marker.color
+      ctx.fillText(`${marker.label} ${odist}M`, mx(marker.x), my(marker.y) + 14)
+    }
+  }
+  ctx.shadowBlur = 0
 
   // drone contacts while wanted
   if (wanted > 0) {
