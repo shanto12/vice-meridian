@@ -2384,3 +2384,46 @@ Vite site. This section records current production evidence for exactly the test
 above — it is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving
 GTA-style browser vertical slice rather than a literal complete GTA 7. All prior sections
 remain intact as historical records superseded by this release.
+
+---
+
+# All-Units-Clear Pursuit Feedback Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the all-units-clear pursuit feedback slice (`ef29282`). This is
+current production evidence for exactly what was tested this pass — not a claim of full
+GTA 7 completion; every earlier section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `ef29282` "Add all-units-clear dispatch on passive cooling" present on main and origin/main with a clean tree | src/main.ts only (+33/-9), presentation-only: single call-site trigger in the passive heat-cooling branch guarded by heat-before 1 → wanted 0, riding the existing radio timer |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the working tree atop `ef29282` | Completed without errors producing dist/assets/index-BApy2xlw.js; git diff --check clean |
+| Dependency hygiene passed | PASS | npm audit --omit=dev | found 0 vulnerabilities in the production dependency tree |
+| Production deploy is live | PASS | Netlify deploy `6a8c293d9c7356ae71921cd8` at https://vice-meridian.netlify.app/ | Alias serves this deploy |
+| Live bundle carries all radio markers | PASS | Live HTTP GET of assets/index-BApy2xlw.js on the production deploy | Asset returned HTTP 200 and contains RADIO // ALL UNITS CLEAR, RADIO // PURSUIT ACTIVE, RADIO // SUSPECT BUSTED, RADIO // UNIT DISPATCHED, BUSTED, and WITNESS // JAMMED — confirming the shipped bundle spans this slice and all predecessors |
+| Security headers verified | PASS | Live HTTP response capture from https://vice-meridian.netlify.app/ | Response carried Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, and Permissions-Policy camera=() microphone=() geolocation=() |
+| Real Chrome desktop smoke pass | PASS | Real Chrome production desktop session on the live site | Production URL loaded and M (map), F (pulse), Q (jam), R (reset) were exercised with no application-origin console errors |
+| Real Chrome mobile pass | PASS | Real browser session at 390x844 on the live site | All six touch controls shown and all six were clicked via pointer events, with no application-origin console errors |
+| All-units-clear behavior | VERIFIED BY SOURCE + LIVE BUNDLE, NOT FULL E2E | src/main.ts review plus live bundle marker check | The deterministic clear trigger (RADIO // ALL UNITS CLEAR emitted ONLY when passive heat cooling decrements wanted 1→0 — never on safehouse H, extraction, delivery completions/failures, BUSTED, Q jam decrement, or resetRun — plus the cyan ring/green CLEAN canvas tag) is present in source and in the shipped bundle, but a forced passive-cooling 1-to-0 runtime capture was NOT completed in this pass — runtime clear behavior stands on source and bundle review only |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Vite architecture review | No auth, backend runner, or API endpoint exists — this is a static Vite site |
+
+## Summary
+
+Source commit `ef29282` "Add all-units-clear dispatch on passive cooling" is on main and
+origin/main behind a clean tree, touching src/main.ts only as a presentation-only layer.
+npm run build passed producing dist/assets/index-BApy2xlw.js, git diff --check was clean,
+and npm audit --omit=dev found 0 vulnerabilities. Production deploy
+`6a8c293d9c7356ae71921cd8` serves https://vice-meridian.netlify.app/ where live asset
+assets/index-BApy2xlw.js returned HTTP 200 carrying RADIO // ALL UNITS CLEAR alongside
+RADIO // PURSUIT ACTIVE, RADIO // SUSPECT BUSTED, RADIO // UNIT DISPATCHED, BUSTED, and
+WITNESS // JAMMED, so the shipped bundle spans this slice and every predecessor. Live
+response headers confirmed CSP, HSTS, X-Content-Type-Options, Referrer-Policy, and
+Permissions-Policy. A real Chrome production desktop smoke loaded the site and exercised
+M/F/Q/R with zero application-origin console errors; a real Chrome mobile session at
+390x844 showed the six touch controls, clicked all six with no application-origin console
+errors. The all-units-clear behavior is explicitly marked VERIFIED BY SOURCE + LIVE
+BUNDLE, NOT FULL E2E because a forced passive-cooling 1-to-0 runtime capture was not
+completed in this pass. Auth/backend/API remain not applicable for this static Vite site.
+This section records current production evidence for exactly the tests listed above — it
+is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style
+browser vertical slice rather than a literal complete GTA 7. All prior sections remain
+intact as historical records superseded by this release.
