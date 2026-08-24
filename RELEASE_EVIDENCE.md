@@ -2056,3 +2056,62 @@ wanted-three air-unit runtime also remains NOT FULLY VERIFIED, carried forward.
 VICE//MERIDIAN remains an evolving GTA-style browser slice rather than a literal complete
 GTA 7; auth/backend/API/runner jobs are N/A for this static Vite game. All prior sections
 remain intact as historical records superseded by this release.
+
+---
+
+# Black Market Stash Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the black market stash persistence release. This is the current
+release record; every earlier section in this file is a historical record superseded by
+it. Rows are separated so source/build evidence, Netlify shell/header evidence,
+Playwright/Chrome sessions, and runtime caveats are never mixed inside one evidence
+surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `e17fda6` "Persist black market stash" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat e17fda6 | PASS | Source-only: src/main.ts (+12/-2); RELEASE_EVIDENCE.md and src/style.css untouched by the feature commit |
+| Build gate passed from the exact commit | Shell: npm run build at `e17fda6` | PASS | tsc + Vite completed without errors; produced /assets/index-Cl95vFwZ.js |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify deploy `6a8beb1e2f57c0c87c937669` is production-ready; alias https://vice-meridian.netlify.app/ and unique URL https://6a8beb1e2f57c0c87c937669--vice-meridian.netlify.app |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and /assets/index-Cl95vFwZ.js | PASS | Both return HTTP 200; live JS asset index-Cl95vFwZ.js confirmed on this deploy |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP; HSTS includeSubDomains preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy camera/microphone/geolocation disabled |
+| Live bundle contains stash markers | Bundle content check of the deployed JS | PASS | Contains stashCollected (save-schema flag), the BLACK MARKET STASH world label with its Z STASH jobs-board entry, and the STASH SECURED banner string |
+| Real Chrome mobile baseline | Playwright/Chrome session at 390x844 on the live alias | PASS | Canvas filled the viewport; document had no overflow; all six visible touch controls clicked; zero app console errors |
+| Real Chrome desktop baseline | Playwright/Chrome session at 1440x660 on the live alias | PASS | Canvas filled the viewport; document had no overflow; zero app console errors |
+| Save/load round trip | P save then L load in Chrome | PASS | P showed SAVE // PROGRESS STORED; L showed SAVE // PROGRESS LOADED |
+| Phone contacts overlay exercise | Tab open / Escape close in Chrome | PASS | Contacts overlay opened with Tab and closed with Escape cleanly |
+| Console cleanliness | Chrome console capture across both viewports | PASS | No application console errors; browser wallet extension warnings observed separately and are unrelated to the game |
+| Full funded stash pickup with persistence round trip | Manual on-foot Y grab at the stash site plus save/reload verification | NOT CLAIMED | The fresh manual run held CASH $0 and the stash route was not reached, so no live pickup was driven this pass; stash behavior stands on source/build review, the stashCollected save/load wiring, and live bundle markers |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+The black market stash shipped to production as commit `e17fda6` "Persist black market
+stash", with the repository clean and synchronized against origin/main. From that exact
+commit: npm run build passed and produced /assets/index-Cl95vFwZ.js, git diff --check
+passed, and npm audit --omit=dev found 0 vulnerabilities. Netlify deploy
+`6a8beb1e2f57c0c87c937669` is live at the alias https://vice-meridian.netlify.app/ and
+unique URL https://6a8beb1e2f57c0c87c937669--vice-meridian.netlify.app, serving the root
+document and live asset /assets/index-Cl95vFwZ.js over HTTPS with CSP, HSTS
+includeSubDomains preload, X-Content-Type-Options nosniff,
+Referrer-Policy strict-origin-when-cross-origin, and Permissions-Policy disabling
+camera/microphone/geolocation; the live bundle carries the stashCollected flag, the
+BLACK MARKET STASH world label with its Z STASH jobs-board entry, and the STASH SECURED
+banner string. Real Chrome passes on mobile 390x844 and desktop 1440x660 found the canvas
+filling the viewport with no document overflow, all six visible touch controls clickable,
+P save showing SAVE // PROGRESS STORED, L load showing SAVE // PROGRESS LOADED, Tab/Escape
+driving the contacts overlay, and zero application console errors — browser wallet
+extension warnings were observed separately and are unrelated to the game. Stated
+precisely: the full funded stash pickup (+$200/+1 rep) with a save/reload persistence
+round trip was NOT CLAIMED because the fresh manual run started at CASH $0 and the stash
+route was not reached this pass — stash behavior stands on source/build review plus live
+bundle markers. The wanted-three air-unit runtime also remains NOT FULLY VERIFIED,
+carried forward. VICE//MERIDIAN remains an evolving GTA-style browser vertical slice
+rather than a literal complete GTA 7; auth/backend/API/runner jobs are N/A for this
+static Vite game. All prior sections remain intact as historical records superseded by
+this release.
