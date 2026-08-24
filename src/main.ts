@@ -27,6 +27,7 @@ app.innerHTML = `
     <p class="hud-air-support" id="hud-air-support" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">AIR SUPPORT // ACTIVE</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-weather" id="hud-weather" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#4da6ff;text-shadow:0 0 10px rgba(77,166,255,0.6);">WEATHER // CLEAR</p>
+    <p class="hud-grip" id="hud-grip" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">GRIP // DRY</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
     <p class="hud-jobboard" id="hud-jobboard" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff6bd6;text-shadow:0 0 10px rgba(255,107,214,0.6);">JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // Z STASH // N RACE</p>
@@ -1146,6 +1147,7 @@ const airUnitEl = document.getElementById('hud-airunit')!
 const airSupportEl = document.getElementById('hud-air-support')!
 const walletEl = document.getElementById('hud-wallet')!
 const weatherEl = document.getElementById('hud-weather')!
+const gripEl = document.getElementById('hud-grip')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
 const phoneBriefingEl = document.getElementById('phone-briefing')!
@@ -2217,6 +2219,9 @@ function frame(now: number) {
   const len = Math.hypot(dx, dy) || 1
   const moving = !busted && (dx !== 0 || dy !== 0)
 
+  // Weather phase resolves once per frame before every consumer (physics, HUD, render)
+  const weather = weatherPhase(now)
+
   if (!driving) {
     const wantBoost = keys.has('Space') && boost.energy > 1 && !boost.cooldown
     boost.active = wantBoost && moving
@@ -2244,6 +2249,10 @@ function frame(now: number) {
     const brake = isStolenRide() ? STOLEN_BRAKE : courierCar.brake
     const friction = isStolenRide() ? STOLEN_FRICTION : courierCar.friction
     const turnRate = isStolenRide() ? STOLEN_TURN_RATE : courierCar.turnRate
+    // Wet-road grip: turn response eases down smoothly with rain, slightly more in storm.
+    // Fair by design — modest percentages, fully deterministic from the weather phase
+    const grip = 1 - weather.wet * 0.10 - weather.storm * 0.05
+    const wetTurnRate = turnRate * grip
     let throttle = 0
     for (const code of keys) {
       const [kx, ky] = MOVE_KEYS[code]
@@ -2251,7 +2260,7 @@ function frame(now: number) {
       else if (ky > 0) throttle = -1
       if (kx !== 0) {
         const turnEff = 0.35 + 0.65 * Math.min(1, Math.abs(car.speed) / 160)
-        car.angle += kx * turnRate * dt * (car.speed < 0 ? -1 : 1) * turnEff
+        car.angle += kx * wetTurnRate * dt * (car.speed < 0 ? -1 : 1) * turnEff
       }
     }
     if (throttle > 0) {
@@ -2282,6 +2291,12 @@ function frame(now: number) {
 
     car.x += Math.sin(car.angle) * car.speed * dt
     car.y -= Math.cos(car.angle) * car.speed * dt
+    // Storm-only lateral drift: small deterministic sway from the run clock, scaled by
+    // storm intensity and speed so standing still never slides
+    if (weather.storm > 0.05 && car.speed > 20) {
+      const drift = Math.sin((now - runStartMs) / 900) * weather.storm * 5 * dt * Math.min(1, car.speed / STOLEN_MAX_SPEED)
+      car.x += drift
+    }
     car.x = Math.max(24, Math.min(WORLD_W - 24, car.x))
     car.y = Math.max(24, Math.min(WORLD_H - 24, car.y))
 
@@ -3865,9 +3880,12 @@ function frame(now: number) {
 
   const nightOn = isCityNight(now)
   const darkness = nightShiftEnabled ? 1 : cityDarkness(now)
-  const weather = weatherPhase(now)
   const weatherHudText = `WEATHER // ${weather.state}`
   if (weatherEl.textContent !== weatherHudText) weatherEl.textContent = weatherHudText
+  // grip readout follows the weather crossfade: DRY when mostly clear, WET in rain, SLIPPERY near-storm
+  const gripState = weather.wet < 0.25 ? 'DRY' : weather.wet < 0.7 ? 'WET' : 'SLIPPERY'
+  const gripHudText = `GRIP // ${gripState}`
+  if (gripEl.textContent !== gripHudText) gripEl.textContent = gripHudText
   const bg = ctx.createLinearGradient(0, 0, 0, h)
   // day/dusk/night sky palettes blended by clock-driven darkness for a smooth cycle;
   // storm skies darken slightly on top so lightning reads as a brightening flash
@@ -4808,7 +4826,9 @@ function frame(now: number) {
   // Civilian traffic: continuous lane movement with edge wrap
   traffic.forEach(t => {
     if (t === stolenCar) return
-    t.x += t.dir * t.speed * dt
+    // wet-weather speed wobble: deterministic shimmer on the lane advance, visual only
+    const sway = weather.wet > 0.2 ? Math.sin((now + t.x) / 1400) * weather.wet * 3 : 0
+    t.x += t.dir * (t.speed + sway) * dt
     if (t.dir > 0 && t.x > WORLD_W + t.length) t.x = -t.length
     if (t.dir < 0 && t.x < -t.length) t.x = WORLD_W + t.length
   })
@@ -5296,25 +5316,31 @@ function frame(now: number) {
     const half = t.length / 2
     const rear = t.dir > 0 ? -half : half
     const front = -rear
+    // wet-weather sway: small deterministic lane offset and speed shimmer, visual only —
+    // movement/collision state stays exactly as simulated
+    const swayAmp = weather.wet * 3 + weather.storm * 4
+    const sway = Math.sin((now - runStartMs) / 700 + t.x * 0.05) * weather.wet * 6 * dt
+    const wobbleX = t.x + sway
+    const laneY = t.laneY + Math.sin((now - runStartMs) / 1100 + t.x * 0.03) * swayAmp
 
     ctx.shadowColor = t.color
     ctx.shadowBlur = 10
     ctx.strokeStyle = t.color
     ctx.lineWidth = 2
-    ctx.strokeRect(t.x - half, t.laneY - 9, t.length, 18)
+    ctx.strokeRect(wobbleX - half, laneY - 9, t.length, 18)
 
     // window strip
     ctx.fillStyle = 'rgba(191, 255, 255, 0.5)'
-    ctx.fillRect(t.x - half + t.length * 0.28, t.laneY - 6, t.length * 0.44, 5)
+    ctx.fillRect(wobbleX - half + t.length * 0.28, laneY - 6, t.length * 0.44, 5)
 
     // taillights at rear, headlights at front — beams brighten through the night cycle
     ctx.shadowBlur = 8
     ctx.fillStyle = '#ff2d96'
-    ctx.fillRect(t.x + rear - (t.dir > 0 ? 4 : 0), t.laneY - 7, 4, 3)
-    ctx.fillRect(t.x + rear - (t.dir > 0 ? 4 : 0), t.laneY + 4, 4, 3)
+    ctx.fillRect(wobbleX + rear - (t.dir > 0 ? 4 : 0), laneY - 7, 4, 3)
+    ctx.fillRect(wobbleX + rear - (t.dir > 0 ? 4 : 0), laneY + 4, 4, 3)
     ctx.fillStyle = `rgba(255, 248, 214, ${0.55 + darkness * 0.35})`
-    ctx.fillRect(t.x + front - (t.dir > 0 ? 0 : 4), t.laneY - 7, 4, 3)
-    ctx.fillRect(t.x + front - (t.dir > 0 ? 0 : 4), t.laneY + 4, 4, 3)
+    ctx.fillRect(wobbleX + front - (t.dir > 0 ? 0 : 4), laneY - 7, 4, 3)
+    ctx.fillRect(wobbleX + front - (t.dir > 0 ? 0 : 4), laneY + 4, 4, 3)
     ctx.shadowBlur = 0
   })
 
