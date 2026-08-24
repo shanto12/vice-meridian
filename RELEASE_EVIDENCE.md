@@ -2559,3 +2559,53 @@ production evidence for exactly the tests listed above — it is not a claim of 
 completion; VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather
 than a literal complete GTA 7. All prior sections remain intact as historical records
 superseded by this release.
+
+---
+
+# Wanted Traffic Flow Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the wanted-level traffic flow slice
+(`64357ab4618f591c1dedc0d16080ee4c219ea5ac`, "Add wanted traffic flow"). Documentation
+only this pass — src/main.ts, package files, netlify.toml, and _headers were not modified.
+Current production evidence covers exactly what was tested; every earlier section remains
+a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `64357ab` "Add wanted traffic flow response" on main == origin/main with a clean tree | src/main.ts-only change: TRAFFIC // FLOWING/CAUTIOUS/CLEARING HUD, heat-based lane-advance scaling (0.82 at wanted>=2, 0.94 at wanted 1, baseline at 0), deterministic bounded lane-edge visual drift during active pursuit; transient, resetRun-safe, no new entities |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the working tree atop `64357ab` | Completed without errors producing dist/assets/index-BnIpnYzu.js (97.19 kB, gzip 27.76 kB); git diff --check clean |
+| Dependency hygiene passed | PASS | npm audit --omit=dev --audit-level=high | found 0 vulnerabilities |
+| Production deploy is live | PASS | Netlify deploy `6a8c399ba6e73cfe2619c9c1` at https://vice-meridian.netlify.app/ | Alias serves this deploy |
+| Live bundle carries traffic and prior markers | PASS | Live HTTP GET of assets/index-BnIpnYzu.js on the production deploy | Bundle contains TRAFFIC //, FLOWING, CAUTIOUS, CLEARING, WEATHER //, GRIP //, CITY CLOCK //, and NIGHT SHIFT // CITY LIGHTS markers — confirming the shipped bundle spans this slice and its predecessors |
+| Security headers verified | PASS | Live HTTP response capture from https://vice-meridian.netlify.app/ | Live CSP, Permissions-Policy, Referrer-Policy, HSTS, and X-Content-Type-Options nosniff all present and unchanged |
+| Real Chrome desktop pass | PASS | Real Chrome production load of the live site | TRAFFIC // FLOWING, WEATHER // CLEAR, GRIP // DRY, and the CITY CLOCK all displayed with zero application-origin console errors |
+| Real Chrome mobile pass | PASS | Real browser session at 390x844 on the live site | Traffic/weather/grip/clock readouts present; all six touch controls (Move up, Move left, Move down, Move right, Hold boost, Tap pulse) clicked with zero application-origin console errors |
+| Source behavior documented | PASS | src/main.ts review | Source implements wanted 0 → FLOWING (baseline), wanted 1 → CAUTIOUS (mild slowdown via 0.94 advance factor), wanted >=2 → CLEARING (0.82 advance factor plus bounded deterministic lane-edge visual drift while pursuit is active); applied multiplicatively so t.speed and collision semantics stay untouched |
+| Full wanted-transition E2E | VERIFIED BY SOURCE + LIVE BUNDLE + REAL CHROME SMOKE, NOT FULL WANTED-TRANSITION E2E | src/main.ts review, live bundle marker check, real-Chrome session observations | The browser smoke started at wanted 0 and did not run a complete pursuit escalation through CAUTIOUS and CLEARING states — full wanted-level transition/pursuit behavior stands on source review, live-bundle markers, and partial-window observation only |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Vite architecture review | Auth/backend/API are not applicable to this static Vite game |
+
+## Summary
+
+Source commit `64357ab4618f591c1dedc0d16080ee4c219ea5ac` "Add wanted traffic flow" sits on
+main == origin/main behind a clean tree as a src/main.ts-only ambient layer. npm run build
+passed producing dist/assets/index-BnIpnYzu.js (97.19 kB, gzip 27.76 kB); git diff --check
+was clean; npm audit --omit=dev --audit-level=high found 0 vulnerabilities. Netlify deploy
+`6a8c399ba6e73cfe2619c9c1` is ready at https://vice-meridian.netlify.app/, where the live
+bundle carries TRAFFIC //, FLOWING, CAUTIOUS, CLEARING, WEATHER //, GRIP //, CITY CLOCK //,
+and NIGHT SHIFT // CITY LIGHTS markers, and live headers kept CSP, Permissions-Policy,
+Referrer-Policy, HSTS, and X-Content-Type-Options nosniff unchanged. A real Chrome desktop
+production load showed TRAFFIC // FLOWING alongside WEATHER // CLEAR and GRIP // DRY with
+the CITY CLOCK advancing and zero application-origin console errors; a real Chrome mobile
+session at 390x844 showed traffic/weather/grip/clock with all six touch controls (Move up,
+Move left, Move down, Move right, Hold boost, Tap pulse) clicked and zero
+application-origin console errors. Source implements wanted 0 as FLOWING baseline,
+wanted 1 as CAUTIOUS mild slowdown, and wanted >=2 as CLEARING with heat-based traffic
+slowdown and a deterministic lane-edge visual drift during pursuit. The full
+wanted-level transition/pursuit path was NOT exercised end-to-end in this pass — the
+smoke started at wanted 0 without a complete escalation — so behavior is marked VERIFIED
+BY SOURCE + LIVE BUNDLE + REAL CHROME SMOKE, NOT FULL WANTED-TRANSITION E2E.
+Auth/backend/API are not applicable to this static Vite game. This section records current
+production evidence for exactly the tests listed above — it is not a claim of full GTA 7
+completion; VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather
+than a literal complete GTA 7. All prior sections remain intact as historical records
+superseded by this release.
