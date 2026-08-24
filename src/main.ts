@@ -271,17 +271,30 @@ const SAFEHOUSE_CLEAR_TEXT = 'SAFEHOUSE // HEAT CLEARED'
 let safehouseRequested = false
 let safehouseRestoreAtMs = 0
 
-// Safehouse garage tune: one-time $250 sprint kit for the courier coupe (KeyG)
-const GARAGE_TUNE_COST = 250
+// Safehouse garage progression: three upgrade tiers bought with G at the safehouse.
+// Tier 1 keeps the classic Sprint Kit (speed/accel), tier 2 adds an Armor Plate that
+// reduces collision and police damage by 25%, tier 3 adds a Boost Cell with faster
+// boost regeneration. Durable level persists in the save; transient banners do not
 const GARAGE_TUNE_MAX_SPEED_BONUS = 60
 const GARAGE_TUNE_ACCEL_BONUS = 80
 const GARAGE_HOLD_MS = 2600
 const GARAGE_AFFORD_TEXT = 'GARAGE // SPRINT KIT INSTALLED -$250'
 const GARAGE_POOR_TEXT = 'GARAGE // TUNE KIT COSTS $250'
+// Ladder definition: one entry per tier beyond the base car (index = tier - 1)
+const GARAGE_TIERS = [
+  { name: 'SPRINT KIT', cost: 250, banner: GARAGE_AFFORD_TEXT, poor: 'GARAGE // TUNE KIT COSTS $250' },
+  { name: 'ARMOR PLATE', cost: 500, banner: 'GARAGE // ARMOR PLATE INSTALLED -$500', poor: 'GARAGE // ARMOR PLATE COSTS $500' },
+  { name: 'BOOST CELL', cost: 750, banner: 'GARAGE // BOOST CELL INSTALLED -$750', poor: 'GARAGE // BOOST CELL COSTS $750' },
+]
+const GARAGE_MAXED_TEXT = 'GARAGE // MAXED'
+const ARMOR_DAMAGE_MULTIPLIER = 0.75
+const BOOST_CELL_REGEN_MULTIPLIER = 1.5
 let garageRequested = false
-let garageTuneInstalled = false
+let garageUpgradeLevel = 0 // durable tier count 0..3; legacy garageTuneInstalled maps to >= 1
+let garageTuneInstalled = false // legacy boolean kept for save compatibility; true when level >= 1
 let garageRestoreAtMs = 0
 let garageBannerAfford = true
+let garageBannerTierText = ''
 
 // Vehicle damage: collisions wear the hull down; the safehouse repair shop restores it (KeyT)
 const VEHICLE_HIT_DAMAGE = 18
@@ -729,6 +742,7 @@ interface SaveData {
   kingpinOnline?: boolean
   networkJobComplete?: boolean
   districtsControlled?: number
+  garageUpgradeLevel?: number
   carHealth?: number
   carX?: number
   carY?: number
@@ -747,6 +761,7 @@ function writeSave(): boolean {
       kingpinOnline,
       networkJobComplete: networkJobState === 'complete',
       districtsControlled: districtControlIndex,
+      garageUpgradeLevel,
       carHealth,
       carX: courierCar.x,
       carY: courierCar.y,
@@ -786,6 +801,14 @@ function readSave(): SaveData | null {
     // them stay valid and default the unlock state off
     if (data.kingpinOnline !== undefined && typeof data.kingpinOnline !== 'boolean') return null
     if (data.networkJobComplete !== undefined && typeof data.networkJobComplete !== 'boolean') return null
+    if (
+      data.garageUpgradeLevel !== undefined &&
+      (!Number.isInteger(data.garageUpgradeLevel) ||
+        data.garageUpgradeLevel < 0 ||
+        data.garageUpgradeLevel > GARAGE_TIERS.length)
+    ) {
+      return null
+    }
     return data as SaveData
   } catch {
     return null
@@ -999,7 +1022,9 @@ function resetRun(nowMs: number) {
   courierToggleRequested = false
   safehouseRequested = false
   garageRequested = false
+  garageUpgradeLevel = 0
   garageTuneInstalled = false
+  garageBannerTierText = ''
   garageRestoreAtMs = 0
   repairRequested = false
   repairRestoreAtMs = 0
@@ -1890,7 +1915,7 @@ function frame(now: number) {
         boost.active = false
       }
     } else {
-      boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * dt))
+      boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * (garageUpgradeLevel >= 3 ? BOOST_CELL_REGEN_MULTIPLIER : 1) * dt))
       if (boost.cooldown && boost.energy >= 40) boost.cooldown = false
     }
   }
@@ -1929,7 +1954,7 @@ function frame(now: number) {
         overdriveImpactUntilMs = now + 260
       }
     } else {
-      boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * dt))
+      boost.energy = Math.min(100, boost.energy + (boost.cooldown ? 0 : boost.regen * (garageUpgradeLevel >= 3 ? BOOST_CELL_REGEN_MULTIPLIER : 1) * dt))
       if (boost.cooldown && boost.energy >= 40) boost.cooldown = false
     }
     if (carBoost) courierCar.speed = Math.min(courierCar.boostSpeed, courierCar.speed)
@@ -1948,7 +1973,7 @@ function frame(now: number) {
           trafficHitUntilMs = now + TRAFFIC_HIT_HOLD_MS
           trafficHitCooldownUntilMs = now + TRAFFIC_HIT_COOLDOWN_MS
           trafficHitRestoreAtMs = now + TRAFFIC_HIT_HOLD_MS
-          carHealth = Math.max(0, carHealth - VEHICLE_HIT_DAMAGE)
+          carHealth = Math.max(0, carHealth - VEHICLE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
           missionEl.textContent = `VEHICLE DAMAGE // ${carHealth}%`
           if (carHealth <= 0) {
             driving = false
@@ -2035,17 +2060,29 @@ function frame(now: number) {
       safehouseRestoreAtMs = now + SAFEHOUSE_HOLD_MS
     }
 
-    // G inside the safehouse buys the one-time sprint kit: faster top end and acceleration
-    if (garageRequested && !garageTuneInstalled && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
-      garageBannerAfford = cash >= GARAGE_TUNE_COST
-      if (garageBannerAfford) {
-        cash -= GARAGE_TUNE_COST
-        garageTuneInstalled = true
-        courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
-        courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
-        missionEl.textContent = GARAGE_AFFORD_TEXT
+    // G inside the safehouse buys the next garage tier: sprint kit, armor plate, boost cell
+    if (garageRequested && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
+      if (garageUpgradeLevel >= GARAGE_TIERS.length) {
+        garageBannerTierText = GARAGE_MAXED_TEXT
+        missionEl.textContent = GARAGE_MAXED_TEXT
       } else {
-        missionEl.textContent = GARAGE_POOR_TEXT
+        const tier = GARAGE_TIERS[garageUpgradeLevel]
+        garageBannerAfford = cash >= tier.cost
+        if (garageBannerAfford) {
+          cash -= tier.cost
+          // apply the tier's live effect on purchase; tier 1 keeps the classic kit stats
+          if (garageUpgradeLevel === 0) {
+            courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
+            courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
+          }
+          garageUpgradeLevel++
+          if (garageUpgradeLevel >= 1) garageTuneInstalled = true
+          garageBannerTierText = tier.banner
+          missionEl.textContent = tier.banner
+        } else {
+          garageBannerTierText = tier.poor
+          missionEl.textContent = tier.poor
+        }
       }
       garageRestoreAtMs = now + GARAGE_HOLD_MS
     }
@@ -2700,8 +2737,11 @@ function frame(now: number) {
       } else {
         districtControlIndex = 0
       }
-      garageTuneInstalled = data.garageTuneInstalled
-      if (garageTuneInstalled) {
+      const restoredGarageLevel =
+        typeof data.garageUpgradeLevel === 'number' ? data.garageUpgradeLevel : (data.garageTuneInstalled ? 1 : 0)
+      garageUpgradeLevel = Math.max(0, Math.min(GARAGE_TIERS.length, restoredGarageLevel))
+      garageTuneInstalled = garageUpgradeLevel >= 1
+      if (garageUpgradeLevel >= 1) {
         courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
         courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
       }
@@ -2916,7 +2956,7 @@ function frame(now: number) {
       if (Math.hypot(courierCar.x - u.x, courierCar.y - u.y) < 34) {
         courierCar.speed *= -0.25
         setWanted(Math.min(3, wanted + 1))
-        carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE)
+        carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
         policeHitUntilMs = now + POLICE_HIT_HOLD_MS
         policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
         policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
@@ -2966,7 +3006,7 @@ function frame(now: number) {
     if (now >= policeHitCooldownUntilMs && Math.hypot(courierCar.x - roadblock.x, courierCar.y - roadblock.y) < 34) {
       courierCar.speed *= -0.25
       setWanted(Math.min(3, wanted + 1))
-      carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE)
+      carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
       policeHitUntilMs = now + POLICE_HIT_HOLD_MS
       policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
       policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
@@ -3108,6 +3148,7 @@ function frame(now: number) {
   }
   if (garageRestoreAtMs > 0 && now >= garageRestoreAtMs) {
     garageRestoreAtMs = 0
+    garageBannerTierText = ''
   }
   if (blackoutRestoreAtMs > 0 && now >= blackoutRestoreAtMs) {
     blackoutRestoreAtMs = 0
@@ -3226,7 +3267,7 @@ function frame(now: number) {
   } else if (saveRestoreAtMs > 0) {
     if (missionEl.textContent !== saveBannerText) missionEl.textContent = saveBannerText
   } else if (garageRestoreAtMs > 0) {
-    const garageText = garageBannerAfford ? GARAGE_AFFORD_TEXT : GARAGE_POOR_TEXT
+    const garageText = garageBannerTierText || (garageBannerAfford ? GARAGE_AFFORD_TEXT : GARAGE_POOR_TEXT)
     if (missionEl.textContent !== garageText) missionEl.textContent = garageText
   } else if (vehicleDisabledRestoreAtMs > 0) {
     if (missionEl.textContent !== VEHICLE_DISABLED_TEXT) missionEl.textContent = VEHICLE_DISABLED_TEXT
@@ -4376,11 +4417,11 @@ function frame(now: number) {
   // Advertise the chop shop offer wherever it is still open without displacing the standing hints
   const chopShopOfferHint = chopShopState === 'available' ? 'I CHOP SHOP // ' : ''
   // Garage status composes onto every safehouse line so H, B, G, T, N, K, and V all stay visible
-  const garageStatusHint = garageTuneInstalled
-    ? 'SPRINT KIT INSTALLED'
-    : cash >= GARAGE_TUNE_COST
-      ? 'PRESS G TO TUNE ($250)'
-      : `EARN $${GARAGE_TUNE_COST} FOR TUNE`
+  const garageStatusHint = garageUpgradeLevel >= GARAGE_TIERS.length
+    ? 'GARAGE // MAXED'
+    : cash >= GARAGE_TIERS[garageUpgradeLevel].cost
+      ? `GARAGE // TIER ${garageUpgradeLevel}/3 // PRESS G ($${GARAGE_TIERS[garageUpgradeLevel].cost})`
+      : `GARAGE // TIER ${garageUpgradeLevel}/3 // EARN $${GARAGE_TIERS[garageUpgradeLevel].cost}`
   const repairStatusHint = carHealth < 100
     ? cash >= REPAIR_COST
       ? 'PRESS T TO REPAIR ($150)'
@@ -4889,8 +4930,11 @@ function frame(now: number) {
     } else {
       districtControlIndex = 0
     }
-    garageTuneInstalled = bootData.garageTuneInstalled
-    if (garageTuneInstalled) {
+    const restoredGarageLevel =
+      typeof bootData.garageUpgradeLevel === 'number' ? bootData.garageUpgradeLevel : (bootData.garageTuneInstalled ? 1 : 0)
+    garageUpgradeLevel = Math.max(0, Math.min(GARAGE_TIERS.length, restoredGarageLevel))
+    garageTuneInstalled = garageUpgradeLevel >= 1
+    if (garageUpgradeLevel >= 1) {
       courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
       courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
     }
