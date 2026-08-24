@@ -131,6 +131,16 @@ window.addEventListener('keydown', e => {
       phoneOpen = false
       return
     }
+    // District Control takes over the 0 entry once the network contract completes
+    if (
+      districtControlUnlocked() &&
+      districtControlState === 'available' &&
+      districtControlIndex < DISTRICT_CONTROL_SITES.length
+    ) {
+      districtAcceptRequested = true
+      phoneOpen = false
+      return
+    }
   }
   if (e.code === 'Tab') {
     e.preventDefault()
@@ -158,12 +168,14 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyZ') stashRequested = true
   if (e.code === 'KeyY') {
-    // Y toggles Night Shift on foot and drives the Kingpin epilogue/contract beats:
-    // node activation first, then vault secure, then safehouse delivery; everywhere
-    // else it stays the cosmetic night-shift toggle
+    // Y toggles Night Shift on foot and drives the postgame beats in strict precedence:
+    // node activation, contract secure/deliver, district secure/deliver; everywhere else
+    // it stays the cosmetic night-shift toggle
     if (missionComplete && !kingpinOnline && playerNearKingpinNode()) kingpinRequested = true
     else if (networkJobState === 'active' && playerNearNetworkVault()) networkSecureRequested = true
     else if (networkJobState === 'returning' && playerAtSafehouse()) networkDeliverRequested = true
+    else if (districtControlState === 'active' && playerNearDistrictTarget()) districtSecureRequested = true
+    else if (districtControlState === 'returning' && playerAtSafehouse()) districtDeliverRequested = true
     else nightShiftEnabled = !nightShiftEnabled
   }
   if (e.code === 'KeyP') saveRequested = true
@@ -649,6 +661,35 @@ function playerNearKingpinNode(): boolean {
   )
 }
 
+// District Control: the postgame conquest layer, unlocked only after the Kingpin contract
+// completes. Three fixed district holds: accept via Digit0, secure the site on foot
+// (wanted rises to at least 2), then deliver home for +$1500/+5 and advance. The captured
+// count persists through an optional backward-compatible save field (old saves default to
+// 0); in-progress state is transient and resetRun-cleared
+const DISTRICT_CONTROL_SITES = [
+  { name: 'MIDTOWN', x: WORLD_W * 0.22, y: WORLD_H * 0.22, radius: 95 },
+  { name: 'INDUSTRIAL', x: WORLD_W * 0.72, y: WORLD_H * 0.24, radius: 95 },
+  { name: 'OLD MARKET', x: WORLD_W * 0.30, y: WORLD_H * 0.72, radius: 95 },
+]
+type DistrictControlState = 'available' | 'active' | 'returning'
+let districtControlState: DistrictControlState = 'available'
+let districtControlIndex = 0 // durable conquest progress (0..sites.length)
+let districtAcceptRequested = false
+let districtSecureRequested = false
+let districtDeliverRequested = false
+let districtNoticeText = ''
+let districtNoticeUntilMs = 0
+function districtControlUnlocked(): boolean {
+  return missionComplete && kingpinOnline && networkJobState === 'complete'
+}
+function currentDistrictSite() {
+  return DISTRICT_CONTROL_SITES[Math.min(districtControlIndex, DISTRICT_CONTROL_SITES.length - 1)]
+}
+function playerNearDistrictTarget(): boolean {
+  const site = currentDistrictSite()
+  return !driving && Math.hypot(player.x - site.x, player.y - site.y) < site.radius
+}
+
 // Kingpin network contract: a repeatable-once-per-run postgame data sweep offered through
 // the phone after the network is online. Reach the vault, secure the data on foot (heat +2),
 // then return home to deliver. Entirely transient — resetRun-cleared, never persisted
@@ -685,6 +726,9 @@ interface SaveData {
   missionComplete: boolean
   garageTuneInstalled: boolean
   blackoutCompleted: boolean
+  kingpinOnline?: boolean
+  networkJobComplete?: boolean
+  districtsControlled?: number
   carHealth?: number
   carX?: number
   carY?: number
@@ -700,6 +744,9 @@ function writeSave(): boolean {
       missionComplete,
       garageTuneInstalled,
       blackoutCompleted: blackoutState === 'complete',
+      kingpinOnline,
+      networkJobComplete: networkJobState === 'complete',
+      districtsControlled: districtControlIndex,
       carHealth,
       carX: courierCar.x,
       carY: courierCar.y,
@@ -727,6 +774,18 @@ function readSave(): SaveData | null {
     ) {
       return null
     }
+    if (
+      data.districtsControlled !== undefined &&
+      (!Number.isInteger(data.districtsControlled) ||
+        data.districtsControlled < 0 ||
+        data.districtsControlled > DISTRICT_CONTROL_SITES.length)
+    ) {
+      return null
+    }
+    // Optional postgame fields: validated as booleans when present; old saves without
+    // them stay valid and default the unlock state off
+    if (data.kingpinOnline !== undefined && typeof data.kingpinOnline !== 'boolean') return null
+    if (data.networkJobComplete !== undefined && typeof data.networkJobComplete !== 'boolean') return null
     return data as SaveData
   } catch {
     return null
@@ -735,6 +794,14 @@ function readSave(): SaveData | null {
 
 // Standing mission text used when temporary banners (courier/safehouse) hand the line back
 function campaignMissionText(): string {
+  // District Control standing objective outranks pregame campaign text while a hold runs
+  if (districtControlUnlocked() && districtControlState === 'active') {
+    const site = currentDistrictSite()
+    return `DISTRICT CONTROL // SECURE ${site.name}`
+  }
+  if (districtControlUnlocked() && districtControlState === 'returning') {
+    return 'DISTRICT CONTROL // RETURN TO SAFEHOUSE'
+  }
   if (contractState === 'active') {
     return contractDeadlineMs > 0
       ? `${HOT_DELIVERY_TEXT} — ${Math.max(0, Math.ceil((contractDeadlineMs - performance.now()) / 1000))}S`
@@ -992,6 +1059,13 @@ function resetRun(nowMs: number) {
   networkJobState = 'available'
   networkNoticeText = ''
   networkNoticeUntilMs = 0
+  districtControlState = 'available'
+  districtControlIndex = 0
+  districtAcceptRequested = false
+  districtSecureRequested = false
+  districtDeliverRequested = false
+  districtNoticeText = ''
+  districtNoticeUntilMs = 0
   signalBannerText = ''
   signalBannerUntilMs = 0
   signalPulses.length = 0
@@ -1103,6 +1177,13 @@ type RouteTarget = { label: string; x: number; y: number }
 function campaignRouteTarget(): RouteTarget | null {
   if (missionComplete) {
     if (kingpinOnline) {
+      // District Control routing: active district while securing, safehouse while
+      // returning; null once available again or after 3/3 so free roam stays clean
+      if (districtControlState === 'active') {
+        const site = currentDistrictSite()
+        return { label: `DISTRICT ${districtControlIndex + 1}`, x: site.x, y: site.y }
+      }
+      if (districtControlState === 'returning') return { label: 'SAFEHOUSE', x: SAFEHOUSE.x, y: SAFEHOUSE.y }
       if (networkJobState === 'active') return { label: 'DATA VAULT', x: NETWORK_VAULT_SITE.x, y: NETWORK_VAULT_SITE.y }
       if (networkJobState === 'returning') return { label: 'SAFEHOUSE', x: SAFEHOUSE.x, y: SAFEHOUSE.y }
       return null
@@ -1309,6 +1390,15 @@ function objectiveMarkers(): ObjectiveMarker[] {
   }
   if (networkJobState === 'active') {
     markers.push({ x: NETWORK_VAULT_SITE.x, y: NETWORK_VAULT_SITE.y, label: 'DATA VAULT', color: '#00f0ff' })
+  }
+  // District Control: active target while securing; captured sites as compact labels
+  for (let i = 0; i < districtControlIndex && i < DISTRICT_CONTROL_SITES.length; i++) {
+    const held = DISTRICT_CONTROL_SITES[i]
+    markers.push({ x: held.x, y: held.y, label: `${held.name} HELD`, color: '#39ff88' })
+  }
+  if (districtControlUnlocked() && districtControlState === 'active' && districtControlIndex < DISTRICT_CONTROL_SITES.length) {
+    const site = currentDistrictSite()
+    markers.push({ x: site.x, y: site.y, label: `DISTRICT ${districtControlIndex + 1}`, color: '#ff9d3c' })
   }
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[Math.min(raceCheckpointIndex, RACE_CHECKPOINTS.length - 1)]
@@ -1713,24 +1803,39 @@ function frame(now: number) {
       const dim = phase === 'complete' ? ' style="opacity:0.55;"' : ''
       return `<li>${index + 1} ${job.label} — ${stateText}${dim}</li>`
     }).join('')
-    // Kingpin contract entry appended after the network is online; 0 accepts when available
+    // Postgame entry: Kingpin contract row while it runs, then District Control rows
+    // after the contract completes; 0 accepts whichever beat is callable
     let networkEntryHtml = ''
-    if (kingpinOnline) {
+    if (kingpinOnline && networkJobState !== 'complete') {
       const networkStateText =
         networkJobState === 'available'
           ? 'READY — PRESS 0'
           : networkJobState === 'active'
             ? 'REACH THE VAULT'
-            : networkJobState === 'returning'
-              ? PHONE_RETURN_TEXT
-              : 'COMPLETE'
-      const dim = networkJobState === 'complete' ? ' style="opacity:0.55;"' : ''
-      networkEntryHtml = `<li>0 KINGPIN CONTRACT — ${networkStateText}${dim}</li>`
+            : 'RETURN TO SAFEHOUSE'
+      networkEntryHtml = `<li>0 KINGPIN CONTRACT — ${networkStateText}</li>`
     }
-    const fullListHtml = listHtml + networkEntryHtml
+    let districtEntryHtml = ''
+    if (districtControlUnlocked() && (networkJobState === 'complete' || districtControlState !== 'available')) {
+      const site = currentDistrictSite()
+      const districtStateText =
+        districtControlState === 'available'
+          ? `READY — PRESS 0 (${site.name})`
+          : districtControlState === 'active'
+            ? `SECURE ${site.name}`
+            : PHONE_RETURN_TEXT
+      const dim = districtControlIndex >= DISTRICT_CONTROL_SITES.length ? ' style="opacity:0.55;"' : ''
+      const progressLabel =
+        districtControlIndex >= DISTRICT_CONTROL_SITES.length ? '3/3 COMPLETE' : `${districtControlIndex}/${DISTRICT_CONTROL_SITES.length}`
+      districtEntryHtml = `<li>0 DISTRICT CONTROL ${progressLabel} — ${districtStateText}${dim}</li>`
+    }
+    const fullListHtml = listHtml + networkEntryHtml + districtEntryHtml
     if (phoneJobsEl.innerHTML !== fullListHtml) phoneJobsEl.innerHTML = fullListHtml
-    // Hint reads 0-9 only while the kingpin contract entry is callable
-    const phoneHintText = kingpinOnline && networkJobState === 'available' ? 'PRESS 0-9 TO CALL' : 'PRESS 1-9 TO CALL'
+    // Hint reads 0-9 only while a postgame entry is callable
+    const zeroCallable =
+      (kingpinOnline && networkJobState === 'available') ||
+      (districtControlUnlocked() && districtControlState === 'available' && districtControlIndex < DISTRICT_CONTROL_SITES.length)
+    const phoneHintText = zeroCallable ? 'PRESS 0-9 TO CALL' : 'PRESS 1-9 TO CALL'
     if (phoneHintEl.textContent !== phoneHintText) phoneHintEl.textContent = phoneHintText
     const briefingText = campaignMissionText()
     if (phoneBriefingEl.textContent !== briefingText) phoneBriefingEl.textContent = briefingText
@@ -2488,6 +2593,57 @@ function frame(now: number) {
     }
   }
 
+  // District Control beats: accept via Digit0 once unlocked, secure the current district
+  // on foot (wanted rises to at least 2), then deliver home for +$1500/+5 and advance.
+  // After the third district no further accepts occur and free roam stays stable
+  if (districtAcceptRequested) {
+    districtAcceptRequested = false
+    if (
+      districtControlUnlocked() &&
+      districtControlState === 'available' &&
+      districtControlIndex < DISTRICT_CONTROL_SITES.length
+    ) {
+      districtControlState = 'active'
+      const site = currentDistrictSite()
+      districtNoticeText = `DISTRICT CONTROL // MOVE ON ${site.name}`
+      districtNoticeUntilMs = now + KINGPIN_HOLD_MS
+      missionEl.textContent = districtNoticeText
+    }
+  }
+  if (districtSecureRequested) {
+    districtSecureRequested = false
+    if (
+      districtControlState === 'active' &&
+      districtControlIndex < DISTRICT_CONTROL_SITES.length &&
+      playerNearDistrictTarget()
+    ) {
+      districtControlState = 'returning'
+      setWanted(Math.max(2, wanted))
+      const site = currentDistrictSite()
+      districtNoticeText = `DISTRICT CONTROL // ${site.name} SECURED // RETURN TO SAFEHOUSE`
+      districtNoticeUntilMs = now + KINGPIN_HOLD_MS
+      missionEl.textContent = districtNoticeText
+    }
+  }
+  if (districtDeliverRequested) {
+    districtDeliverRequested = false
+    if (districtControlState === 'returning' && playerAtSafehouse()) {
+      cash += 1500
+      rep += 5
+      setWanted(0)
+      districtControlIndex++
+      if (districtControlIndex >= DISTRICT_CONTROL_SITES.length) {
+        districtNoticeText = 'DISTRICT CONTROL // ALL DISTRICTS CAPTURED 3/3 // THE CITY IS YOURS'
+        districtControlState = 'available'
+      } else {
+        districtNoticeText = `DISTRICT CONTROL // ${districtControlIndex}/${DISTRICT_CONTROL_SITES.length} CAPTURED // NEXT: ${currentDistrictSite().name}`
+        districtControlState = 'available'
+      }
+      districtNoticeUntilMs = now + KINGPIN_HOLD_MS
+      missionEl.textContent = districtNoticeText
+    }
+  }
+
   // Chop Shop timer: expiring mid-job safely returns to available with no payout
   if ((chopShopState === 'steal' || chopShopState === 'return') && chopShopDeadlineMs > 0 && now >= chopShopDeadlineMs) {
     chopShopState = 'available'
@@ -2537,6 +2693,13 @@ function frame(now: number) {
       missionComplete = data.missionComplete
       runCompleteEl.hidden = !missionComplete
       blackoutState = data.blackoutCompleted ? 'complete' : 'available'
+      kingpinOnline = data.kingpinOnline === true && missionComplete
+      networkJobState = kingpinOnline && data.networkJobComplete === true ? 'complete' : 'available'
+      if (kingpinOnline) {
+        districtControlIndex = Math.max(0, Math.min(DISTRICT_CONTROL_SITES.length, data.districtsControlled ?? 0))
+      } else {
+        districtControlIndex = 0
+      }
       garageTuneInstalled = data.garageTuneInstalled
       if (garageTuneInstalled) {
         courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
@@ -3011,6 +3174,10 @@ function frame(now: number) {
   if (networkNoticeUntilMs > 0 && now >= networkNoticeUntilMs) {
     networkNoticeUntilMs = 0
     networkNoticeText = ''
+  }
+  if (districtNoticeUntilMs > 0 && now >= districtNoticeUntilMs) {
+    districtNoticeUntilMs = 0
+    districtNoticeText = ''
   }
   for (let i = signalPulses.length - 1; i >= 0; i--) {
     if (now >= signalPulses[i].untilMs) signalPulses.splice(i, 1)
@@ -4713,6 +4880,13 @@ function frame(now: number) {
     missionComplete = bootData.missionComplete
     runCompleteEl.hidden = !missionComplete
     blackoutState = bootData.blackoutCompleted ? 'complete' : 'available'
+    kingpinOnline = bootData.kingpinOnline === true && missionComplete
+    networkJobState = kingpinOnline && bootData.networkJobComplete === true ? 'complete' : 'available'
+    if (kingpinOnline) {
+      districtControlIndex = Math.max(0, Math.min(DISTRICT_CONTROL_SITES.length, bootData.districtsControlled ?? 0))
+    } else {
+      districtControlIndex = 0
+    }
     garageTuneInstalled = bootData.garageTuneInstalled
     if (garageTuneInstalled) {
       courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
