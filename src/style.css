@@ -54,6 +54,11 @@ canvas {
   z-index: 1;
 }
 
+/* Mobile-only touch dock: hidden everywhere else so desktop stays untouched */
+#touch-controls {
+  display: none;
+}
+
 .hud {
   position: absolute;
   top: 18px;
@@ -320,6 +325,72 @@ canvas {
   /* Night-shift banner floats above the control legend instead of meeting it */
   .hud-night {
     bottom: 72px !important;
+  }
+
+  /* Touch dock: neon d-pad left, BOOST/PULSE right, sitting above the bottom legend.
+     Fixed to the viewport with a reserved band so the hint never overlaps and nothing
+     overflows at 390x844 */
+  #touch-controls {
+    display: flex;
+    position: fixed;
+    bottom: 76px;
+    left: 10px;
+    right: 10px;
+    z-index: 4;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  .touch-dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 46px);
+    grid-template-rows: repeat(2, 48px);
+    gap: 5px;
+    grid-template-areas:
+      '. up .'
+      'left down right';
+    pointer-events: none;
+  }
+
+  #touch-up { grid-area: up; }
+  #touch-left { grid-area: left; }
+  #touch-down { grid-area: down; }
+  #touch-right { grid-area: right; }
+
+  .touch-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  #touch-controls button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 1.5px solid rgba(0, 240, 255, 0.75);
+    border-radius: 10px;
+    background: rgba(6, 3, 20, 0.72);
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    color: #00f0ff;
+    text-shadow: 0 0 8px rgba(0, 240, 255, 0.65);
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.28), inset 0 0 8px rgba(0, 240, 255, 0.14);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: auto;
+  }
+
+  #touch-controls button.is-held {
+    background: rgba(57, 255, 136, 0.16);
+    border-color: #39ff88;
+    color: #39ff88;
+    text-shadow: 0 0 10px rgba(57, 255, 136, 0.85);
+    box-shadow: 0 0 14px rgba(57, 255, 136, 0.55), inset 0 0 10px rgba(57, 255, 136, 0.25);
   }
 
   .hint {

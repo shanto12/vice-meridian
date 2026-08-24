@@ -43,6 +43,18 @@ app.innerHTML = `
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
   <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — TAB contacts — P save — L load — R restart</p>
+  <div id="touch-controls" aria-label="Touch controls">
+    <div class="touch-dpad">
+      <button id="touch-up" type="button" aria-label="Move up">▲</button>
+      <button id="touch-left" type="button" aria-label="Move left">◀</button>
+      <button id="touch-down" type="button" aria-label="Move down">▼</button>
+      <button id="touch-right" type="button" aria-label="Move right">▶</button>
+    </div>
+    <div class="touch-actions">
+      <button id="touch-boost" type="button" aria-label="Hold boost">BOOST</button>
+      <button id="touch-pulse" type="button" aria-label="Tap pulse">PULSE</button>
+    </div>
+  </div>
 `
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game')!
@@ -137,6 +149,41 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyR') restartRequested = true
 })
 window.addEventListener('keyup', e => keys.delete(e.code))
+
+// Mobile touch dock (hidden by CSS on desktop): buttons drive the same keys Set and
+// request flags as the keyboard so gameplay semantics stay identical. Directional and
+// BOOST holds add/remove the matching key code; PULSE taps fire the existing pulse flag
+function bindHoldButton(id: string, keyCode: string) {
+  const button = document.getElementById(id)!
+  button.addEventListener('pointerdown', e => {
+    e.preventDefault()
+    button.setPointerCapture(e.pointerId)
+    keys.add(keyCode)
+    button.classList.add('is-held')
+  })
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
+    button.addEventListener(type, () => {
+      keys.delete(keyCode)
+      button.classList.remove('is-held')
+    })
+  }
+}
+bindHoldButton('touch-up', 'KeyW')
+bindHoldButton('touch-left', 'KeyA')
+bindHoldButton('touch-down', 'KeyS')
+bindHoldButton('touch-right', 'KeyD')
+bindHoldButton('touch-boost', 'Space')
+{
+  const pulseButton = document.getElementById('touch-pulse')!
+  pulseButton.addEventListener('pointerdown', e => {
+    e.preventDefault()
+    pulse.requested = true
+    pulseButton.classList.add('is-held')
+  })
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) {
+    pulseButton.addEventListener(type, () => pulseButton.classList.remove('is-held'))
+  }
+}
 
 // Night Shift (Y): cosmetic-only toggle that darkens the city and boosts neon glow
 const NIGHT_SHIFT_ON_TEXT = 'NIGHT SHIFT // CITY LIGHTS ON'
