@@ -24,6 +24,7 @@ app.innerHTML = `
     <p class="hud-roadblock" id="hud-roadblock" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffb300;text-shadow:0 0 10px rgba(255,179,0,0.7);">ROADBLOCK // INTERCEPTOR EN ROUTE</p>
     <p class="hud-street-cred" id="hud-street-cred" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">STREET CRED // RUNNER</p>
     <p class="hud-airunit" id="hud-airunit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#c8d2eb;text-shadow:0 0 10px rgba(200,210,235,0.7);">AIR UNIT // SPOTLIGHT ACTIVE</p>
+    <p class="hud-air-support" id="hud-air-support" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">AIR SUPPORT // ACTIVE</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
@@ -789,6 +790,14 @@ let signalBannerUntilMs = 0
 type SignalPulse = { x: number; y: number; untilMs: number }
 const signalPulses: SignalPulse[] = []
 
+// Wanted-3 air support feedback: one-shot inbound banner the first time heat hits 3 in a
+// run plus a compact HUD readout while wanted === 3. Purely transient presentation over
+// the existing airUnit behavior — no pursuit, damage, or save-schema changes
+const AIR_SUPPORT_BANNER_HOLD_MS = 2600
+const AIR_SUPPORT_INBOUND_TEXT = 'AIR SUPPORT // HELO INBOUND // WANTED 3'
+let airSupportBannerUntilMs = 0
+let airSupportBannerShown = false
+
 const jammer = {
   requested: false,
   radius: 190,
@@ -840,6 +849,7 @@ const scanEl = document.getElementById('hud-scan')!
 const pursuitEl = document.getElementById('hud-pursuit')!
 const roadblockEl = document.getElementById('hud-roadblock')!
 const airUnitEl = document.getElementById('hud-airunit')!
+const airSupportEl = document.getElementById('hud-air-support')!
 const walletEl = document.getElementById('hud-wallet')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
@@ -946,6 +956,8 @@ function resetRun(nowMs: number) {
   signalBannerText = ''
   signalBannerUntilMs = 0
   signalPulses.length = 0
+  airSupportBannerUntilMs = 0
+  airSupportBannerShown = false
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1061,9 +1073,15 @@ function cardinalDirection(dx: number, dy: number): 'N' | 'E' | 'S' | 'W' {
 }
 
 function setWanted(next: number) {
+  const previous = wanted
   wanted = Math.max(0, Math.min(3, next))
   wantedEls.count.textContent = String(wanted)
   wantedEls.row.classList.toggle('is-hot', wanted > 0)
+  if (wanted === 3 && previous < 3 && !airSupportBannerShown) {
+    airSupportBannerShown = true
+    airSupportBannerUntilMs = performance.now() + AIR_SUPPORT_BANNER_HOLD_MS
+    missionEl.textContent = AIR_SUPPORT_INBOUND_TEXT
+  }
 }
 
 function neonRect(x: number, y: number, width: number, height: number, color: string) {
@@ -2886,6 +2904,9 @@ function frame(now: number) {
     signalBannerUntilMs = 0
     signalBannerText = ''
   }
+  if (airSupportBannerUntilMs > 0 && now >= airSupportBannerUntilMs) {
+    airSupportBannerUntilMs = 0
+  }
   for (let i = signalPulses.length - 1; i >= 0; i--) {
     if (now >= signalPulses[i].untilMs) signalPulses.splice(i, 1)
   }
@@ -2918,7 +2939,8 @@ function frame(now: number) {
     streetCredRankUpUntilMs > 0 ||
     actCompleteUntilMs > 0 ||
     kingpinRestoreAtMs > 0 ||
-    signalBannerUntilMs > 0
+    signalBannerUntilMs > 0 ||
+    airSupportBannerUntilMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -2971,6 +2993,8 @@ function frame(now: number) {
     if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
   } else if (signalBannerUntilMs > 0 && signalBannerText) {
     if (missionEl.textContent !== signalBannerText) missionEl.textContent = signalBannerText
+  } else if (airSupportBannerUntilMs > 0) {
+    if (missionEl.textContent !== AIR_SUPPORT_INBOUND_TEXT) missionEl.textContent = AIR_SUPPORT_INBOUND_TEXT
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -4105,6 +4129,11 @@ function frame(now: number) {
   // Air support tag: pale steel line while the spotlight helicopter is overhead
   if (airUnitEl.style.display !== (airUnit.active ? '' : 'none')) {
     airUnitEl.style.display = airUnit.active ? '' : 'none'
+  }
+
+  // Wanted-3 air support readout: red line only while heat is maxed
+  if (airSupportEl.style.display !== (wanted === 3 ? '' : 'none')) {
+    airSupportEl.style.display = wanted === 3 ? '' : 'none'
   }
 
   // Campaign act tracking: detect a genuine forward act transition and raise a one-shot
