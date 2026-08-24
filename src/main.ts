@@ -24,6 +24,7 @@ app.innerHTML = `
     <p class="hud-roadblock" id="hud-roadblock" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffb300;text-shadow:0 0 10px rgba(255,179,0,0.7);">ROADBLOCK // INTERCEPTOR EN ROUTE</p>
     <p class="hud-street-cred" id="hud-street-cred" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">STREET CRED // RUNNER</p>
     <p class="hud-perk" id="hud-perk" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#bfffff;text-shadow:0 0 10px rgba(191,255,255,0.6);">PERK // RISK RUNNER</p>
+    <p class="hud-territory" id="hud-territory" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">TERRITORY // LOCKED</p>
     <p class="hud-airunit" id="hud-airunit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#c8d2eb;text-shadow:0 0 10px rgba(200,210,235,0.7);">AIR UNIT // SPOTLIGHT ACTIVE</p>
     <p class="hud-air-support" id="hud-air-support" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">AIR SUPPORT // ACTIVE</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
@@ -837,6 +838,7 @@ const STREET_CRED_PERKS: Record<ReturnType<typeof streetCredRank>, { perk: strin
 }
 const streetCredEl = document.getElementById('hud-street-cred')!
 const perkEl = document.getElementById('hud-perk')!
+const territoryEl = document.getElementById('hud-territory')!
 let lastStreetCredRank: ReturnType<typeof streetCredRank> = 'RUNNER'
 const STREET_CRED_RANK_UP_HOLD_MS = 2200
 let streetCredRankUpUntilMs = 0
@@ -907,6 +909,37 @@ function districtControlUnlocked(): boolean {
 }
 function currentDistrictSite() {
   return DISTRICT_CONTROL_SITES[Math.min(districtControlIndex, DISTRICT_CONTROL_SITES.length - 1)]
+}
+// Territory conquest readout: a pure projection of durable progress + transient hold state.
+// LOCKED pre-postgame; once unlocked it tracks captures with the live site while a hold runs,
+// the next target while idle/returning, and the victory line at 3/3
+function territoryHudText(): string {
+  if (!districtControlUnlocked()) return 'TERRITORY // LOCKED'
+  const total = DISTRICT_CONTROL_SITES.length
+  if (districtControlIndex >= total) return `TERRITORY // ${total}/${total} // CITY IS YOURS`
+  if (districtControlState === 'active') {
+    return `TERRITORY // ${districtControlIndex + 1}/${total} // ACTIVE ${currentDistrictSite().name}`
+  }
+  if (districtControlIndex === 0 && districtControlState === 'available') {
+    return 'TERRITORY // 0/3 // READY'
+  }
+  return `TERRITORY // ${districtControlIndex}/${total} // NEXT ${DISTRICT_CONTROL_SITES[districtControlIndex].name}`
+}
+type TerritoryMood = { color: string; shadow: string }
+function territoryHudMood(): TerritoryMood {
+  if (!districtControlUnlocked()) {
+    return { color: '#8a8fa8', shadow: 'rgba(138,143,168,0.5)' }
+  }
+  if (districtControlIndex >= DISTRICT_CONTROL_SITES.length) {
+    return { color: '#ffe05a', shadow: 'rgba(255,224,90,0.75)' }
+  }
+  if (districtControlState === 'active') {
+    return { color: '#ff9d3c', shadow: 'rgba(255,157,60,0.7)' }
+  }
+  if (districtControlState === 'returning') {
+    return { color: '#00f0ff', shadow: 'rgba(0,240,255,0.65)' }
+  }
+  return { color: '#39ff88', shadow: 'rgba(57,255,136,0.6)' }
 }
 function playerNearDistrictTarget(): boolean {
   const site = currentDistrictSite()
@@ -5411,6 +5444,16 @@ function frame(now: number) {
   if (streetCredEl.textContent !== credText) streetCredEl.textContent = credText
   const perkHudText = `PERK // ${STREET_CRED_PERKS[currentRank].perk}`
   if (perkEl.textContent !== perkHudText) perkEl.textContent = perkHudText
+  // Territory row: text and mood both reconcile only on change so nothing churns per frame;
+  // it re-derives every frame from districtControlIndex/state, so resetRun, save loads, and
+  // safehouse deliveries all reflect instantly without dedicated hooks
+  const territoryText = territoryHudText()
+  if (territoryEl.textContent !== territoryText) territoryEl.textContent = territoryText
+  const territoryMood = territoryHudMood()
+  if (territoryEl.style.color !== territoryMood.color) territoryEl.style.color = territoryMood.color
+  const territoryShadowCss = `0 0 10px ${territoryMood.shadow}`
+  if (territoryEl.style.textShadow !== territoryShadowCss) territoryEl.style.textShadow = territoryShadowCss
+  if (territoryEl.style.display !== '') territoryEl.style.display = ''
   const rankOrder = ['RUNNER', 'OPERATOR', 'FIXER', 'KINGPIN']
   if (rankOrder.indexOf(currentRank) > rankOrder.indexOf(lastStreetCredRank)) {
     streetCredRankUpUntilMs = now + STREET_CRED_RANK_UP_HOLD_MS
