@@ -1332,3 +1332,58 @@ high-heat escalation was not completed — and VICE//MERIDIAN remains an evolvin
 vertical slice, not complete GTA 7. Auth/backend/API stay NOT APPLICABLE for this static
 Vite app. All prior sections remain intact as historical records superseded by this
 release.
+
+---
+
+# Black Market Stash - Release Evidence (2026-08-23)
+
+Verification matrix for the black-market stash activity release (`bd517e5`). This is the
+current release record; every earlier section in this file is a historical record
+superseded by it. Rows are separated so agent provenance, shell gates, live HTTP checks,
+real-Chrome sessions, and not-yet-verified runtime states are never mixed inside one
+evidence surface.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `bd517e5` "Add black market stash activity" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat bd517e5 | PASS | Source-only: src/main.ts (+86/-2); RELEASE_EVIDENCE.md untouched by the feature commit |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced assets/index-ClzaKQXH.js and assets/index-CqTXp__1.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bc041db143e38eb069801` is ready at https://vice-meridian.netlify.app/ |
+| Root document serves over HTTPS | Live HTTP: GET https://vice-meridian.netlify.app/ | PASS | HTTP/2 200 |
+| Built assets serve live | Live HTTP: curl of deployed JS/CSS assets | PASS | Current assets index-ClzaKQXH.js and index-CqTXp__1.css return HTTP/2 200 on production |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Real Chrome mobile layout with touch dock | Real Chrome mobile session at 390x844 on production | PASS | Canvas and document scroll measured exactly 390x844; touch dock present; no horizontal or vertical overflow |
+| Stash marker visible pre-pickup | Real Chrome city map inspection at 390x844 | PASS | City map showed the uncollected green STASH objective marker at the Harbor site |
+| End-to-end stash pickup traversed manually | Real Chrome d-pad navigation to Harbor plus CUA Z press | PASS | D-pad navigation reached the stash; canvas rendered BLACK MARKET STASH, DIST 54M, and PRESS Z TO SECURE; Z produced the BLACK MARKET // STASH SECURED +$200 // REP +1 banner, HUD flipped to CASH $200 // REP 1, and the crate/marker disappeared |
+| Post-pickup map state | Real Chrome city map re-inspection after pickup | PASS | Map showed no stash ring after collection |
+| Restart restores the activity | CUA R restart flow then map inspection | PASS | R reset the run and the green STASH map marker returned |
+| Mobile console cleanliness | Real Chrome console capture during the full mobile pass | PASS | Zero game-origin errors across navigation, pickup, map checks, and reset |
+| Real Chrome desktop isolation | Real Chrome desktop session at 1440x660 on production | PASS | Canvas and document scroll measured exactly 1440x660; #touch-controls stayed display:none; zero game errors |
+| Wanted-3 air-unit runtime path | Manual Chrome escalation attempt | NOT FULLY VERIFIED | The wanted-3 air-unit spotlight was not reached manually — source/build/bundle verification only, not active-state proof |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | VICE//MERIDIAN is an evolving GTA-style vertical slice, not complete GTA 7 and not an enterprise-complete release |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas app; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the black-market stash activity
+in commit `bd517e5` "Add black market stash activity", changing only src/main.ts; HEAD and
+origin/main are aligned with a clean tree. Local gates passed: npm run build (assets
+index-ClzaKQXH.js + index-CqTXp__1.css), npm audit --omit=dev (0 vulnerabilities), and
+git diff --check. Netlify production deploy `6a8bc041db143e38eb069801` is ready at
+https://vice-meridian.netlify.app/: root and both assets return HTTP/2 200 with CSP, HSTS,
+nosniff, Referrer-Policy, and Permissions-Policy headers. In real Chrome mobile at 390x844
+the canvas/document measured exactly 390x844 with the touch dock present and no overflow;
+the city map showed the uncollected green STASH marker; real d-pad navigation reached the
+Harbor site where the canvas read BLACK MARKET STASH, DIST 54M, PRESS Z TO SECURE; the Z
+action produced the BLACK MARKET // STASH SECURED +$200 // REP +1 banner, HUD flipped to
+CASH $200 // REP 1, and crate plus marker disappeared; the post-pickup map had no stash
+ring, and an R reset restored the map marker — all with zero game errors. In real Chrome
+desktop at 1440x660 canvas and document measured 1440x660, #touch-controls stayed
+display:none, and game errors were zero. Honestly scoped: the wanted-three air-unit
+runtime remains NOT FULLY VERIFIED — manual high-heat escalation was not completed — and
+VICE//MERIDIAN remains an evolving GTA-style vertical slice, not complete GTA 7.
+Auth/backend/API stay NOT APPLICABLE for this static Vite app. All prior sections remain
+intact as historical records superseded by this release.
