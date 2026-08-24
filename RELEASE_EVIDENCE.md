@@ -1613,3 +1613,60 @@ pass and remain NOT FULLY VERIFIED, as does the wanted-three air-unit runtime.
 VICE//MERIDIAN remains an evolving GTA-style browser vertical slice, not literal complete
 GTA 7; auth/backend/API/runner jobs are N/A for this static Vite app. All prior sections
 remain intact as historical records superseded by this release.
+
+---
+
+# Signal Recovery Feedback - Release Evidence (2026-08-23)
+
+Verification matrix for the signal-recovery feedback release (`8e58566`). This is the
+current release record; every earlier section in this file is a historical record
+superseded by it. Rows are separated so agent provenance, shell gates, live HTTP/header
+checks, bundle-content checks, real-Chrome sessions, and not-yet-verified runtime states
+are never mixed inside one evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `8e58566` "Add signal recovery feedback" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat 8e58566 | PASS | Source-only: src/main.ts (+49/-2); RELEASE_EVIDENCE.md untouched by the feature commit; rewards, coordinates, save schema, and side missions unchanged |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced /assets/index-s7w5l-zn.js and /assets/index-B--JJqHW.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bcaef9dd71dc4ea00c5e7` is ready at https://vice-meridian.netlify.app/ |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and /assets/index-s7w5l-zn.js | PASS | Both return HTTP 200; live JS /assets/index-s7w5l-zn.js and CSS /assets/index-B--JJqHW.css confirmed |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS preload, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Live bundle contains feedback markers | Bundle content check of the deployed JS | PASS | Contains SIGNAL RECOVERED, SIGNAL SWEEP COMPLETE, ROUTE //, KINGPIN NETWORK, phone-arc, and ACT COMPLETE markers |
+| Feedback logic source/build verification | Source review + build output: transient `SIGNAL RECOVERED // <count>/3` and `SIGNAL SWEEP COMPLETE // EXTRACTION UNLOCKED` banner branches in the existing priority chain, cyan pulse-ring store with timed clear, and resetRun cleanup of banner/pulse state | PASS | All verified in source and build output; no reward, coordinate, or save-schema changes |
+| Live pickup banners/pulse observed at runtime | Manual gameplay: complete a live signal collection route | NOT FULLY VERIFIED | The actual pickup banners and pulse ring were not observed in a completed live signal route this pass — source/build verified only |
+| Real Chrome mobile layout | Real Chrome mobile session at 390x844 on production | PASS | Canvas/document exactly 390x844; mission line read MISSION // Sweep the grid — recover; route line read ROUTE // SIGNAL 1 // 924M // W; touch dock display flex; no overflow |
+| Phone menu state at mobile | TAB-opened phone menu inspection at 390x844 | PASS | Arc read ACT I // SIGNAL SWEEP — Recover 3 relay signals across the grid; status read CASH $0 / REP 0 / WANTED 0 / CRED RUNNER |
+| Mobile control exercise | Real Chrome mobile session at 390x844 on production | PASS | All six touch controls CUA-clicked; M/F/E and map exercised; no app-reported errors |
+| Real Chrome desktop isolation | Real Chrome desktop session at 1440x660 on production | PASS | Canvas/document exactly 1440x660; route present; touch dock display none; no overflow; no app-reported errors |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the signal recovery feedback in
+commit `8e58566` "Add signal recovery feedback", changing only src/main.ts; HEAD and
+origin/main are aligned with a clean tree. Local gates passed: npm run build (assets
+index-s7w5l-zn.js + index-B--JJqHW.css), npm audit --omit=dev (0 vulnerabilities), and
+git diff --check. Netlify production deploy `6a8bcaef9dd71dc4ea00c5e7` is ready at
+https://vice-meridian.netlify.app/: root and JS return HTTP 200; CSP, HSTS preload,
+nosniff, Referrer-Policy, and Permissions-Policy headers were observed; the live bundle
+contains SIGNAL RECOVERED, SIGNAL SWEEP COMPLETE, ROUTE //, KINGPIN NETWORK, phone-arc,
+and ACT COMPLETE markers. In real Chrome mobile at 390x844 canvas/document measured
+exactly 390x844; the mission line read MISSION // Sweep the grid — recover; the route
+line read ROUTE // SIGNAL 1 // 924M // W; the TAB phone arc read ACT I // SIGNAL SWEEP —
+Recover 3 relay signals across the grid with status CASH $0 / REP 0 / WANTED 0 /
+CRED RUNNER; the touch dock stayed display:flex; all six touch controls were CUA-clicked;
+M/F/E and map were exercised; there was no overflow and zero app-reported errors. In real
+Chrome desktop at 1440x660 canvas/document measured exactly 1440x660, the route remained
+present, the touch dock was display:none, and no app errors appeared. Honestly scoped:
+the transient banners, cyan pulse ring, and resetRun cleanup are source/build verified —
+but the actual pickup banners/pulse were not observed in a completed live signal route
+this pass and remain NOT FULLY VERIFIED, as does the wanted-three air-unit runtime.
+VICE//MERIDIAN remains an evolving GTA-style browser vertical slice, not literal complete
+GTA 7; auth/backend/API/runner jobs are N/A for this static Vite app. All prior sections
+remain intact as historical records superseded by this release.
