@@ -967,25 +967,43 @@ The Cursor-authored mission-control phone slice is live and desktop-verified in 
 
 Live phone briefing verified end to end on desktop production Chrome: commit, deploy, build/audit, bundle markers, security headers, and the full open-brief-close call flow passed with zero console errors. The exact-commit mobile 390x844 re-check remains NOT FULLY VERIFIED; auth/backend/API is NOT APPLICABLE for the static Vite site. LIMITATION ACKNOWLEDGED: VICE//MERIDIAN remains an evolving GTA-style vertical slice, not complete GTA 7.
 
-Note: the later district-context experiment (c064211) was reverted before this baseline (93554d9); the live production asset remains assets/index-BKlKXO2P.js and the phone-briefing release remains the deployed feature.
+Historical note (superseded by later releases): the district-context experiment (c064211) was reverted before the briefing baseline (93554d9). The phone-briefing asset index-BKlKXO2P.js was the production deploy at that time; the current production deploy is documented in the newest section above (deploy 6a8b911767e39d0ea26309d9, asset index-BsaJg0x6.js).
 
-# Safehouse Phone Status - Release Evidence (2026-08-23)
+# Phone Safehouse Status - Release Evidence (2026-08-23)
+
+Verification matrix for the safehouse-aware contacts phone status line.
 
 | Requirement | Evidence surface | Result | Notes |
 | --- | --- | --- | --- |
-| Source commit d044e05de4f91963743b04da94618ee3cc1f7ad1 Make phone status safehouse-aware is on origin/main and HEAD equals origin/main | Cursor Git verification | PASS | src/main.ts only; clean working tree |
-| Netlify production deploy 6a8b911767e39d0ea26309d9 is live at https://vice-meridian.netlify.app/ | Netlify CLI | PASS | Production URL live; served asset assets/index-BsaJg0x6.js |
-| Build gate npm run build passed | Local build | PASS | tsc + Vite build completed without errors |
-| Dependency hygiene npm audit --omit=dev | Local audit | PASS | 0 vulnerabilities reported |
-| Whitespace hygiene git diff --check | Local check | PASS | Clean output; no whitespace errors |
-| Live root and asset serve | curl production checks | PASS | Root HTTP 200; assets/index-BsaJg0x6.js HTTP 200 |
-| Security headers | curl production headers | PASS | CSP, HSTS, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy present |
-| Real Chrome desktop safehouse phone flow at 1440px | Real Chrome production session at 1440px width | PASS | TAB opened the phone showing all nine contacts; RETURN TO SAFEHOUSE visible at spawn; Digit1 kept the phone open and showed CONTACT BUSY // JOB UNAVAILABLE; console errors empty; no horizontal overflow |
-| Exact-commit safehouse acceptance-path movement end to end | Bounded Chrome pass | NOT FULLY VERIFIED | The drive-to-safehouse mission-acceptance path was not driven end to end in this pass |
-| Exact-commit mobile re-check at 390x844 | Prior mobile baseline for the phone overlay | NOT FULLY VERIFIED | This exact commit was not rerun at that viewport |
+| Source commit d044e05de4f91963743b04da94618ee3cc1f7ad1 "Make phone status safehouse-aware" is current HEAD and equals origin/main; working tree clean before this docs-only update | Cursor Git verification | PASS | src/main.ts only in the feature commit |
+| Netlify production deploy 6a8b911767e39d0ea26309d9 is live at https://vice-meridian.netlify.app/ serving the exact live asset assets/index-BsaJg0x6.js | Netlify deploy record plus live curl of root and asset | PASS | Root and asset both HTTP 200; HTML references exactly index-BsaJg0x6.js |
+| Build gate: npm run build passed (tsc + Vite) | Local build against the source commit | PASS | Reproduced the live bundle hash: dist/assets/index-BsaJg0x6.js, 63.17 kB JS / 17.01 kB gzip; zero TypeScript errors |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the production dependency tree | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed | Local check on the tracked diff | PASS | Clean output before and after this docs-only edit |
+| Bundle markers present in the live asset | Live bundle inspection of assets/index-BsaJg0x6.js via curl | PASS | RETURN TO SAFEHOUSE, CONTACT BUSY // JOB UNAVAILABLE, PRESS 1-9 TO CALL, CALL CONNECTED all found |
+| Security headers observed on production responses | Live curl headers for root and asset | PASS | CSP default-src 'self' with frame-ancestors 'none'; HSTS max-age=31536000 includeSubDomains preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy camera=(), microphone=(), geolocation=() |
+| Real Chrome desktop: opening TAB at world spawn renders all nine contacts as RETURN TO SAFEHOUSE | Real Chrome production pass at 1440px | PASS | Contacts 1 B BLACKOUT through 9 N RACE each showed RETURN TO SAFEHOUSE while standing at spawn, outside the safehouse ring |
+| Real Chrome desktop: pressing Digit1 keeps the phone open and shows CONTACT BUSY // JOB UNAVAILABLE | Real Chrome production pass at 1440px | PASS | The phone overlay stayed open and the status line appended CONTACT BUSY // JOB UNAVAILABLE; Escape then closed the overlay |
+| Real Chrome desktop: console errors were empty | Real Chrome console capture during the full session | PASS | Only one message total, a CSP block of the Netlify-injected about:srcdoc badge iframe inline script — non-application, host-injected |
+| Real Chrome desktop: page width matched viewport 1440 with no horizontal overflow | Real Chrome DOM measurement at 1440px | PASS | window.innerWidth 1440; document scrollWidth 1440; body scrollWidth 1440; loaded script confirmed as /assets/index-BsaJg0x6.js |
+| Safehouse acceptance-path movement end to end (walk into the safehouse ring and confirm contacts flip from RETURN TO SAFEHOUSE to available states) | Not driven end to end in real Chrome during this pass | NOT FULLY VERIFIED | Spawn-state rendering and the busy branch were verified; walking into the safehouse ring to flip contact states was not performed manually in this bounded pass |
+| Exact-commit mobile re-check at 390x844 | Prior phone-release mobile baseline | NOT FULLY VERIFIED | Prior phone releases passed at 390x844; this safehouse-status commit was not rerun at that viewport |
+| Simulation pause timing while phone is open | Source review plus bounded smoke | NOT FULLY VERIFIED | Source preserves the phoneOpen early-return; longer timed freeze was not measured |
 | Auth, backend, and API integration | Static Vite architecture | NOT APPLICABLE | No auth, backend, or API surface exists |
-| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice — not complete GTA 7 and not an enterprise-grade product |
 
 ## Summary
 
-The safehouse-aware phone-status slice is live: commit, Netlify deploy, build, audit, diff-check, root/asset reachability, and security headers passed. Real Chrome desktop verification at 1440px passed: TAB shows all nine contacts with RETURN TO SAFEHOUSE at spawn, and Digit1 keeps the phone open while showing CONTACT BUSY // JOB UNAVAILABLE, with zero console errors and no horizontal overflow. The exact-commit safehouse acceptance-path movement and mobile re-check remain NOT FULLY VERIFIED. VICE//MERIDIAN remains an evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product.
+Commit d044e05 "Make phone status safehouse-aware" is HEAD and origin/main; the live
+Netlify deploy 6a8b911767e39d0ea26309d9 serves the matching bundle assets/index-BsaJg0x6.js.
+Local build (tsc + Vite), npm audit --omit=dev (0 vulnerabilities), git diff --check,
+root/asset HTTP 200, and CSP/HSTS/nosniff/Referrer-Policy/Permissions-Policy headers all
+passed. In real Chrome at 1440px on the production URL: TAB at world spawn rendered all
+nine contacts as RETURN TO SAFEHOUSE; Digit1 kept the phone open and appended CONTACT
+BUSY // JOB UNAVAILABLE; console errors were empty apart from one non-application CSP
+block of the host-injected Netlify badge iframe; page width matched viewport 1440 with no
+horizontal overflow. Safehouse acceptance-path movement (walking into the ring to flip
+contact states end to end) was NOT FULLY VERIFIED manually and must not be assumed.
+VICE//MERIDIAN remains an evolving GTA-style vertical slice — not complete GTA 7 and not
+an enterprise-grade product. Prior evidence sections remain intact as historical records;
+their gaps still stand.
