@@ -1095,3 +1095,49 @@ auth/backend/API is NOT APPLICABLE for the static Vite site, and VICE//MERIDIAN 
 an evolving GTA-style vertical slice — not complete GTA 7 and not an enterprise-grade
 product. All prior sections above are preserved as historical records superseded by
 this release.
+
+# Correct Pedestrian Crowd - Release Evidence (2026-08-23)
+
+Verification matrix for the corrected eight-pedestrian cosmetic crowd release. This is
+the current release record; every earlier section in this file is a historical record
+superseded by it. Rows are grouped so local shell gates, live API/header checks, and
+real-Chrome browser sessions are never mixed inside one evidence surface.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source change is committed, traceable, and pushed | Shell: git log / git rev-parse against origin/main | PASS | Feature commit `0be344cdfe12976e2d364dab5f8b44e4fc911566` "Correct pedestrian crowd to 8 cosmetic walkers" is HEAD and equals origin/main after push; working tree clean before this docs-only update |
+| Rejected predecessor superseded | Shell: git history review | PASS | Rejected commit `2282652` "Add ambient pedestrian crowd" is superseded by `0be344c`; its flee logic and gameplay-state reads were removed |
+| Feature commit scope | Shell: git show --stat | PASS | The feature commit changed only src/main.ts |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | API/header: Netlify deploy record plus live curl of root and bundle | PASS | Netlify production deploy `6a8b9c1f6e21fe65df6b7b1a` is ready at https://vice-meridian.netlify.app/; live bundle assets/index-DGQEt1HY.js returns HTTP 200 |
+| Security headers verified on / and the JS asset | API/header: live response headers for root document and bundle asset | PASS | CSP present; HSTS with preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy denies camera, microphone, and geolocation |
+| Desktop load, layout, and control exercise | REAL CHROME DESKTOP session at 1440x660 on production | PASS | Root returned 200; canvas exactly viewport-sized with no horizontal overflow; movement plus M (map open/close), F (pulse state), Y (night shift on/off), TAB (contacts), P/L (save/load), R (restart), and the remaining listed keyboard controls were exercised |
+| Desktop pedestrian visuals | REAL CHROME DESKTOP screenshot at 1440x660 on production | PASS | Screenshot showed neon pedestrian silhouettes on the lower sidewalk bands |
+| Desktop console cleanliness | REAL CHROME DESKTOP console capture during the desktop pass | PASS | Page console errors were empty |
+| Mobile layout integrity | REAL CHROME MOBILE session at 390x844 on production | PASS | Canvas and document exactly matched the viewport with no horizontal overflow; the map opened in the narrow layout; page console errors were empty |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | This is a static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An incremental GTA-style demo slice — not GTA 7 and not an enterprise-complete release |
+
+## Summary
+
+Feature commit `0be344cdfe12976e2d364dab5f8b44e4fc911566` "Correct pedestrian crowd to
+8 cosmetic walkers" is HEAD and pushed to origin/main, superseding the rejected
+predecessor `2282652`. Local shell gates passed: npm run build, npm audit --omit=dev
+(0 vulnerabilities), and git diff --check, with the feature commit touching only
+src/main.ts. Netlify production deploy `6a8b9c1f6e21fe65df6b7b1a` is ready at
+https://vice-meridian.netlify.app/ and the live bundle assets/index-DGQEt1HY.js returns
+HTTP 200; CSP, HSTS preload, nosniff, strict-origin-when-cross-origin, and
+camera/microphone/geolocation-denied permission headers were verified on both / and the
+JS asset — these are API/header results, reported separately from browser evidence. In
+real Chrome desktop at 1440x660 the root returned 200, the canvas exactly fit the
+viewport with no overflow, movement and M, F, Y, TAB, P/L, R plus the remaining listed
+keyboard controls were exercised, the screenshot showed neon pedestrian silhouettes on
+the lower sidewalk bands, and page console errors were empty. In real Chrome mobile at
+390x844 the canvas and document exactly matched the viewport with no horizontal
+overflow, the map opened in the narrow layout, and page console errors were empty. Auth,
+backend jobs, and API health are NOT APPLICABLE for this static Vite canvas game.
+Honestly scoped: this is an incremental GTA-style demo slice — not GTA 7 and not an
+enterprise-complete release. All prior sections remain intact as historical records
+superseded by this release.
