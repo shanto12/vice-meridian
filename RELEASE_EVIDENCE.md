@@ -2300,3 +2300,47 @@ a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style b
 vertical slice rather than a literal complete GTA 7, and no auth, backend runner, or API
 endpoint is part of this static Canvas release. All prior sections remain intact as
 historical records superseded by this release.
+
+---
+
+# BUSTED Arrest + Security-Header Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the BUSTED arrest slice (`92ad9b1`) and the root `_headers`
+security-header mirror (`447f999`). This is current production evidence for exactly what
+was tested this pass — not a claim of full GTA 7 completion; every earlier section remains
+a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commits traceable and pushed | PASS | Commits `92ad9b1` "Add busted arrest on heat wrecks" and `447f999` "Add root headers file mirroring netlify.toml security headers" on GitHub main with a clean tree | Both commits are origin/main HEAD lineage; `src/main.ts`, `netlify.toml`, and this evidence file show no uncommitted modifications |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the working tree atop `92ad9b1` | Completed without errors; git diff --check clean |
+| Dependency hygiene passed | PASS | npm audit --omit=dev | found 0 vulnerabilities in the production dependency tree |
+| Production deploy is live | PASS | Netlify deploy `6a8c23c7c5b97c02ea17c741` at https://vice-meridian.netlify.app/ | Alias serves this deploy; live bundle assets/index-CWJ8JUhh.js returned HTTP 200 |
+| Live bundle carries BUSTED and witness markers | PASS | Live HTTP GET of assets/index-CWJ8JUhh.js on the production deploy | Bundle contains the BUSTED marker plus the prior WITNESS // JAMMED marker, confirming the shipped bundle is current through both slices |
+| Security headers verified | PASS | Live HTTP response capture from https://vice-meridian.netlify.app/ | Response carried Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, and Permissions-Policy camera=() microphone=() geolocation=() — the root `_headers` file mirrors netlify.toml so direct deploy API uploads keep the same policy |
+| Real Chrome desktop pass | PASS | Real Chrome desktop session on the live site | Production URL loaded and M (map), F (pulse), Q (jam), R (reset) were exercised; console showed no application-origin errors — the single excluded entry was an unrelated chrome-extension error, disclosed here rather than hidden |
+| Real Chrome mobile pass | PASS | Real browser session at 390x844 on the live site | body scrollWidth measured exactly 390 with no horizontal overflow; all six touch controls were clicked via pointer events |
+| BUSTED transient behavior | VERIFIED BY SOURCE + LIVE BUNDLE, NOT FULL E2E | src/main.ts review plus live bundle marker check | The arrest path (wanted>0 wreck of the driven vehicle via police/roadblock impact → setWanted(0), fine min(cash,$200) deducted once, 2200ms control freeze with R passthrough, BUSTED // FINE banner with red pulse, resetRun clearing all busted state) is present in source and in the shipped bundle, but a forced police/roadblock hull-zero arrest was NOT captured live in Chrome this pass — runtime arrest behavior stands on source and bundle review only |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Vite architecture review | No auth, backend runner, or API endpoint exists — this is a static Vite site |
+
+## Summary
+
+Source commits `92ad9b1` "Add busted arrest on heat wrecks" and `447f999` "Add root headers
+file mirroring netlify.toml security headers" are on origin/main behind a clean tree.
+npm run build passed and git diff --check was clean from that tree; npm audit --omit=dev
+found 0 vulnerabilities. Production deploy `6a8c23c7c5b97c02ea17c741` serves
+https://vice-meridian.netlify.app/ with assets/index-CWJ8JUhh.js, whose contents include
+both the new BUSTED marker and the earlier WITNESS // JAMMED marker. The root `_headers`
+file now mirrors the netlify.toml security policy verbatim so headers apply even on direct
+deploy-API uploads, and the live HTTP response confirmed CSP, HSTS,
+X-Content-Type-Options, Referrer-Policy, and Permissions-Policy. A real Chrome desktop
+session loaded production and exercised M/F/Q/R with zero application-origin console
+errors (one unrelated chrome-extension error excluded and disclosed); a real Chrome mobile
+session at 390x844 measured scrollWidth 390 with all six touch controls clicked. The
+BUSTED transient arrest behavior is explicitly marked VERIFIED BY SOURCE + LIVE BUNDLE,
+NOT FULL E2E: a forced police/roadblock hull-zero arrest was not captured in Chrome this
+pass. Auth/backend/API are not applicable because this is a static Vite site. This section
+records current production evidence for exactly the tests listed above — it is not a claim
+of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style browser vertical
+slice rather than a literal complete GTA 7. All prior sections remain intact as historical
+records superseded by this release.
