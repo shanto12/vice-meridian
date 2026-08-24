@@ -748,6 +748,7 @@ interface SaveData {
   carY?: number
   carAngle?: number
   stashCollected?: boolean
+  nightShiftEnabled?: boolean
 }
 
 function writeSave(): boolean {
@@ -768,6 +769,7 @@ function writeSave(): boolean {
       carY: courierCar.y,
       carAngle: courierCar.angle,
       stashCollected,
+      nightShiftEnabled,
     }
     window.localStorage.setItem(SAVE_KEY, JSON.stringify(data))
     return true
@@ -804,6 +806,7 @@ function readSave(): SaveData | null {
     if (data.kingpinOnline !== undefined && typeof data.kingpinOnline !== 'boolean') return null
     if (data.networkJobComplete !== undefined && typeof data.networkJobComplete !== 'boolean') return null
     if (data.stashCollected !== undefined && typeof data.stashCollected !== 'boolean') return null
+    if (data.nightShiftEnabled !== undefined && typeof data.nightShiftEnabled !== 'boolean') return null
     if (
       data.garageUpgradeLevel !== undefined &&
       (!Number.isInteger(data.garageUpgradeLevel) ||
@@ -2760,6 +2763,7 @@ function frame(now: number) {
       }
       if (typeof data.carAngle === 'number' && Number.isFinite(data.carAngle)) courierCar.angle = data.carAngle
       stashCollected = data.stashCollected === true
+      nightShiftEnabled = data.nightShiftEnabled === true
       saveBannerText = SAVE_LOADED_TEXT
     } else {
       saveBannerText = SAVE_NO_SLOT_TEXT
@@ -4959,6 +4963,7 @@ function frame(now: number) {
     }
     if (typeof bootData.carAngle === 'number' && Number.isFinite(bootData.carAngle)) courierCar.angle = bootData.carAngle
     stashCollected = bootData.stashCollected === true
+    nightShiftEnabled = bootData.nightShiftEnabled === true
   }
 }
 
