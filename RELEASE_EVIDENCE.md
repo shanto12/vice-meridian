@@ -968,3 +968,24 @@ The Cursor-authored mission-control phone slice is live and desktop-verified in 
 Live phone briefing verified end to end on desktop production Chrome: commit, deploy, build/audit, bundle markers, security headers, and the full open-brief-close call flow passed with zero console errors. The exact-commit mobile 390x844 re-check remains NOT FULLY VERIFIED; auth/backend/API is NOT APPLICABLE for the static Vite site. LIMITATION ACKNOWLEDGED: VICE//MERIDIAN remains an evolving GTA-style vertical slice, not complete GTA 7.
 
 Note: the later district-context experiment (c064211) was reverted before this baseline (93554d9); the live production asset remains assets/index-BKlKXO2P.js and the phone-briefing release remains the deployed feature.
+
+# Safehouse Phone Status - Release Evidence (2026-08-23)
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit d044e05de4f91963743b04da94618ee3cc1f7ad1 Make phone status safehouse-aware is on origin/main and HEAD equals origin/main | Cursor Git verification | PASS | src/main.ts only; clean working tree |
+| Netlify production deploy 6a8b911767e39d0ea26309d9 is live at https://vice-meridian.netlify.app/ | Netlify CLI | PASS | Production URL live; served asset assets/index-BsaJg0x6.js |
+| Build gate npm run build passed | Local build | PASS | tsc + Vite build completed without errors |
+| Dependency hygiene npm audit --omit=dev | Local audit | PASS | 0 vulnerabilities reported |
+| Whitespace hygiene git diff --check | Local check | PASS | Clean output; no whitespace errors |
+| Live root and asset serve | curl production checks | PASS | Root HTTP 200; assets/index-BsaJg0x6.js HTTP 200 |
+| Security headers | curl production headers | PASS | CSP, HSTS, X-Content-Type-Options nosniff, Referrer-Policy, Permissions-Policy present |
+| Real Chrome desktop safehouse phone flow at 1440px | Real Chrome production session at 1440px width | PASS | TAB opened the phone showing all nine contacts; RETURN TO SAFEHOUSE visible at spawn; Digit1 kept the phone open and showed CONTACT BUSY // JOB UNAVAILABLE; console errors empty; no horizontal overflow |
+| Exact-commit safehouse acceptance-path movement end to end | Bounded Chrome pass | NOT FULLY VERIFIED | The drive-to-safehouse mission-acceptance path was not driven end to end in this pass |
+| Exact-commit mobile re-check at 390x844 | Prior mobile baseline for the phone overlay | NOT FULLY VERIFIED | This exact commit was not rerun at that viewport |
+| Auth, backend, and API integration | Static Vite architecture | NOT APPLICABLE | No auth, backend, or API surface exists |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product |
+
+## Summary
+
+The safehouse-aware phone-status slice is live: commit, Netlify deploy, build, audit, diff-check, root/asset reachability, and security headers passed. Real Chrome desktop verification at 1440px passed: TAB shows all nine contacts with RETURN TO SAFEHOUSE at spawn, and Digit1 keeps the phone open while showing CONTACT BUSY // JOB UNAVAILABLE, with zero console errors and no horizontal overflow. The exact-commit safehouse acceptance-path movement and mobile re-check remain NOT FULLY VERIFIED. VICE//MERIDIAN remains an evolving GTA-style vertical slice, not a complete GTA 7 or enterprise-grade product.
