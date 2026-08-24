@@ -1272,13 +1272,36 @@ function drawRadar(now: number) {
       ctx.arc(mx(d.x), my(d.y), 2.2, 0, Math.PI * 2)
       ctx.fill()
     })
+    const pursuitActive = contractState === 'active'
     policeUnits.forEach(u => {
-      ctx.fillStyle = '#ff3c3c'
+      if (!pursuitActive) {
+        ctx.fillStyle = '#ff3c3c'
+        ctx.shadowColor = '#ff3c3c'
+        ctx.shadowBlur = 4
+        ctx.beginPath()
+        ctx.arc(mx(u.x), my(u.y), 2.4, 0, Math.PI * 2)
+        ctx.fill()
+        return
+      }
+      // courier-run pursuit: two-tone interceptor mark flashing in sync with the world cruisers
+      const flashRed = Math.floor(now / 140 + u.sirenPhase) % 2 === 0
+      const cellA = flashRed ? '#ff2d55' : '#00f0ff'
+      const cellB = flashRed ? '#00f0ff' : '#ff2d55'
+      ctx.save()
+      ctx.translate(mx(u.x), my(u.y))
+      ctx.rotate(Math.PI / 4)
+      ctx.strokeStyle = '#ff3c3c'
       ctx.shadowColor = '#ff3c3c'
-      ctx.shadowBlur = 4
-      ctx.beginPath()
-      ctx.arc(mx(u.x), my(u.y), 2.4, 0, Math.PI * 2)
-      ctx.fill()
+      ctx.lineWidth = 1.2
+      ctx.strokeRect(-3.6, -3.6, 7.2, 7.2)
+      ctx.fillStyle = cellA
+      ctx.shadowColor = cellA
+      ctx.shadowBlur = 5
+      ctx.fillRect(-3.2, -3.2, 2.9, 2.9)
+      ctx.fillStyle = cellB
+      ctx.shadowColor = cellB
+      ctx.fillRect(0.3, -3.2, 2.9, 2.9)
+      ctx.restore()
     })
   }
   ctx.shadowBlur = 0
@@ -1313,6 +1336,35 @@ function drawRadar(now: number) {
   ctx.shadowBlur = 6
   ctx.fillText(`DIST // ${districtFor(player.x)}`, rx + rw - 8, ry + 13)
   ctx.shadowBlur = 0
+
+  // active hot courier run: pursuit banner with a red/blue flasher pair
+  if (contractState === 'active' && wanted > 0) {
+    const flashRed = Math.floor(now / 140) % 2 === 0
+    const barA = flashRed ? '#ff2d55' : '#00f0ff'
+    const barB = flashRed ? '#00f0ff' : '#ff2d55'
+    const label = 'PURSUIT'
+    ctx.font = '600 9px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'left'
+    const labelW = ctx.measureText(label).width
+    const bx = rx + 8
+    const by = ry + rh - 15
+    ctx.fillStyle = 'rgba(4, 2, 16, 0.78)'
+    ctx.fillRect(bx - 3, by - 9, labelW + 21, 13)
+    ctx.strokeStyle = barA
+    ctx.lineWidth = 1
+    ctx.strokeRect(bx - 3, by - 9, labelW + 21, 13)
+    ctx.fillStyle = barA
+    ctx.shadowColor = barA
+    ctx.shadowBlur = 6
+    ctx.fillText(label, bx, by)
+    ctx.shadowBlur = 0
+    ctx.fillRect(bx + labelW + 5, by - 7, 3, 6)
+    ctx.fillStyle = barB
+    ctx.shadowColor = barB
+    ctx.shadowBlur = 5
+    ctx.fillRect(bx + labelW + 10, by - 7, 3, 6)
+    ctx.shadowBlur = 0
+  }
 }
 
 let last = performance.now()
