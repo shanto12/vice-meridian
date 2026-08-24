@@ -2001,3 +2001,58 @@ runtime remains NOT FULLY VERIFIED, carried forward. VICE//MERIDIAN remains an e
 GTA-style browser vertical slice rather than a literal complete GTA 7;
 auth/backend/API/runner jobs are N/A for this static Vite game. All prior sections remain
 intact as historical records superseded by this release.
+
+---
+
+# Garage Progression Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the garage progression ladder production release. This is the
+current release record; every earlier section in this file is a historical record
+superseded by it. Rows are separated so source/build evidence, Netlify shell/header
+evidence, Playwright/Chrome sessions, and runtime caveats are never mixed inside one
+evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git rev-list against origin/main | PASS | Commit `2062e7a` "Add garage progression ladder" is HEAD on main; repository clean and synchronized with origin/main (0 0) |
+| Build gate passed from the exact commit | Shell: npm run build at `2062e7a` | PASS | tsc + Vite completed without errors |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify deploy `6a8be4749c73566030921e79` is production-ready; alias https://vice-meridian.netlify.app/ and unique URL https://6a8be4749c73566030921e79--vice-meridian.netlify.app |
+| Live JS asset serves | Live HTTP: curl of /assets/index-CEPcp1yj.js on the deploy | PASS | /assets/index-CEPcp1yj.js returns HTTP 200 from the production origin alongside the root document |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP; HSTS includeSubDomains preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy camera/microphone/geolocation disabled |
+| Live bundle contains garage markers | Bundle content check of the deployed JS | PASS | Contains GARAGE // TIER, GARAGE // MAXED, ARMOR PLATE, BOOST CELL, and garageUpgradeLevel markers |
+| Real Chrome mobile baseline | Playwright/Chrome session at 390x844 on the live alias | PASS | Canvas filled the viewport; document had no overflow; all six visible touch controls clicked; zero console errors |
+| Real Chrome desktop baseline | Playwright/Chrome session at 1440x660 on the live alias | PASS | Canvas filled the viewport; document had no overflow; zero console errors |
+| Save/load round trip | P save then L load in Chrome | PASS | P showed SAVE // PROGRESS STORED; L showed SAVE // PROGRESS LOADED |
+| Phone contacts overlay exercise | Tab open / Escape close in Chrome | PASS | Contacts overlay opened with Tab and closed with Escape cleanly |
+| Console cleanliness | Chrome console capture across both viewports | PASS | No console errors during any exercised interaction |
+| Full funded garage tier 1-3 traversal | Manual purchase of tiers 1 through 3 with G at the safehouse | NOT CLAIMED | The fresh manual run held CASH $0 and the safehouse was not reached during this pass — the funded traversal was not claimed; garage behavior remains verified by source/build review and bundle markers |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+The garage progression ladder shipped to production as commit `2062e7a` "Add garage
+progression ladder", with the repository clean and synchronized against origin/main (0 0).
+From that exact commit: npm run build passed, git diff --check passed, and npm audit
+--omit=dev found 0 vulnerabilities. Netlify deploy `6a8be4749c73566030921e79` is live at
+the alias https://vice-meridian.netlify.app/ and unique URL
+https://6a8be4749c73566030921e79--vice-meridian.netlify.app, serving the root document and
+live asset /assets/index-CEPcp1yj.js over HTTPS with CSP,
+HSTS includeSubDomains preload, X-Content-Type-Options nosniff,
+Referrer-Policy strict-origin-when-cross-origin, and Permissions-Policy disabling
+camera/microphone/geolocation; the live bundle carries the GARAGE // TIER, GARAGE // MAXED,
+ARMOR PLATE, BOOST CELL, and garageUpgradeLevel markers. Real Chrome passes on mobile
+390x844 and desktop 1440x660 found the canvas filling the viewport with no document
+overflow, all six visible touch controls clickable, P save showing SAVE // PROGRESS STORED,
+L load showing SAVE // PROGRESS LOADED, Tab/Escape driving the contacts overlay, and no
+console errors. Stated honestly: the full funded garage tier 1-3 purchase traversal was
+NOT CLAIMED because the fresh manual run started with CASH $0 and did not reach the
+safehouse — garage behavior stands on source/build review plus live bundle markers. The
+wanted-three air-unit runtime also remains NOT FULLY VERIFIED, carried forward.
+VICE//MERIDIAN remains an evolving GTA-style browser slice rather than a literal complete
+GTA 7; auth/backend/API/runner jobs are N/A for this static Vite game. All prior sections
+remain intact as historical records superseded by this release.
