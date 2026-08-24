@@ -3261,6 +3261,8 @@ function frame(now: number) {
     if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
   } else if (networkNoticeUntilMs > 0 && networkNoticeText) {
     if (missionEl.textContent !== networkNoticeText) missionEl.textContent = networkNoticeText
+  } else if (districtNoticeUntilMs > 0 && districtNoticeText) {
+    if (missionEl.textContent !== districtNoticeText) missionEl.textContent = districtNoticeText
   } else if (streetCredRankUpUntilMs > 0) {
     const rankUpText = `STREET CRED // ${streetCredRank(rep)} // RANK UP`
     if (missionEl.textContent !== rankUpText) missionEl.textContent = rankUpText
