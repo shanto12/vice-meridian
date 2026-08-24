@@ -2427,3 +2427,47 @@ This section records current production evidence for exactly the tests listed ab
 is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style
 browser vertical slice rather than a literal complete GTA 7. All prior sections remain
 intact as historical records superseded by this release.
+
+---
+
+# City Clock / Day-Night Cycle Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the dynamic city-clock/day-night slice (`287bf06`). This is
+current production evidence for exactly what was tested this pass — not a claim of full
+GTA 7 completion; every earlier section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `287bf06` "Add city clock and day-night cycle" on main and origin/main with a clean tree | Cursor changed src/main.ts only (+72/-21): deterministic 8-real-minute in-game day from runStartMs + frame now, cityDarkness() dusk/dawn ramps, isCityNight() effective-night helper, CITY CLOCK // readout on the existing hud-night element, smooth sky/window/neon/road lighting, resetRun-safe transient state |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the working tree atop `287bf06` | Completed without errors producing dist/assets/index-CiH_CjYY.js; git diff --check clean |
+| Dependency hygiene passed | PASS | npm audit --omit=dev | found 0 vulnerabilities in the production dependency tree |
+| Production deploy is live | PASS | Netlify deploy `6a8c2d5060b3671ef9b5d0c5` at https://vice-meridian.netlify.app/ | Alias serves this deploy |
+| Live bundle carries clock and prior markers | PASS | Live HTTP GET of assets/index-CiH_CjYY.js on the production deploy | Asset returned HTTP 200 and contains CITY CLOCK //, NIGHT SHIFT // CITY LIGHTS, RADIO // ALL UNITS CLEAR, BUSTED, and WITNESS // JAMMED — confirming the shipped bundle spans this slice and all predecessors |
+| Security headers verified | PASS | Live HTTP response capture from https://vice-meridian.netlify.app/ | Response carried Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, and Permissions-Policy camera=() microphone=() geolocation=() |
+| Real Chrome desktop pass | PASS | Real Chrome production desktop session on the live site | CITY CLOCK // 00:09 displayed on load; M/F/Q/R exercised with no application-origin console errors; the clock was observed advancing from 01:07 to 01:14; Y showed NIGHT SHIFT // CITY LIGHTS ON and the clock resumed afterward — manual override and clock coexist correctly |
+| Real Chrome mobile pass | PASS | Real browser session at 390x844 on the live site | All six touch controls shown and clicked via pointer events; CITY CLOCK present; no application-origin console errors |
+| City-clock/day-night behavior | VERIFIED BY SOURCE + LIVE BUNDLE + REAL CHROME SMOKE, NOT FULL LONG-RUN CYCLE E2E | src/main.ts review, live bundle marker check, and real-Chrome session observations | The deterministic clock, smooth darkness ramps, and effective-night lighting are present in source and the live bundle, and real Chrome confirmed the readout ticking and the Y override round-trip; however, a complete automatic dusk-to-dawn cycle (8 real minutes) was NOT waited through in this pass — full-cycle lighting behavior stands on source and partial-window observation only |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Vite architecture review | No auth, backend runner, or API endpoint exists — this is a static Vite site |
+
+## Summary
+
+Source commit `287bf06` "Add city clock and day-night cycle" is on main and origin/main
+behind a clean tree; Cursor changed src/main.ts only (+72/-21). npm run build passed
+producing dist/assets/index-CiH_CjYY.js, git diff --check was clean, and npm audit
+--omit=dev found 0 vulnerabilities. Production deploy `6a8c2d5060b3671ef9b5d0c5` serves
+https://vice-meridian.netlify.app/ where live asset assets/index-CiH_CjYY.js returned
+HTTP 200 containing CITY CLOCK //, NIGHT SHIFT // CITY LIGHTS, RADIO // ALL UNITS CLEAR,
+BUSTED, and WITNESS // JAMMED. Live headers confirmed CSP, HSTS, X-Content-Type-Options,
+Referrer-Policy, and Permissions-Policy. A real Chrome production desktop session showed
+CITY CLOCK // 00:09 at load, exercised M/F/Q/R with zero application-origin console
+errors, observed the clock advancing from 01:07 to 01:14, and verified Y displaying
+NIGHT SHIFT // CITY LIGHTS ON before the clock resumed — proving override and clock share
+one state machine. A real Chrome mobile session at 390x844 saw all six touch controls
+clicked with CITY CLOCK present and a clean application console. City-clock/day-night
+behavior is explicitly marked VERIFIED BY SOURCE + LIVE BUNDLE + REAL CHROME SMOKE, NOT
+FULL LONG-RUN CYCLE E2E because a complete automatic dusk-to-dawn cycle was not waited
+through in this pass. Auth/backend/API remain not applicable for this static Vite site.
+This section records current production evidence for exactly the tests listed above — it
+is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style
+browser vertical slice rather than a literal complete GTA 7. All prior sections remain
+intact as historical records superseded by this release.
