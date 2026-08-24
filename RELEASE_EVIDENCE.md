@@ -2115,3 +2115,54 @@ carried forward. VICE//MERIDIAN remains an evolving GTA-style browser vertical s
 rather than a literal complete GTA 7; auth/backend/API/runner jobs are N/A for this
 static Vite game. All prior sections remain intact as historical records superseded by
 this release.
+
+---
+
+# Night Shift Save Persistence Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the night-shift save persistence release. This is current
+production evidence for exactly what was tested this pass — not a claim of full GTA 7
+completion; every earlier section remains a historical record superseded by this one.
+Rows are separated so source/build evidence, Netlify shell/header evidence, Chrome
+sessions, and scope caveats are never mixed inside one evidence surface.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `4546362` "Persist night shift toggle in save data" on GitHub main | Source-only change to src/main.ts adding the optional backward-compatible nightShiftEnabled SaveData field (write, validation, load restore, boot auto-load restore); pushed fast-forward `b23affa..4546362` |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at `4546362` | Completed without errors; produced assets/index-BsEaUnCy.js |
+| Whitespace hygiene passed | PASS | Shell: git diff --check | Clean output before this docs-only edit |
+| Dependency hygiene passed | PASS | Shell: npm audit --omit=dev | 0 vulnerabilities in the production dependency tree |
+| GitHub main synchronized | PASS | git status against origin/main after push | Working tree clean; branch up to date with origin/main |
+| Production deploy is live | PASS | Netlify deploy `6a8bf6a73d5e25190264d262` | Alias https://vice-meridian.netlify.app and unique URL https://6a8bf6a73d5e25190264d262--vice-meridian.netlify.app |
+| Root document serves over HTTPS | PASS | Live HTTP GET https://vice-meridian.netlify.app | Returned HTTP 200 |
+| Live JS asset serves and matches the local build | PASS | Live HTTP GET of assets/index-BsEaUnCy.js on the production deploy | index-BsEaUnCy.js is the same bundle name the local build produced from `4546362`, confirming a non-stale deploy |
+| Security headers verified | PASS | Production response header capture | CSP, HSTS, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy all verified from response headers |
+| Night Shift toggle persists across save/reload | PASS | Real Chrome desktop session on the live site | Y toggled Night Shift, P saved, page reloaded, and the saved lighting state was restored |
+| Map overlay open/close | PASS | Real Chrome desktop session | M opened the map; Escape closed it |
+| Contacts overlay open/close | PASS | Real Chrome desktop session | Tab opened Contacts; Escape closed it |
+| Desktop console cleanliness | PASS | Chrome console capture during the desktop pass | Production console error list was empty across all exercised interactions |
+| Mobile layout baseline | PASS | Real Chrome mobile session at 390x844 on the live site | Body width and canvas width both measured 390 — no horizontal overflow |
+| Mobile touch controls clickable | PASS | Same real Chrome mobile session | All six visible controls were clicked: Move up, left, down, right, Hold boost, Tap pulse |
+| Mobile console cleanliness | PASS | Chrome console capture during the mobile pass | Console errors were empty |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Canvas architecture review | No auth, backend runner, or API endpoint is part of this static Canvas release |
+
+## Summary
+
+Commit `4546362` "Persist night shift toggle in save data" is live in Netlify production
+deploy `6a8bf6a73d5e25190264d262` at https://vice-meridian.netlify.app (unique URL
+https://6a8bf6a73d5e25190264d262--vice-meridian.netlify.app), serving
+assets/index-BsEaUnCy.js — the same bundle name the local tsc && vite build produced from
+that commit — with root returning HTTP 200 under CSP, HSTS, X-Content-Type-Options,
+Referrer-Policy, and Permissions-Policy verified from response headers. From the same
+commit, npm run build passed, npm audit --omit=dev found 0 vulnerabilities, git diff
+--check was clean, and GitHub main is synchronized. A real Chrome desktop pass verified
+the Night Shift Y toggle persisting after P save and reload, M opening and Escape closing
+the map, Tab opening and Escape closing Contacts, and an empty production console error
+list. A real Chrome mobile pass at 390x844 kept body width and canvas width at 390,
+clicked all six visible touch controls (Move up, left, down, right, Hold boost, Tap
+pulse), and logged empty console errors. This section records current production evidence
+for exactly the tests listed above — it is not a claim of full GTA 7 completion;
+VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather than a literal
+complete GTA 7, and no auth, backend runner, or API endpoint is part of this static Canvas
+release. All prior sections remain intact as historical records superseded by this
+release.
