@@ -900,7 +900,7 @@ function objectiveMarkers(): ObjectiveMarker[] {
 
   // Outbound mission legs only: escape/return legs keep the SAFEHOUSE marker above as the objective
   if (contractState === 'active') {
-    markers.push({ x: SKYWAY_DROP_OFF.x, y: SKYWAY_DROP_OFF.y, label: 'DROP-OFF', color: '#ffe05a' })
+    markers.push({ x: SKYWAY_DROP_OFF.x, y: SKYWAY_DROP_OFF.y, label: 'DROP-OFF', color: '#ff9d3c' })
   }
   if (blackoutState === 'active') {
     markers.push({ x: BLACKOUT_TARGET.x, y: BLACKOUT_TARGET.y, label: 'GRID TARGET', color: '#ffe05a' })
