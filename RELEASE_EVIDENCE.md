@@ -1141,3 +1141,48 @@ backend jobs, and API health are NOT APPLICABLE for this static Vite canvas game
 Honestly scoped: this is an incremental GTA-style demo slice — not GTA 7 and not an
 enterprise-complete release. All prior sections remain intact as historical records
 superseded by this release.
+
+# District Takeover Rival Showdown - Release Evidence (2026-08-23)
+
+Verification matrix for the rival-crew District Takeover release. This is the current
+release record; every earlier section in this file is a historical record superseded by
+it. Rows are separated so shell gates, live HTTP checks, real-Chrome sessions, and
+not-yet-verified active-state gameplay are never mixed inside one evidence surface.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | Shell: git log / git rev-parse against origin/main | PASS | Source commit `30085ec09b66f9437bbc225d5ecdeff72fb03729` "Add rival crew showdown to district takeover" is HEAD and pushed to origin/main |
+| Feature commit scope | Shell: git show --stat | PASS | The feature commit changed only src/main.ts (121 insertions, 34 deletions) |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and bundle | PASS | Netlify production deploy `6a8ba01479c40cf9c537a3e7` is ready at https://vice-meridian.netlify.app/ |
+| Live bundle serves rival-showdown code | Live HTTP: curl of assets/index-4gW-fFCe.js | PASS | assets/index-4gW-fFCe.js returns HTTP 200 and contains CLEAR RIVAL CREW, RIVALS CLEARED, and the 3-rival code markers |
+| Desktop load and layout integrity | Real Chrome desktop session at 1440x604 on production | PASS | Root loaded; canvas/document matched the viewport with no horizontal overflow |
+| Desktop control exercise and map render | Real Chrome desktop session at 1440x604 on production | PASS | F changed the HUD to PULSE F COOLDOWN; M opened the city map and the screenshot rendered the map |
+| Desktop console cleanliness | Real Chrome desktop console capture during the desktop pass | PASS | Page console errors were empty |
+| Mobile layout integrity | Real Chrome mobile session at 390x844 on production | PASS | Canvas/document exactly matched the viewport with no horizontal overflow |
+| Mobile map exercise | Real Chrome mobile session at 390x844 on production | PASS | M opened the narrow map; page console errors were empty |
+| Active District Takeover showdown fully traversed manually | Not exercised this pass | NOT FULLY VERIFIED | The active showdown was not fully traversed manually because it requires long in-game navigation; source/bundle/live smoke evidence is not equivalent to that active-state proof |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | This is a static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An incremental GTA-style demo slice — not GTA 7 and not an enterprise-complete release |
+
+## Summary
+
+Source commit `30085ec09b66f9437bbc225d5ecdeff72fb03729` "Add rival crew showdown to
+district takeover" is pushed to origin/main and changed only src/main.ts. Local shell
+gates passed: npm run build, npm audit --omit=dev (0 vulnerabilities), and
+git diff --check. Netlify production deploy `6a8ba01479c40cf9c537a3e7` is ready at
+https://vice-meridian.netlify.app/; the live bundle assets/index-4gW-fFCe.js returns
+HTTP 200 and contains CLEAR RIVAL CREW, RIVALS CLEARED, and the 3-rival code markers.
+In real Chrome desktop at 1440x604 the root loaded, canvas/document matched the viewport
+with no overflow, F changed the HUD to PULSE F COOLDOWN, M opened the city map, the
+screenshot rendered the map, and page console errors were empty. In real Chrome mobile at
+390x844 the canvas/document exactly matched the viewport with no horizontal overflow,
+M opened the narrow map, and page console errors were empty. Honestly scoped: the active
+District Takeover showdown was not fully traversed manually in this pass because it
+requires long in-game navigation — source/bundle/live smoke evidence is not equivalent
+to that active-state proof and remains NOT FULLY VERIFIED. Auth, backend, and API are
+NOT APPLICABLE for the static Vite site. This is an incremental GTA-style demo slice —
+not GTA 7 and not an enterprise-complete release. All prior sections remain intact as
+historical records superseded by this release.
