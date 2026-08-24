@@ -2471,3 +2471,46 @@ This section records current production evidence for exactly the tests listed ab
 is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style
 browser vertical slice rather than a literal complete GTA 7. All prior sections remain
 intact as historical records superseded by this release.
+---
+
+# Dynamic Weather Cycle Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the deterministic weather slice
+(`28dd6768eb5c63449531f70bf76f07bc5f96b9a4`). This is documentation-only for this pass;
+current production evidence covers exactly what was tested — every earlier section remains
+a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `28dd676` "Add deterministic weather cycle with rain and storm" on main == origin/main with a clean tree | src/main.ts only (+107/-1): fixed 6-minute CLEAR→RAIN→STORM schedule from the run clock, WEATHER // HUD line, index-seeded rain pool, wet-road sheen, restrained storm lightning; resetRun-safe and transient |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the working tree atop `28dd676` | Completed without errors producing dist/assets/index-Bv0u_15l.js (96.16 kB, gzip 27.40 kB); git diff --check clean |
+| Dependency hygiene passed | PASS | npm audit --omit=dev --audit-level=high | found 0 vulnerabilities |
+| Production deploy is live | PASS | Netlify deploy `6a8c30853645a45bf0217ed5` at https://vice-meridian.netlify.app/ | Alias serves this deploy |
+| Live bundle carries weather and prior markers | PASS | Live HTTP GET of assets/index-Bv0u_15l.js on the production deploy | Bundle contains WEATHER //, CLEAR, RAIN, STORM, CITY CLOCK //, and NIGHT SHIFT // CITY LIGHTS markers — confirming the shipped bundle spans this slice and its predecessors |
+| Security headers verified | PASS | Live HTTP response capture from https://vice-meridian.netlify.app/ | Live headers remained Content-Security-Policy, Permissions-Policy, Referrer-Policy, Strict-Transport-Security, and X-Content-Type-Options nosniff |
+| Real Chrome desktop pass | PASS | Real Chrome production desktop session on the live site | WEATHER // CLEAR displayed with CITY CLOCK advancing; M/F/Q/R exercised with zero application-origin console errors |
+| Real Chrome mobile pass | PASS | Real browser session at 390x844 on the live site | Weather and clock readouts present; all six touch controls (Move up/left/down/right, Hold boost, Tap pulse) clicked; zero application-origin console errors |
+| Automatic full weather cycle | VERIFIED BY SOURCE + LIVE BUNDLE + REAL CHROME SMOKE, NOT FULL LONG-RUN CYCLE E2E | src/main.ts review, live bundle marker check, real-Chrome session observations | The deterministic 6-minute CLEAR/RAIN/STORM cycle, rain rendering, sheen, and lightning logic are present in source and the live bundle, and real Chrome confirmed the HUD and clean console; however, an automatic full 6-minute cycle was NOT run to completion in this pass — full-cycle behavior stands on source and partial-window observation only |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Vite architecture review | Auth/backend/API are not applicable to this static Vite game |
+
+## Summary
+
+Source commit `28dd6768eb5c63449531f70bf76f07bc5f96b9a4` "Add deterministic weather cycle
+with rain and storm" sits on main == origin/main behind a clean tree as a documentation-
+only evidence pass over a src/main.ts-only change. npm run build passed producing
+dist/assets/index-Bv0u_15l.js (96.16 kB, gzip 27.40 kB); git diff --check was clean;
+npm audit --omit=dev --audit-level=high found 0 vulnerabilities. Netlify deploy
+`6a8c30853645a45bf0217ed5` is ready at https://vice-meridian.netlify.app/, where the live
+bundle carries WEATHER //, CLEAR, RAIN, STORM, CITY CLOCK //, and NIGHT SHIFT // CITY
+LIGHTS markers, and live security headers remained CSP, Permissions-Policy,
+Referrer-Policy, HSTS, and nosniff. A real Chrome desktop session showed WEATHER // CLEAR
+with the CITY CLOCK advancing and exercised M/F/Q/R with zero application-origin console
+errors; a real Chrome mobile session at 390x844 showed weather and clock readouts with all
+six touch controls (Move up/left/down/right, Hold boost, Tap pulse) clicked and zero
+application-origin console errors. The automatic full 6-minute CLEAR/RAIN/STORM cycle was
+not run to completion; weather behavior is verified by source + live bundle + real Chrome
+smoke, NOT FULL LONG-RUN CYCLE E2E. Auth/backend/API are not applicable to this static
+Vite game. This section records current production evidence for exactly the tests listed
+above — it is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving
+GTA-style browser vertical slice rather than a literal complete GTA 7. All prior sections
+remain intact as historical records superseded by this release.
