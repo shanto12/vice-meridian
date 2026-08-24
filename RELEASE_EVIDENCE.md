@@ -2208,3 +2208,51 @@ VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather than 
 complete GTA 7, and no auth, backend runner, or API endpoint is part of this static Canvas
 release. All prior sections remain intact as historical records superseded by this
 release.
+
+---
+
+# Initial Wanted HUD Boot Render Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the initial wanted-HUD boot render fix and the carjacking feature
+line (`ae5316b`, building on `fea52e3`). This is current production evidence for exactly
+what was tested this pass — not a claim of full GTA 7 completion; every earlier section
+remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commits traceable and pushed | PASS | Commits `ae5316b` "Freeze stolen car in lane movement and traffic rendering" and `fea52e3` "Add carjacking, stolen rides, and wanted stars" on GitHub main | `ae5316b` is origin/main HEAD carrying the full carjack lineage; this release adds the wanted-HUD boot paint plus the stolen-ride re-entry and wreck-timing refinement on top |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the working tree atop `ae5316b` | Completed without errors; produced dist/assets/index-BQ5mer3r.js (90.70 kB) and dist/assets/index-B0aOl8ke.css |
+| Dependency hygiene passed | PASS | npm audit --omit=dev | found 0 vulnerabilities in the production dependency tree |
+| Production deploy is live | PASS | Netlify deploy `6a8c028bf4f19f2d3f16b8ec` at https://vice-meridian.netlify.app/ | Alias serves deploy `6a8c028bf4f19f2d3f16b8ec`; live asset assets/index-v9wkd5dT.js returned HTTP 200 (90521 bytes) |
+| Root document serves over HTTPS | PASS | Live HTTP GET https://vice-meridian.netlify.app/ | Returned HTTP 200 |
+| Security headers verified | PASS | Production response header capture | content-security-policy default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self', strict-transport-security max-age=31536000; includeSubDomains; preload, x-content-type-options nosniff, referrer-policy strict-origin-when-cross-origin, permissions-policy camera=(), microphone=(), geolocation=(), server Netlify |
+| Live bundle carries the carjack implementation | PASS | Live HTTP GET of assets/index-v9wkd5dT.js on the production deploy | Bundle contains CARJACKED, STOLEN RIDE // HULL, AIR SUPPORT // HELO INBOUND, and nightShiftEnabled markers — carjacking is present in the shipped bundle, confirming a non-stale deploy |
+| Initial WANTED 0/3 HUD renders fresh | PASS | Local built preview (vite preview of the new build) DOM readback plus screenshot .playwright-cli/wanted-hud-initial.png | Before any interaction the HUD row read "WANTED ☆☆☆ 0/3" (stars ☆☆☆, count 0) with zero page errors; the fix is a single boot-time setWanted(0) call routed through the existing setWanted formatting path — no duplicated HUD logic |
+| Real Chrome desktop pass | PASS | Real Chrome desktop session on the live site via playwright-cli | Production route loaded and accessibility snapshot captured (.playwright-cli/page-2026-08-24T09-04-00-717Z.yml); console capture logged exactly one entry, a CSP block for an inline script inside an about:srcdoc frame — third-party/extension noise outside the game's own self-hosted module, disclosed here rather than hidden |
+| Mobile layout baseline | CARRIED FORWARD | Prior real Chrome mobile sessions at 390x844 on the same production alias | Earlier sections record canvas and body both at 390px, all six touch controls clickable, and empty console errors; the mobile pass was not re-run this time |
+| Final live carjack action E2E | NOT FULLY CONFIRMED | Shipped-bundle marker review versus the browser input bridge | Carjacking is implemented and present in the shipped bundle (bundle markers plus source review), but pressing E next to a moving civilian on the live site through the input bridge was not completed this pass — runtime jack behavior stands on the local preview and source/build review only |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Canvas/Vite architecture review | No auth, backend runner, or API endpoint is part of this static Canvas release |
+
+## Summary
+
+Source commits `ae5316b` "Freeze stolen car in lane movement and traffic rendering"
+(origin/main HEAD) and `fea52e3` "Add carjacking, stolen rides, and wanted stars" back the
+Netlify production deploy `6a8c028bf4f19f2d3f16b8ec` live at https://vice-meridian.netlify.app/,
+serving assets/index-v9wkd5dT.js over HTTP 200 under CSP, HSTS includeSubDomains preload,
+nosniff, Referrer-Policy, and Permissions-Policy response headers. From the working tree
+atop `ae5316b`, npm run build passed producing dist/assets/index-BQ5mer3r.js and npm audit
+--omit=dev found 0 vulnerabilities. The shipped bundle contains CARJACKED, STOLEN RIDE //
+HULL, AIR SUPPORT // HELO INBOUND, and nightShiftEnabled markers, so the carjacking
+implementation is present in production; however, the final live carjack press through the
+browser input bridge was NOT fully E2E-confirmed this pass and stays explicitly open. The
+initial wanted-HUD fix renders WANTED 0/3 (☆☆☆) on a fresh run before any interaction,
+verified in the local built preview by DOM readback and screenshot via one boot-time
+setWanted(0) call on the existing formatting path. A real Chrome desktop pass loaded the
+live route and captured its snapshot; its console log held a single CSP message for an
+inline script inside an about:srcdoc frame, unrelated to the game's self-hosted bundle and
+disclosed here for accuracy, while the mobile baseline carries forward from earlier 390x844
+passes. This section records current production evidence for exactly the tests listed above
+— it is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style
+browser vertical slice rather than a literal complete GTA 7, and no auth, backend runner, or
+API endpoint is part of this static Canvas release. All prior sections remain intact as
+historical records superseded by this release.

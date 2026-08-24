@@ -287,6 +287,7 @@ let stolenHull = CIVILIAN_HULL_MAX
 let fleeingDriver: { x: number; y: number; angle: number; color: string } | null = null
 let jackFlashUntilMs = 0
 let carjackRestoreAtMs = 0
+let wreckRestoreAtMs = 0
 function activeCar() {
   return stolenCar ?? courierCar
 }
@@ -317,7 +318,7 @@ function bailOutOfStolenCar(nowMs: number) {
   player.y = Math.max(player.size, Math.min(WORLD_H - player.size, (stolenCar?.y ?? courierCar.y) + Math.sin(angle) * 36))
   if (stolenCar) stolenCar.speed = 0
   missionEl.textContent = CAR_WRECKED_TEXT
-  vehicleDisabledRestoreAtMs = nowMs + VEHICLE_DISABLED_HOLD_MS
+  wreckRestoreAtMs = nowMs + CARJACK_HOLD_MS
 }
 
 // Midnight Sprint street race: three mandatory courier-car checkpoints against the clock (KeyN)
@@ -1159,6 +1160,7 @@ function resetRun(nowMs: number) {
   fleeingDriver = null
   jackFlashUntilMs = 0
   carjackRestoreAtMs = 0
+  wreckRestoreAtMs = 0
   lastStreetCredRank = streetCredRank(rep)
   streetCredRankUpUntilMs = 0
   lastCampaignAct = campaignAct()
@@ -2166,10 +2168,12 @@ function frame(now: number) {
       }
     }
 
-    // E steps out beside the door once nearly stopped; stopped inside the active drop-off delivers the run
+    // E steps out beside the door once nearly stopped; stepping out of the stolen ride
+    // parks it in place so E nearby re-enters it. Stopped inside the active drop-off delivers the run
     if (courierToggleRequested && Math.abs(car.speed) <= 80) {
       const stoppedAtDrop =
         contractState === 'active' &&
+        !isStolenRide() &&
         Math.hypot(courierCar.x - SKYWAY_DROP_OFF.x, courierCar.y - SKYWAY_DROP_OFF.y) < DROP_OFF_RADIUS &&
         Math.abs(courierCar.speed) <= 20
       driving = false
@@ -2191,9 +2195,14 @@ function frame(now: number) {
     player.x = Math.max(player.size, Math.min(WORLD_W - player.size, player.x + (dx / len) * speedNow * dt))
     player.y = Math.max(player.size, Math.min(WORLD_H - player.size, player.y + (dy / len) * speedNow * dt))
 
-    // E hops in when close and the courier is not disabled; first pickup starts a hot delivery.
-    // Near a moving civilian instead: yank the driver out and take the car. A wrecked husk
-    // left far behind despawns so another jack stays possible this run
+    // E interactions on foot, in priority order:
+    //   1. courier in reach — get back in (a stolen ride is abandoned where it sits)
+    //   2. parked stolen ride in reach — re-enter it
+    //   3. moving civilian in reach — carjack it; a wreck left far behind despawns first
+    //      so another jack stays possible this run
+    if (courierToggleRequested && !stolenCar && stolenWreckAbandoned()) {
+      stolenCar = null
+    }
     if (courierToggleRequested && carHealth > 0 && Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS) {
       driving = true
       stolenCar = null
@@ -2204,9 +2213,10 @@ function frame(now: number) {
         setWanted(Math.max(1, wanted))
         missionEl.textContent = HOT_DELIVERY_TEXT
       }
+    } else if (courierToggleRequested && stolenCar && stolenHull > 0 && Math.hypot(player.x - stolenCar.x, player.y - stolenCar.y) < CARJACK_RADIUS) {
+      driving = true
+      missionEl.textContent = STOLEN_RIDE_TEXT
     } else if (courierToggleRequested && !stolenCar) {
-      // a wreck left far behind clears out so the next jack stays available
-      if (stolenWreckAbandoned()) stolenCar = null
       const target = nearestJackableCar()
       if (target && now >= jackFlashUntilMs + CARJACK_COOLDOWN_MS) {
         stolenCar = target.car
@@ -3383,6 +3393,9 @@ function frame(now: number) {
   if (carjackRestoreAtMs > 0 && now >= carjackRestoreAtMs) {
     carjackRestoreAtMs = 0
   }
+  if (wreckRestoreAtMs > 0 && now >= wreckRestoreAtMs) {
+    wreckRestoreAtMs = 0
+  }
   if (streetCredRankUpUntilMs > 0 && now >= streetCredRankUpUntilMs) {
     streetCredRankUpUntilMs = 0
   }
@@ -3438,6 +3451,7 @@ function frame(now: number) {
     chopShopRestoreAtMs > 0 ||
     stashRestoreAtMs > 0 ||
     carjackRestoreAtMs > 0 ||
+    wreckRestoreAtMs > 0 ||
     streetCredRankUpUntilMs > 0 ||
     actCompleteUntilMs > 0 ||
     kingpinRestoreAtMs > 0 ||
@@ -3489,6 +3503,8 @@ function frame(now: number) {
     if (missionEl.textContent !== STASH_SECURED_TEXT) missionEl.textContent = STASH_SECURED_TEXT
   } else if (carjackRestoreAtMs > 0) {
     if (missionEl.textContent !== CARJACKED_TEXT) missionEl.textContent = CARJACKED_TEXT
+  } else if (wreckRestoreAtMs > 0) {
+    if (missionEl.textContent !== CAR_WRECKED_TEXT) missionEl.textContent = CAR_WRECKED_TEXT
   } else if (kingpinRestoreAtMs > 0) {
     if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
   } else if (networkNoticeUntilMs > 0 && networkNoticeText) {
@@ -4580,6 +4596,8 @@ function frame(now: number) {
     ctx.shadowBlur = 0
   }
   const nearCourier = Math.hypot(player.x - courierCar.x, player.y - courierCar.y) < COURIER_ENTER_RADIUS
+  const nearParkedStolen =
+    !driving && !!stolenCar && stolenHull > 0 && Math.hypot(player.x - stolenCar.x, player.y - stolenCar.y) < CARJACK_RADIUS
   const jackTarget = !driving && !stolenCar ? nearestJackableCar() : null
   const dropDist = Math.round(Math.hypot(player.x - SKYWAY_DROP_OFF.x, player.y - SKYWAY_DROP_OFF.y))
   let courierText: string
@@ -4589,12 +4607,14 @@ function frame(now: number) {
     courierText = contractState === 'active'
       ? `COURIER RUN // HOT DELIVERY — ${dropDist}M — ${deliveryTimeLeftSec ?? 45}S LEFT — STOP + E TO DELIVER`
       : `COURIER // DRIVING ${Math.round(Math.abs(courierCar.speed) * 0.6)} KMH — SPACE BOOST — SLOWS UNDER 80 FOR E`
+  } else if (nearParkedStolen) {
+    courierText = 'STOLEN RIDE // PRESS E TO GET BACK IN'
   } else if (stolenCar && stolenHull <= 0) {
     courierText = 'WRECK ABANDONED // FIND ANOTHER CAR OR RETURN TO THE COURIER'
   } else if (jackTarget) {
     courierText = 'PRESS E TO CARJACK'
   } else if (nearCourier) {
-    courierText = stolenHull <= 0 || !stolenCar ? 'COURIER // PRESS E TO DRIVE' : 'COURIER // PRESS E TO RECOVER'
+    courierText = 'COURIER // PRESS E TO DRIVE'
   } else if (stolenCar) {
     courierText = 'COURIER PARKED — PRESS E NEARBY TO RECOVER'
   } else {
@@ -5225,5 +5245,9 @@ function frame(now: number) {
     nightShiftEnabled = bootData.nightShiftEnabled === true
   }
 }
+
+// Boot-time wanted HUD paint through the single setWanted path, so a fresh run renders
+// WANTED 0/3 (empty stars) immediately instead of a blank stars slot until first heat
+setWanted(0)
 
 requestAnimationFrame(frame)
