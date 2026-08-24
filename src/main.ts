@@ -294,6 +294,8 @@ const TURF_ACCEPT_RADIUS = 130
 const TURF_TIME_LIMIT_MS = 75000
 const TURF_HOLD_MS = 2600
 const TURF_ACTIVE_TEXT = 'DISTRICT TAKEOVER // REACH THE DISTRICT SITE'
+const TURF_SHOWDOWN_TEXT = 'DISTRICT TAKEOVER // CLEAR RIVAL CREW'
+const TURF_SECURE_TEXT = 'DISTRICT TAKEOVER // RIVALS CLEARED // PRESS X TO SECURE'
 const TURF_ESCAPE_TEXT = 'DISTRICT TAKEOVER // DISTRICT SECURED // RETURN TO SAFEHOUSE'
 const TURF_DONE_TEXT = 'DISTRICT TAKEOVER // DISTRICT SECURED +$1200'
 const TURF_FAILED_TEXT = 'DISTRICT TAKEOVER // DISTRICT LOST'
@@ -302,6 +304,41 @@ type TurfState = 'available' | 'active' | 'escaping' | 'complete'
 let turfState: TurfState = 'available'
 let turfDeadlineMs = 0
 let turfRestoreAtMs = 0
+
+// Rival crew showdown: exactly three deterministic hostiles hold the contested district.
+// Cosmetic gameplay entities — they never harm the player, never persist, and only pursue
+// while the takeover is active and the player is on foot. Pulse bolts (F) drop them.
+const RIVAL_COUNT = 3
+const RIVAL_MAX_HP = 3
+const RIVAL_PURSUIT_SPEED = 74
+const RIVAL_ARENA_RADIUS = 150
+const RIVAL_HIT_RADIUS = 20
+type RivalCrewMember = {
+  x: number
+  y: number
+  hp: number
+  maxHp: number
+  phase: number
+  hitFlashUntilMs: number
+}
+function makeRival(index: number): RivalCrewMember {
+  const spawns = [
+    { x: TURF_SITE.x - 46, y: TURF_SITE.y - 34 },
+    { x: TURF_SITE.x + 44, y: TURF_SITE.y - 24 },
+    { x: TURF_SITE.x + 6, y: TURF_SITE.y + 42 },
+  ]
+  const spot = spawns[index % spawns.length]
+  return { x: spot.x, y: spot.y, hp: RIVAL_MAX_HP, maxHp: RIVAL_MAX_HP, phase: index * 2.1, hitFlashUntilMs: 0 }
+}
+const rivalCrew: RivalCrewMember[] = Array.from({ length: RIVAL_COUNT }, (_, i) => makeRival(i))
+function resetRivalCrew() {
+  for (let i = 0; i < rivalCrew.length; i++) rivalCrew[i] = makeRival(i)
+}
+function rivalsRemaining(): number {
+  let left = 0
+  for (const rival of rivalCrew) if (rival.hp > 0) left++
+  return left
+}
 
 // Smuggler Run: O at the safehouse accepts; drive to the pickup, press O to secure the package,
 // drive to the drop site and press O to deliver before the run expires
@@ -674,6 +711,7 @@ function resetRun(nowMs: number) {
   turfState = 'available'
   turfDeadlineMs = 0
   turfRestoreAtMs = 0
+  resetRivalCrew()
   smugglerRequested = false
   smugglerState = 'available'
   smugglerDeadlineMs = 0
@@ -1817,21 +1855,48 @@ function frame(now: number) {
   if (turfRequested && turfAcceptable) {
     turfState = 'active'
     turfDeadlineMs = now + TURF_TIME_LIMIT_MS
+    resetRivalCrew()
     setWanted(Math.max(2, wanted))
     missionEl.textContent = TURF_ACTIVE_TEXT
   }
-  // On foot inside the contested district, pressing X secures the takeover and starts the escape home
+  // On foot inside the contested district, pressing X secures the takeover — but only once
+  // every rival crew member has been dropped; the pulse bolts (F) are the on-foot weapon
   if (
     turfState === 'active' &&
     !driving &&
     turfRequested &&
+    rivalsRemaining() === 0 &&
     Math.hypot(player.x - TURF_SITE.x, player.y - TURF_SITE.y) < TURF_SITE.radius
   ) {
     turfState = 'escaping'
     setWanted(Math.max(2, wanted))
     missionEl.textContent = `${TURF_ESCAPE_TEXT} — ${Math.ceil((turfDeadlineMs - now) / 1000)}S`
   }
+  // Showdown acceptance: pressing X at the site while rivals stand resets the one-shot flag
+  // so it can be re-pressed after the last crew member falls, without touching other missions
+  if (turfState === 'active' && !driving && turfRequested && rivalsRemaining() > 0) {
+    const atSite = Math.hypot(player.x - TURF_SITE.x, player.y - TURF_SITE.y) < TURF_SITE.radius
+    if (atSite) missionEl.textContent = `${TURF_SHOWDOWN_TEXT} — ${rivalsRemaining()} LEFT`
+  }
   turfRequested = false
+
+  // Rival crew pursuit: alive members slowly chase the on-foot player only while the takeover
+  // is active; they hold their arena around the district site otherwise (never pursue in a car)
+  if (turfState === 'active' && !driving && !missionComplete) {
+    for (const rival of rivalCrew) {
+      if (rival.hp <= 0) continue
+      const ang = Math.atan2(player.y - rival.y, player.x - rival.x)
+      rival.x += Math.cos(ang) * RIVAL_PURSUIT_SPEED * dt
+      rival.y += Math.sin(ang) * RIVAL_PURSUIT_SPEED * dt
+      const dxArena = rival.x - TURF_SITE.x
+      const dyArena = rival.y - TURF_SITE.y
+      const dist = Math.hypot(dxArena, dyArena)
+      if (dist > RIVAL_ARENA_RADIUS) {
+        rival.x = TURF_SITE.x + (dxArena / dist) * RIVAL_ARENA_RADIUS
+        rival.y = TURF_SITE.y + (dyArena / dist) * RIVAL_ARENA_RADIUS
+      }
+    }
+  }
 
   // Escaping: return home on foot inside the safehouse radius to lock the district in
   if (turfState === 'escaping' && !driving && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
@@ -2296,6 +2361,16 @@ function frame(now: number) {
         break
       }
     }
+    // Rival showdown: a bolt hit costs the struck member one hp, flashes, and removes the bolt
+    for (const rival of rivalCrew) {
+      if (rival.hp <= 0) continue
+      if (Math.hypot(b.x - rival.x, b.y - rival.y) < RIVAL_HIT_RADIUS) {
+        rival.hp = Math.max(0, rival.hp - 1)
+        rival.hitFlashUntilMs = now + 140
+        pulse.bolts.splice(i, 1)
+        break
+      }
+    }
   }
   const pulseState = pulse.cooldown > 0 ? 'COOLDOWN' : 'READY'
   if (pulseEls.state.textContent !== pulseState) pulseEls.state.textContent = pulseState
@@ -2447,9 +2522,12 @@ function frame(now: number) {
   } else if (jJobState === 'escaping' && jJobTimeLeftSec !== null) {
     const liveText = `${J_JOB_ESCAPE_TEXT} — ${jJobTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
-  } else if (turfState === 'active' && turfTimeLeftSec !== null) {
-    const liveText = `${TURF_ACTIVE_TEXT} — ${turfTimeLeftSec}S`
+  } else if (turfState === 'active' && rivalsRemaining() > 0) {
+    const liveText = `${TURF_SHOWDOWN_TEXT} — ${rivalsRemaining()} LEFT // PULSE F`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
+  } else if (turfState === 'active') {
+    const secureText = `${TURF_SECURE_TEXT} — ${Math.max(0, Math.ceil((turfDeadlineMs - now) / 1000))}S`
+    if (missionEl.textContent !== secureText) missionEl.textContent = secureText
   } else if (turfState === 'escaping' && turfTimeLeftSec !== null) {
     const liveText = `${TURF_ESCAPE_TEXT} — ${turfTimeLeftSec}S`
     if (missionEl.textContent !== liveText) missionEl.textContent = liveText
@@ -2999,37 +3077,43 @@ function frame(now: number) {
     ctx.setLineDash([])
     ctx.globalAlpha = 1
 
-    // three enemy markers: dark hulls with red roof lights holding the block
-    const turfEnemies = [
-      { x: tx - 40, y: ty - 30, angle: Math.PI / 3 },
-      { x: tx + 38, y: ty - 22, angle: -Math.PI / 2 },
-      { x: tx + 6, y: ty + 42, angle: Math.PI / 4 },
-    ]
-    for (const enemy of turfEnemies) {
-      ctx.save()
-      ctx.translate(enemy.x, enemy.y)
-      ctx.rotate(enemy.angle)
-      ctx.strokeStyle = '#2a2f45'
-      ctx.shadowColor = now % 400 < 200 ? '#ff3c3c' : '#ffe05a'
-      ctx.shadowBlur = 12
-      ctx.lineWidth = 3
-      ctx.strokeRect(-13, -8, 26, 16)
-      // cabin slit
-      ctx.fillStyle = 'rgba(191, 255, 255, 0.35)'
-      ctx.fillRect(-4, -4, 7, 8)
-      // red light bar cells
-      ctx.fillStyle = '#ff3c3c'
-      ctx.fillRect(-5, -2, 4, 4)
-      ctx.fillStyle = '#ffe05a'
-      ctx.fillRect(1, -2, 4, 4)
-      // headlights
-      ctx.shadowColor = '#fff8d6'
-      ctx.shadowBlur = 7
-      ctx.fillStyle = '#fff8d6'
-      ctx.fillRect(-9, -9, 4, 3)
-      ctx.fillRect(6, -9, 4, 3)
-      ctx.restore()
+    // Rival crew silhouettes: neon human figures with a weapon line and compact health bars,
+    // drawn here before the player/courier/police layers so they read as world actors
+    for (const rival of rivalCrew) {
+      if (rival.hp <= 0) continue
+      const flashing = now < rival.hitFlashUntilMs
+      const bodyColor = flashing ? '#ffffff' : '#ff2d55'
+      const glowColor = flashing ? '#ffffff' : now % 400 < 200 ? '#b26bff' : '#ff3c3c'
+      const bob = Math.sin(now / 240 + rival.phase) * 1.5
+      const aimAng = Math.atan2(player.y - rival.y, player.x - rival.x)
+      const rx = rival.x
+      const ry = rival.y + bob
+      ctx.lineCap = 'round'
+      ctx.strokeStyle = bodyColor
+      ctx.shadowColor = glowColor
+      ctx.shadowBlur = flashing ? 22 : 12
+      ctx.lineWidth = 2.5
+      ctx.beginPath()
+      ctx.arc(rx, ry - 11, 4, 0, Math.PI * 2)
+      ctx.moveTo(rx - 6, ry + 10)
+      ctx.quadraticCurveTo(rx, ry - 5, rx + 6, ry + 10)
+      ctx.stroke()
+      // small weapon line toward the player's last position
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.moveTo(rx + Math.cos(aimAng) * 7, ry + Math.sin(aimAng) * 7 - 2)
+      ctx.lineTo(rx + Math.cos(aimAng) * 15, ry + Math.sin(aimAng) * 15 - 2)
+      ctx.stroke()
       ctx.shadowBlur = 0
+      // compact health bar above the head: purple remaining over dim track
+      const barW = 24
+      const barH = 3
+      const barX = rx - barW / 2
+      const barY = ry - 20
+      ctx.fillStyle = 'rgba(30, 16, 44, 0.85)'
+      ctx.fillRect(barX, barY, barW, barH)
+      ctx.fillStyle = '#b26bff'
+      ctx.fillRect(barX, barY, (barW * rival.hp) / rival.maxHp, barH)
     }
 
     // secured beacon once the district is locked in and the escape home is running
@@ -3377,6 +3461,7 @@ function frame(now: number) {
   const convoyEscapingNow = convoyState === 'escaping'
   const jJobEscapingNow = jJobState === 'escaping'
   const turfEscapingNow = turfState === 'escaping'
+  const turfShowdownNow = turfState === 'active'
   const smugglerRunningNow = smugglerState === 'pickup' || smugglerState === 'drop'
   const chopShopRunningNow = chopShopState === 'steal' || chopShopState === 'return'
   // Advertise the takeover offer wherever it is still open without displacing the standing hints
@@ -3401,7 +3486,9 @@ function frame(now: number) {
       : `EARN $${REPAIR_COST} FOR REPAIR`
     : 'HULL OK'
   let safehouseHint: string
-  if (chopShopRunningNow) {
+  if (turfShowdownNow) {
+    safehouseHint = `SAFEHOUSE // DISTRICT TAKEOVER // CLEAR RIVAL CREW — ${rivalsRemaining()} LEFT // PULSE F // ${garageStatusHint} // ${repairStatusHint}`
+  } else if (chopShopRunningNow) {
     safehouseHint = `SAFEHOUSE // CHOP SHOP // ${chopShopState === 'steal' ? 'REACH THE TARGET VEHICLE' : 'RETURN TO SAFEHOUSE'} // ${garageStatusHint} // ${repairStatusHint}`
   } else if (smugglerRunningNow) {
     safehouseHint = `SAFEHOUSE // SMUGGLER RUN // ${smugglerState === 'pickup' ? 'REACH THE PICKUP SITE' : 'REACH THE DROP SITE'} // ${garageStatusHint} // ${repairStatusHint}`
