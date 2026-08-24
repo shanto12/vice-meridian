@@ -28,19 +28,11 @@ app.innerHTML = `
   <div id="phone-menu" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:30;width:min(320px,86vw);max-height:70vh;overflow-y:auto;padding:18px 20px;background:rgba(8,4,24,0.92);border:1px solid #ff2d96;border-radius:10px;box-shadow:0 0 28px rgba(255,45,150,0.55),inset 0 0 14px rgba(255,45,150,0.2);color:#f4ecff;font-family:ui-monospace,Consolas,monospace;text-align:left;display:none;">
     <p id="phone-title" style="margin:0 0 12px;font-size:13px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 12px rgba(0,240,255,0.75);">VICE//MERIDIAN // CONTACTS</p>
     <p id="phone-briefing" style="margin:0 0 10px;font-size:10px;letter-spacing:2px;line-height:1.6;color:#c9a4ff;text-shadow:0 0 8px rgba(178,107,255,0.65);"></p>
-    <ul id="phone-jobs" style="list-style:none;margin:0;padding:0;font-size:11px;letter-spacing:2px;line-height:2;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);">
-      <li>B BLACKOUT</li>
-      <li>K BANK</li>
-      <li>V VIP</li>
-      <li>C CONVOY</li>
-      <li>J JUNCTION</li>
-      <li>X TAKEOVER</li>
-      <li>O SMUGGLER</li>
-      <li>I CHOP SHOP</li>
-      <li>N RACE</li>
-    </ul>
+    <p id="phone-district" style="margin:0 0 10px;font-size:10px;letter-spacing:2px;color:#00f0ff;text-shadow:0 0 8px rgba(0,240,255,0.65);"></p>
+    <ul id="phone-jobs" style="list-style:none;margin:0;padding:0;font-size:11px;letter-spacing:2px;line-height:2;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);"></ul>
     <p style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ffe05a;text-shadow:0 0 8px rgba(255,224,90,0.5);">PRESS 1-9 TO CALL</p>
     <p id="phone-status" style="margin:12px 0 0;font-size:11px;letter-spacing:2px;color:#39ff88;text-shadow:0 0 8px rgba(57,255,136,0.55);">CASH $0 / REP 0 / WANTED 0</p>
+    <p id="phone-feedback" style="display:none;margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#39ff88;text-shadow:0 0 8px rgba(57,255,136,0.55);"></p>
     <p id="phone-close" style="margin:8px 0 0;font-size:10px;letter-spacing:2px;color:#ff2d96;text-shadow:0 0 8px rgba(255,45,150,0.6);">TAB TOGGLE // ESC CLOSE</p>
   </div>
   <p class="complete" id="complete" hidden>ALL SIGNALS RECOVERED — GRID SECURE</p>
@@ -487,19 +479,53 @@ function campaignMissionText(): string {
 let mapOpen = false
 let phoneOpen = false
 
+type PhoneJobStatus = 'READY' | 'ACTIVE' | 'COMPLETE' | 'RETURN TO SAFEHOUSE' | 'UNAVAILABLE'
+
 // Phone dialing: 1-9 ring the nine contacts in listed order; digits reuse the same
 // one-shot mission request flags as the letter keys so acceptance rules stay identical
-const PHONE_DIGIT_JOBS: { label: string; request: () => void; isAvailable: () => boolean }[] = [
-  { label: 'B BLACKOUT', request: () => { blackoutRequested = true }, isAvailable: () => blackoutState === 'available' && contractState !== 'active' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
-  { label: 'K BANK', request: () => { bankRequested = true }, isAvailable: () => bankState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
-  { label: 'V VIP', request: () => { vipRequested = true }, isAvailable: () => vipState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
-  { label: 'C CONVOY', request: () => { convoyRequested = true }, isAvailable: () => convoyState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
-  { label: 'J JUNCTION', request: () => { jJobRequested = true }, isAvailable: () => jJobState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
-  { label: 'X TAKEOVER', request: () => { turfRequested = true }, isAvailable: () => turfState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
-  { label: 'O SMUGGLER', request: () => { smugglerRequested = true }, isAvailable: () => smugglerState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && chopShopState === 'available' },
-  { label: 'I CHOP SHOP', request: () => { chopShopRequested = true }, isAvailable: () => chopShopState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' },
-  { label: 'N RACE', request: () => { raceRequested = true }, isAvailable: () => raceState === 'available' && contractState !== 'active' && blackoutState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available' },
+const JOB_ACCEPT_RADIUS = 130
+const atSafehouseAccept = () =>
+  !driving &&
+  !missionComplete &&
+  Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < JOB_ACCEPT_RADIUS
+
+const contractIdleForPhone = () => contractState !== 'active'
+const otherJobsIdle = (exclude: 'B' | 'K' | 'V' | 'C' | 'J' | 'X' | 'O' | 'I' | 'N') =>
+  (exclude === 'B' || blackoutState === 'available') &&
+  (exclude === 'K' || bankState === 'available') &&
+  (exclude === 'V' || vipState === 'available') &&
+  (exclude === 'C' || convoyState === 'available') &&
+  (exclude === 'J' || jJobState === 'available') &&
+  (exclude === 'X' || turfState === 'available') &&
+  (exclude === 'O' || smugglerState === 'available') &&
+  (exclude === 'I' || chopShopState === 'available') &&
+  (exclude === 'N' || raceState === 'available')
+
+const PHONE_DIGIT_JOBS: {
+  label: string
+  request: () => void
+  isAvailable: () => boolean
+  status: () => PhoneJobStatus
+}[] = [
+  { label: 'B BLACKOUT', request: () => { blackoutRequested = true }, isAvailable: () => blackoutState === 'available' && blackoutState === 'available' && contractState !== 'active' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available', status: () => blackoutState === 'complete' ? 'COMPLETE' : blackoutState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('B') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
+  { label: 'K BANK', request: () => { bankRequested = true }, isAvailable: () => bankState === 'available' && bankState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available', status: () => bankState === 'complete' ? 'COMPLETE' : bankState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('K') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
+  { label: 'V VIP', request: () => { vipRequested = true }, isAvailable: () => vipState === 'available' && vipState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available', status: () => vipState === 'complete' ? 'COMPLETE' : vipState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('V') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
+  { label: 'C CONVOY', request: () => { convoyRequested = true }, isAvailable: () => convoyState === 'available' && convoyState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available', status: () => convoyState === 'complete' ? 'COMPLETE' : convoyState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('C') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
+  { label: 'J JUNCTION', request: () => { jJobRequested = true }, isAvailable: () => jJobState === 'available' && jJobState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available', status: () => jJobState === 'complete' ? 'COMPLETE' : jJobState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('J') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
+  { label: 'X TAKEOVER', request: () => { turfRequested = true }, isAvailable: () => turfState === 'available' && turfState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && smugglerState === 'available' && chopShopState === 'available', status: () => turfState === 'complete' ? 'COMPLETE' : turfState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('X') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
+  { label: 'O SMUGGLER', request: () => { smugglerRequested = true }, isAvailable: () => smugglerState === 'available' && smugglerState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && chopShopState === 'available', status: () => smugglerState === 'complete' ? 'COMPLETE' : smugglerState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('O') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
+  { label: 'I CHOP SHOP', request: () => { chopShopRequested = true }, isAvailable: () => chopShopState === 'available' && chopShopState === 'available' && contractState !== 'active' && blackoutState === 'available' && raceState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available', status: () => chopShopState === 'complete' ? 'COMPLETE' : chopShopState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('I') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
+  { label: 'N RACE', request: () => { raceRequested = true }, isAvailable: () => raceState === 'available' && raceState === 'available' && contractState !== 'active' && blackoutState === 'available' && bankState === 'available' && vipState === 'available' && convoyState === 'available' && jJobState === 'available' && turfState === 'available' && smugglerState === 'available' && chopShopState === 'available', status: () => raceState === 'complete' ? 'COMPLETE' : raceState === 'available' ? (atSafehouseAccept() ? 'READY' : contractIdleForPhone() && otherJobsIdle('N') ? 'RETURN TO SAFEHOUSE' : 'UNAVAILABLE') : 'ACTIVE' },
 ]
+const phoneJobEls = Array.from(document.querySelectorAll<HTMLLIElement>('#phone-jobs li'))
+function refreshPhoneJobStatuses(): void {
+  for (let i = 0; i < PHONE_DIGIT_JOBS.length; i++) {
+    const el = phoneJobEls[i]
+    if (!el) continue
+    const text = `${PHONE_DIGIT_JOBS[i].label} // ${PHONE_DIGIT_JOBS[i].status()}`
+    if (el.textContent !== text) el.textContent = text
+  }
+}
 const PHONE_BUSY_TEXT = 'CONTACT BUSY // JOB UNAVAILABLE'
 let phoneStatusBusy = false
 
@@ -561,6 +587,7 @@ const walletEl = document.getElementById('hud-wallet')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
 const phoneBriefingEl = document.getElementById('phone-briefing')!
+const phoneDistrictEl = document.getElementById('phone-district')!
 const hullEl = document.getElementById('hud-hull')!
 const hullPctEl = document.querySelector<HTMLSpanElement>('#hull-pct')!
 const hullFillEl = document.querySelector<HTMLSpanElement>('#hull-fill')!
@@ -1139,8 +1166,11 @@ function frame(now: number) {
 
   if (phoneOpen) {
     phoneEl.style.display = 'block'
+    refreshPhoneJobStatuses()
     const briefingText = campaignMissionText()
     if (phoneBriefingEl.textContent !== briefingText) phoneBriefingEl.textContent = briefingText
+    const districtText = `DISTRICT // ${districtFor(player.x)} // HEAT ${wanted}/3`
+    if (phoneDistrictEl.textContent !== districtText) phoneDistrictEl.textContent = districtText
     if (phoneStatusBusy) {
       const busyText = `CASH $${cash} / REP ${rep} / WANTED ${wanted} // ${PHONE_BUSY_TEXT}`
       if (phoneStatusEl.textContent !== busyText) phoneStatusEl.textContent = busyText
