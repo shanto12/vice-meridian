@@ -1186,3 +1186,51 @@ to that active-state proof and remains NOT FULLY VERIFIED. Auth, backend, and AP
 NOT APPLICABLE for the static Vite site. This is an incremental GTA-style demo slice —
 not GTA 7 and not an enterprise-complete release. All prior sections remain intact as
 historical records superseded by this release.
+
+---
+
+# Wanted-Three Air Unit Spotlight - Release Evidence (2026-08-23)
+
+Verification matrix for the wanted-three air-unit spotlight escalation release (roadblock
+tier +1). This is the current release record; every earlier section in this file is a
+historical record superseded by it. Rows are separated so agent provenance, shell gates,
+live HTTP checks, real-Chrome sessions, and bundle-content verification are never mixed
+inside one evidence surface.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch clean | Shell: git status / git rev-parse against origin/main | PASS | Commit `66ae998` "Add wanted-three air unit spotlight" is HEAD on main, pushed; working tree clean |
+| Feature commit scope | Shell: git show --stat 66ae998 | PASS | Changed only src/main.ts (+167 insertions, no deletions) |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and bundle | PASS | Netlify production deploy `6a8bb6e953da9a0697d22b06` is ready at https://vice-meridian.netlify.app/ |
+| Root document serves over HTTPS | Live HTTP: GET https://vice-meridian.netlify.app/ | PASS | HTTP 200 |
+| Live JS asset serves | Live HTTP: curl of the deployed assets/index-*.js bundle | PASS | Asset returns HTTP 200 alongside the root document |
+| Security headers present | Live HTTP: response header capture on / and the JS asset | PASS | CSP, HSTS, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Real Chrome desktop load and interaction | Real Chrome desktop session at 1440x660 on production | PASS | Root loaded with no horizontal overflow; F pulse fired (HUD PULSE state flipped), courier entered with E, wanted-1 police scan readout and PURSUIT HUD appeared during the hot-delivery leg |
+| Real Chrome mobile layout | Real Chrome mobile session at 390x844 on production | PASS | Canvas/document matched the viewport with no horizontal overflow |
+| Desktop/mobile console cleanliness | Real Chrome console capture during both sessions | PASS | Zero game-origin errors; the only console warnings came from a browser wallet extension unrelated to the game |
+| Live bundle contains air-unit and roadblock markers | Bundle content check of the deployed JS | PASS | Bundle contains AIR UNIT // SPOTLIGHT ACTIVE, ROADBLOCK // INTERCEPTOR EN ROUTE, and the roadblock/air-unit world label strings |
+| Wanted-3 air-unit runtime path exercised manually | Manual Chrome gameplay attempt to reach wanted 3 while driving | NOT FULLY VERIFIED | The wanted-3 air-unit runtime state was not reached in manual Chrome this pass — reaching it requires a sustained high-heat drive; verified in source, build output, and live bundle only, which is not equivalent to active-state proof |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) implemented the wanted-three air-unit
+spotlight in src/main.ts only; commit `66ae998` "Add wanted-three air unit spotlight" is
+pushed to origin/main with a clean tree. Local gates passed: npm run build,
+npm audit --omit=dev (0 vulnerabilities), and git diff --check. Netlify production deploy
+`6a8bb6e953da9a0697d22b06` is ready at https://vice-meridian.netlify.app/: root and the
+deployed JS bundle both return HTTP 200, and CSP, HSTS, nosniff, Referrer-Policy, and
+Permissions-Policy headers were observed. In real Chrome desktop at 1440x660 the site
+loaded without overflow, F pulse, courier enter (E), and the wanted-1 police scan/pursuit
+readouts were exercised live; in real Chrome mobile at 390x844 layout held with no
+horizontal overflow; console showed zero game-origin errors — warnings came from a
+browser wallet extension only. The deployed bundle contains the AIR UNIT // SPOTLIGHT
+ACTIVE and ROADBLOCK // INTERCEPTOR EN ROUTE markers. Honestly scoped: the wanted-3
+air-unit runtime state was NOT reached in manual Chrome this pass — it is source/build/
+bundle verified only, not active-state proof; sustained high-heat driving is required to
+reach that tier organically. All prior sections remain intact as historical records
+superseded by this release.
