@@ -606,6 +606,39 @@ function rivalsRemaining(): number {
   return left
 }
 
+// Rival return fire: during an active takeover, alive rivals fire slow deterministic bolts
+// at where the player stood when the volley launched. Forgiving by design — telegraphed,
+// capped pool, no homing, short stagger + one heat level on hit, i-frames while staggered.
+// Purely transient: cleared on resetRun and whenever the takeover is not active
+type RivalBolt = {
+  x: number
+  y: number
+  dx: number
+  dy: number
+  spawnMs: number
+}
+const RIVAL_BOLT_POOL = 6
+const RIVAL_FIRE_CADENCE_MS = 900
+const RIVAL_BOLT_SPEED = 190
+const RIVAL_BOLT_LIFETIME_MS = 1500
+const RIVAL_BOLT_HIT_RADIUS = 12
+const RIVAL_STAGGER_MS = 650
+const RIVAL_VOLLEY_TELEGRAPH_MS = 220
+const RIVAL_INCOMING_TEXT = 'RIVAL CREW // INCOMING FIRE'
+const RIVAL_INCOMING_HOLD_MS = 1400
+const rivalBolts: RivalBolt[] = []
+let rivalFireLastMs = 0
+let rivalTelegraphUntilMs = 0
+let playerStaggerUntilMs = 0
+let rivalIncomingRestoreAtMs = 0
+function resetRivalFire() {
+  rivalBolts.length = 0
+  rivalFireLastMs = 0
+  rivalTelegraphUntilMs = 0
+  playerStaggerUntilMs = 0
+  rivalIncomingRestoreAtMs = 0
+}
+
 // Smuggler Run: O at the safehouse accepts; drive to the pickup, press O to secure the package,
 // drive to the drop site and press O to deliver before the run expires
 const SMUGGLER_PICKUP_SITE = { x: WORLD_W * 0.80, y: WORLD_H * 0.36, radius: 100 }
@@ -1249,6 +1282,7 @@ function resetRun(nowMs: number) {
   turfRestoreAtMs = 0
   overdriveImpactUntilMs = 0
   resetRivalCrew()
+  resetRivalFire()
   smugglerRequested = false
   smugglerState = 'available'
   smugglerDeadlineMs = 0
@@ -2249,7 +2283,10 @@ function frame(now: number) {
     }
   }
 
-  const speedNow = player.speed * (boost.active ? boost.multiplier : 1)
+  // Rival-fire stagger: while the stagger window is live the on-foot pace drops hard
+  // (visible stumble) and i-frames block repeat hits; driving is never affected
+  const staggered = playerStaggerUntilMs > now
+  const speedNow = player.speed * (boost.active ? boost.multiplier : 1) * (staggered ? 0.35 : 1)
   if (driving) {
     // arcade car physics: steering authority scales with roll speed.
     // The active car is the courier by default or the stolen ride while it lasts
@@ -2847,6 +2884,56 @@ function frame(now: number) {
         rival.y = TURF_SITE.y + (dyArena / dist) * RIVAL_ARENA_RADIUS
       }
     }
+
+    // Return fire: a shared 900ms cadence while the player stands on foot inside the arena.
+    // Deterministic shooter rotation over alive rivals; bolts aim at the player's spawn-time
+    // position only, capped at the pool, expiring by lifetime or arena exit — never vs cars
+    const playerInArena = Math.hypot(player.x - TURF_SITE.x, player.y - TURF_SITE.y) < RIVAL_ARENA_RADIUS
+    if (!driving && playerInArena && rivalsRemaining() > 0 && now - rivalFireLastMs >= RIVAL_FIRE_CADENCE_MS) {
+      rivalFireLastMs = now
+      rivalTelegraphUntilMs = now + RIVAL_VOLLEY_TELEGRAPH_MS
+      let aliveSeen = 0
+      for (const rival of rivalCrew) {
+        if (rival.hp <= 0) continue
+        aliveSeen++
+        // deterministic pick: the ((volley count) mod alive)th living member fires each volley
+        if (aliveSeen === Math.floor(now / RIVAL_FIRE_CADENCE_MS) % rivalsRemaining() + 1) {
+          if (rivalBolts.length < RIVAL_BOLT_POOL) {
+            const ang = Math.atan2(player.y - rival.y, player.x - rival.x)
+            rivalBolts.push({
+              x: rival.x,
+              y: rival.y,
+              dx: Math.cos(ang) * RIVAL_BOLT_SPEED,
+              dy: Math.sin(ang) * RIVAL_BOLT_SPEED,
+              spawnMs: now,
+            })
+          }
+          break
+        }
+      }
+    }
+  } else if (turfState !== 'active') {
+    resetRivalFire()
+  }
+  // Bolt flight + hit resolution: stagger with i-frames plus at most one heat level;
+  // cash, rep, hull, and mission progress are never touched by rival fire
+  for (let i = rivalBolts.length - 1; i >= 0; i--) {
+    const bolt = rivalBolts[i]
+    bolt.x += bolt.dx * dt
+    bolt.y += bolt.dy * dt
+    const expired = now - bolt.spawnMs >= RIVAL_BOLT_LIFETIME_MS ||
+      Math.hypot(bolt.x - TURF_SITE.x, bolt.y - TURF_SITE.y) > RIVAL_ARENA_RADIUS + 30
+    const hit = !expired && playerStaggerUntilMs <= now &&
+      !driving && Math.hypot(bolt.x - player.x, bolt.y - player.y) < RIVAL_BOLT_HIT_RADIUS
+    if (hit) {
+      playerStaggerUntilMs = now + RIVAL_STAGGER_MS
+      setWanted(wanted + 1)
+      missionEl.textContent = RIVAL_INCOMING_TEXT
+      rivalIncomingRestoreAtMs = now + RIVAL_INCOMING_HOLD_MS
+      rivalBolts.splice(i, 1)
+      continue
+    }
+    if (expired) rivalBolts.splice(i, 1)
   }
 
   // Escaping: return home on foot inside the safehouse radius to lock the district in
@@ -3631,6 +3718,9 @@ function frame(now: number) {
   if (turfRestoreAtMs > 0 && now >= turfRestoreAtMs) {
     turfRestoreAtMs = 0
   }
+  if (rivalIncomingRestoreAtMs > 0 && now >= rivalIncomingRestoreAtMs) {
+    rivalIncomingRestoreAtMs = 0
+  }
   if (smugglerRestoreAtMs > 0 && now >= smugglerRestoreAtMs) {
     smugglerRestoreAtMs = 0
   }
@@ -3722,6 +3812,7 @@ function frame(now: number) {
     convoyRestoreAtMs > 0 ||
     jJobRestoreAtMs > 0 ||
     turfRestoreAtMs > 0 ||
+    rivalIncomingRestoreAtMs > 0 ||
     smugglerRestoreAtMs > 0 ||
     chopShopRestoreAtMs > 0 ||
     stashRestoreAtMs > 0 ||
@@ -4501,6 +4592,60 @@ function frame(now: number) {
       ctx.fillStyle = '#b26bff'
       ctx.fillRect(barX, barY, (barW * rival.hp) / rival.maxHp, barH)
     }
+
+    // Return-fire telegraph: a bright muzzle/aim flash on every alive rival during the
+    // pre-volley window so incoming shots are always readable before they launch
+    if (now < rivalTelegraphUntilMs) {
+      for (const rival of rivalCrew) {
+        if (rival.hp <= 0) continue
+        const aimAng = Math.atan2(player.y - rival.y, player.x - rival.x)
+        const mx = rival.x + Math.cos(aimAng) * 15
+        const my = rival.y + Math.sin(aimAng) * 15 - 2
+        const teleT = (rivalTelegraphUntilMs - now) / RIVAL_VOLLEY_TELEGRAPH_MS
+        ctx.strokeStyle = `rgba(255, 214, 90, ${0.4 + teleT * 0.5})`
+        ctx.shadowColor = '#ffe05a'
+        ctx.shadowBlur = 14 * teleT + 6
+        ctx.lineWidth = 2.5
+        ctx.beginPath()
+        ctx.arc(mx, my, 3 + (1 - teleT) * 2, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(mx, my)
+        ctx.lineTo(mx + Math.cos(aimAng) * 9, my + Math.sin(aimAng) * 9)
+        ctx.stroke()
+        ctx.shadowBlur = 0
+      }
+    }
+
+    // Rival bolts: hot cyan/magenta tracer with a short bright trail and glowing head,
+    // matching the district neon language; drawn in the same world transform as rivals
+    for (const bolt of rivalBolts) {
+      const trailX = bolt.x - bolt.dx * 0.045
+      const trailY = bolt.y - bolt.dy * 0.045
+      ctx.strokeStyle = 'rgba(178, 107, 255, 0.75)'
+      ctx.shadowColor = '#00f0ff'
+      ctx.shadowBlur = 8
+      ctx.lineWidth = 1.5
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(trailX, trailY)
+      ctx.lineTo(bolt.x, bolt.y)
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(255, 45, 85, 0.9)'
+      ctx.shadowColor = '#ff2d55'
+      ctx.beginPath()
+      ctx.moveTo(bolt.x + (bolt.x - trailX) * 0.4, bolt.y + (bolt.y - trailY) * 0.4)
+      ctx.lineTo(bolt.x, bolt.y)
+      ctx.stroke()
+      ctx.fillStyle = '#ffd6ea'
+      ctx.shadowBlur = 12
+      ctx.beginPath()
+      ctx.arc(bolt.x, bolt.y, 2.2, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.shadowBlur = 0
+    ctx.lineWidth = 1
+    ctx.lineCap = 'butt'
 
     // secured beacon once the district is locked in and the escape home is running
     if (atTurf && turfState === 'escaping') {
