@@ -20,6 +20,7 @@ app.innerHTML = `
     <p class="hud-crew" id="hud-crew" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00f0ff;text-shadow:0 0 10px rgba(0,240,255,0.6);">CREW COVER 0S</p>
     <p class="hud-scan" id="hud-scan" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE SCAN // NEAREST UNIT ---M</p>
     <p class="hud-pursuit" id="hud-pursuit" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff3c3c;text-shadow:0 0 10px rgba(255,60,60,0.6);">POLICE PURSUIT // HEAT 0/3</p>
+    <p class="hud-roadblock" id="hud-roadblock" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffb300;text-shadow:0 0 10px rgba(255,179,0,0.7);">ROADBLOCK // INTERCEPTOR EN ROUTE</p>
     <p class="hud-wallet" id="hud-wallet" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ffe05a;text-shadow:0 0 10px rgba(255,224,90,0.6);">CASH $0 // REP 0</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
@@ -435,6 +436,52 @@ const policeUnits: PoliceUnit[] = [
   { x: WORLD_W * 0.3, y: WORLD_H * 0.62 + 120, angle: Math.PI / 2, homeX: WORLD_W * 0.3, homeY: WORLD_H * 0.62 + 120, speed: 150, sirenPhase: 0 },
   { x: WORLD_W * 0.7, y: WORLD_H * 0.62 + 240, angle: -Math.PI / 2, homeX: WORLD_W * 0.7, homeY: WORLD_H * 0.62 + 240, speed: 170, sirenPhase: Math.PI },
 ]
+
+// Roadblock escalation (wanted >= 2 while driving in an active heat-bearing mission):
+// one interceptor + barrier spawned on the leading camera edge, lightweight pursuit,
+// capped one-hit-per-cooldown impact reusing the shared police-impact semantics
+const ROADBLOCK_WANTED_MIN = 2
+const ROADBLOCK_PURSUIT_SPEED = 205
+const ROADBLOCK_TURN_RATE = 1.9
+const ROADBLOCK_BARRIER_OFFSET = 34
+type RoadblockUnit = {
+  active: boolean
+  x: number
+  y: number
+  angle: number
+  sirenPhase: number
+}
+const roadblock: RoadblockUnit = {
+  active: false,
+  x: 0,
+  y: 0,
+  angle: 0,
+  sirenPhase: Math.PI / 3,
+}
+function roadblockMissionRunning(): boolean {
+  return (
+    contractState === 'active' ||
+    blackoutState === 'active' ||
+    blackoutState === 'escaping' ||
+    bankState === 'active' ||
+    bankState === 'escaping' ||
+    vipState === 'pickup' ||
+    vipState === 'escaping' ||
+    convoyState === 'active' ||
+    convoyState === 'escaping' ||
+    jJobState === 'active' ||
+    jJobState === 'escaping' ||
+    turfState === 'active' ||
+    turfState === 'escaping' ||
+    smugglerState === 'pickup' ||
+    smugglerState === 'drop' ||
+    chopShopState === 'steal' ||
+    chopShopState === 'return'
+  )
+}
+function resetRoadblock() {
+  roadblock.active = false
+}
 let cash = 0
 let rep = 0
 
@@ -632,6 +679,7 @@ const safehouseEl = document.getElementById('hud-safehouse')!
 const crewEl = document.getElementById('hud-crew')!
 const scanEl = document.getElementById('hud-scan')!
 const pursuitEl = document.getElementById('hud-pursuit')!
+const roadblockEl = document.getElementById('hud-roadblock')!
 const walletEl = document.getElementById('hud-wallet')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
@@ -726,6 +774,7 @@ function resetRun(nowMs: number) {
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
+  resetRoadblock()
   blackoutRequested = false
   blackoutState = 'available'
   blackoutRestoreAtMs = 0
@@ -901,15 +950,17 @@ function drawCourierCar(isDriving: boolean) {
   ctx.shadowBlur = 0
 }
 
-// Red/white neon cruiser with alternating roof lights and siren glow — distinct from courier and traffic
-function drawPoliceUnit(unit: PoliceUnit, active: boolean, nowMs: number) {
+// Red/white neon cruiser with alternating roof lights and siren glow — distinct from courier and traffic.
+// The pose helper keeps one renderer shared by patrol cruisers and the roadblock interceptor
+// without structural casts: callers pass x/y/angle/sirenPhase, nothing else
+function drawPolicePose(x: number, y: number, angle: number, sirenPhase: number, active: boolean, nowMs: number) {
   ctx.save()
-  ctx.translate(unit.x, unit.y)
-  ctx.rotate(unit.angle)
+  ctx.translate(x, y)
+  ctx.rotate(angle)
 
   // subtle siren glow while hunting
   if (active) {
-    const glow = 12 + Math.sin(nowMs / 130 + unit.sirenPhase) * 6
+    const glow = 12 + Math.sin(nowMs / 130 + sirenPhase) * 6
     ctx.shadowColor = '#ff3c3c'
     ctx.shadowBlur = glow
   }
@@ -926,7 +977,7 @@ function drawPoliceUnit(unit: PoliceUnit, active: boolean, nowMs: number) {
 
   // alternating cyan/red roof lights
   if (active) {
-    const flash = Math.floor(nowMs / 140 + unit.sirenPhase) % 2 === 0
+    const flash = Math.floor(nowMs / 140 + sirenPhase) % 2 === 0
     ctx.shadowColor = flash ? '#ff2d55' : '#00f0ff'
     ctx.shadowBlur = 14
     ctx.fillStyle = flash ? '#ff2d55' : '#00f0ff'
@@ -943,6 +994,10 @@ function drawPoliceUnit(unit: PoliceUnit, active: boolean, nowMs: number) {
   ctx.fillRect(4, -11, 5, 3)
   ctx.restore()
   ctx.shadowBlur = 0
+}
+
+function drawPoliceUnit(unit: PoliceUnit, active: boolean, nowMs: number) {
+  drawPolicePose(unit.x, unit.y, unit.angle, unit.sirenPhase, active, nowMs)
 }
 
 function districtFor(x: number): string {
@@ -2370,6 +2425,56 @@ function frame(now: number) {
     }
   }
 
+  // Roadblock escalation: deterministic single interceptor while driving under heavy heat in a live mission.
+  // Spawn sits on the stable leading edge of the current camera view toward the car's travel direction;
+  // deactivation is fully hidden/reset whenever heat drops, the mission ends, the player exits, or resetRun runs
+  const roadblockShouldEngage = driving && wanted >= ROADBLOCK_WANTED_MIN && roadblockMissionRunning()
+  if (roadblockShouldEngage) {
+    if (!roadblock.active) {
+      // stable spawn: far edge of the live camera view along the car's travel direction,
+      // nudged just past the frame so the response slides into view instead of popping in
+      const leadX = Math.sin(courierCar.angle)
+      const leadY = -Math.cos(courierCar.angle)
+      const edgeX = leadX >= 0 ? camera.x + w - 60 : camera.x + 60
+      const edgeY = leadY >= 0 ? camera.y + h - 60 : camera.y + 60
+      roadblock.x = Math.max(40, Math.min(WORLD_W - 40, edgeX + leadX * 70))
+      roadblock.y = Math.max(40, Math.min(WORLD_H - 40, edgeY + leadY * 70))
+      roadblock.angle = Math.atan2(courierCar.y - roadblock.y, courierCar.x - roadblock.x) + Math.PI / 2
+      roadblock.active = true
+    }
+    // lightweight pursuit: fixed speed and turn rate steering at the courier hull
+    const ang = Math.atan2(courierCar.y - roadblock.y, courierCar.x - roadblock.x)
+    let diff = ang - (roadblock.angle - Math.PI / 2)
+    while (diff > Math.PI) diff -= Math.PI * 2
+    while (diff < -Math.PI) diff += Math.PI * 2
+    roadblock.angle += Math.max(-ROADBLOCK_TURN_RATE * dt, Math.min(ROADBLOCK_TURN_RATE * dt, diff))
+    roadblock.x += Math.cos(roadblock.angle - Math.PI / 2) * ROADBLOCK_PURSUIT_SPEED * dt
+    roadblock.y += Math.sin(roadblock.angle - Math.PI / 2) * ROADBLOCK_PURSUIT_SPEED * dt
+    roadblock.x = Math.max(24, Math.min(WORLD_W - 24, roadblock.x))
+    roadblock.y = Math.max(WORLD_H * 0.62, Math.min(WORLD_H - 30, roadblock.y))
+
+    // impact reuses the police-impact semantics through the shared cooldown: one capped hull/heat hit per window
+    if (now >= policeHitCooldownUntilMs && Math.hypot(courierCar.x - roadblock.x, courierCar.y - roadblock.y) < 34) {
+      courierCar.speed *= -0.25
+      setWanted(Math.min(3, wanted + 1))
+      carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE)
+      policeHitUntilMs = now + POLICE_HIT_HOLD_MS
+      policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
+      policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
+      missionEl.textContent = POLICE_IMPACT_TEXT
+      if (carHealth <= 0) {
+        driving = false
+        player.x = Math.max(player.size, Math.min(WORLD_W - player.size, courierCar.x + Math.cos(courierCar.angle) * 36))
+        player.y = Math.max(player.size, Math.min(WORLD_H - player.size, courierCar.y + Math.sin(courierCar.angle) * 36))
+        courierCar.speed = 0
+        missionEl.textContent = VEHICLE_DISABLED_TEXT
+        vehicleDisabledRestoreAtMs = now + VEHICLE_DISABLED_HOLD_MS
+      }
+    }
+  } else {
+    resetRoadblock()
+  }
+
   // Heat cooling: after 7s continuously clear of all active hunters' scan range, shed one level
   // Active Crew Cover compresses that window to a faster decay without touching mission timers or payouts
   const heatCoolRequiredMs = now < crewCoverUntilMs ? CREW_COVER_FAST_HEAT_COOL_MS : HEAT_COOL_MS
@@ -3605,6 +3710,11 @@ function frame(now: number) {
     pursuitEl.style.display = wanted > 0 ? '' : 'none'
   }
 
+  // Roadblock escalation tag: amber line while the interceptor response is live
+  if (roadblockEl.style.display !== (roadblock.active ? '' : 'none')) {
+    roadblockEl.style.display = roadblock.active ? '' : 'none'
+  }
+
   // Wallet readout: mirrors the live cash/rep values every frame
   const walletText = `CASH $${cash} // REP ${rep}`
   if (walletEl.textContent !== walletText) walletEl.textContent = walletText
@@ -3765,6 +3875,48 @@ function frame(now: number) {
     for (const u of policeUnits) {
       drawPoliceUnit(u, true, now)
     }
+  }
+
+  // Roadblock response: striped barrier across the approach lane + interceptor cruiser
+  // with alternating red/blue lights; the HUD tag reads ROADBLOCK while it is live
+  if (roadblock.active) {
+    const barAng = roadblock.angle
+    const barX = roadblock.x - Math.sin(barAng) * ROADBLOCK_BARRIER_OFFSET * 0.4
+    const barY = roadblock.y - Math.cos(barAng) * ROADBLOCK_BARRIER_OFFSET * 0.4
+    ctx.save()
+    ctx.translate(barX, barY)
+    ctx.rotate(barAng)
+    const stripeW = 9
+    for (let i = -2; i <= 2; i++) {
+      ctx.fillStyle = (i + 2) % 2 === 0 ? '#ffb300' : '#1c2033'
+      ctx.shadowColor = '#ffb300'
+      ctx.shadowBlur = i === 0 ? 12 : 5
+      ctx.fillRect(i * stripeW + 0.5, 0, stripeW - 1, 8)
+    }
+    // end posts with blinking beacons
+    const beaconOn = Math.floor(now / 260) % 2 === 0
+    ctx.fillStyle = '#ff3c3c'
+    ctx.shadowColor = '#ff3c3c'
+    ctx.shadowBlur = beaconOn ? 10 : 3
+    ctx.fillRect(-2.5, -14, 5, 12)
+    ctx.fillStyle = '#00f0ff'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = beaconOn ? 3 : 10
+    ctx.fillRect(-2.5, -14, 5, 12)
+    ctx.restore()
+    ctx.shadowBlur = 0
+
+    // interceptor renders nose-first along its travel bearing (stored angle is offset by PI/2
+    // for the shared steering convention); headlights face down the approach lane
+    drawPolicePose(roadblock.x, roadblock.y, roadblock.angle - Math.PI / 2, roadblock.sirenPhase, true, now)
+
+    ctx.font = '600 10px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#ff3c3c'
+    ctx.shadowColor = '#ff3c3c'
+    ctx.shadowBlur = 8
+    ctx.fillText('ROADBLOCK', roadblock.x, roadblock.y - 30)
+    ctx.shadowBlur = 0
   }
 
   // Cyan patrol drones
