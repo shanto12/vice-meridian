@@ -1833,3 +1833,61 @@ remains NOT FULLY VERIFIED. VICE//MERIDIAN remains an evolving GTA-style browser
 slice rather than literal complete GTA 7; auth/backend/API/runner jobs are N/A for this
 static Vite app. All prior sections remain intact as historical records superseded by
 this release.
+
+---
+
+# Kingpin Contract Release - Release Evidence (2026-08-24)
+
+Release verification for the 2026-08-24 Kingpin contract release: source commit `748a05e`
+"Prioritize contract delivery banner" (HEAD), preceded by route-fix commit `065dd57`
+"Fix kingpin route handoff", deployed to production. This is the current release record;
+every earlier section in this file is a historical record superseded by it. Rows are
+separated so agent provenance, shell gates, live HTTP/header checks, bundle-content
+checks, real-Chrome sessions, and runtime caveats are never mixed inside one evidence
+surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `748a05e` "Prioritize contract delivery banner" is HEAD on main, pushed to origin/main; working tree clean |
+| Preceding route-fix commit recorded | Shell: git log | PASS | `065dd57` "Fix kingpin route handoff" restored the post-extraction KINGPIN NODE route target before contract routing took over |
+| Feature commit scope | Shell: git show --stat 748a05e | PASS | Source-only: src/main.ts (+2/-2) — banner priority reorder only; no reward, save-schema, or state-machine changes |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced /assets/index-D_aIfIr5.js and /assets/index-B--JJqHW.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bd80b3d7b4498cceb34b9` is ready at https://vice-meridian.netlify.app/ |
+| Root and JS serve over HTTPS | Live HTTP: GET production root and /assets/index-D_aIfIr5.js | PASS | Both return HTTP 200; live JS asset index-D_aIfIr5.js confirmed |
+| Security headers present | Live HTTP: response header capture on production responses | PASS | CSP, HSTS preload, X-Content-Type-Options: nosniff, Referrer-Policy, and Permissions-Policy all observed |
+| Real Chrome mobile baseline | Real Chrome mobile session at 390x844 on production | PASS | Canvas/document exactly 390x844; no document overflow; production route compass live (ROUTE // SIGNAL 1 // 924M // W at campaign start); phone menu TAB open/close with 1-9 contacts intact; touch dock display:flex with controls exercised |
+| Real Chrome desktop baseline | Real Chrome desktop session at 1440x660 on production | PASS | Canvas/document exactly 1440x660; no document overflow; route compass present; phone menu reachable; touch dock display:none |
+| Console cleanliness across sessions | Real Chrome console capture during both sessions | PASS | Zero app console errors; browser wallet extension warnings observed separately and are unrelated to the game |
+| End-to-end Kingpin contract traversal | Real Chrome mobile session at 390x844 on prior deploy `6a8bd5f3f4f19f68c316b94e` | PASS | Full path exercised live: 0 KINGPIN CONTRACT entry appeared after network online and accepted; DATA VAULT marker/route shown; Y at the vault secured data and raised wanted 2; DATA SECURED banner shown; safehouse delivery paid out — CASH $1250 / REP 7 / wanted 0 / route hidden / ACT III free-roam phone arc |
+| Delivery-banner priority reorder (748a05e) | Source review of the mission banner chain in frame() | PASS | kingpinRestoreAtMs and networkNoticeUntilMs branches now both precede streetCredRankUpUntilMs, so NETWORK CONTRACT // DELIVERED +$750 // REP +4 holds its full window even when the payout crosses a Street Cred band; RANK UP still follows afterward |
+| Delivery-banner text recapture after final reorder | Manual replay of contract delivery on deploy `6a8bd80b3d7b4498cceb34b9` | NOT CLAIMED | The delivery-banner text itself has not yet been recaptured after this final deploy — the reorder is verified by source/build review plus the earlier live traversal on the prior deploy; not claimed as re-observed here |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+| Auth, backend jobs, and API health | Static Vite architecture review | NOT APPLICABLE | Static Vite canvas game; no auth, backend job, or API health surface exists to verify |
+
+## Summary
+
+The 2026-08-24 Kingpin contract release is verified against HEAD commit `748a05e` "Prioritize
+contract delivery banner", which follows route-fix commit `065dd57`; both are pushed to
+origin/main with a clean tree. Local gates passed: npm run build producing live asset
+/assets/index-D_aIfIr5.js, npm audit --omit=dev (0 vulnerabilities), and git diff --check.
+Netlify production deploy `6a8bd80b3d7b4498cceb34b9` is ready at
+https://vice-meridian.netlify.app/ with root and JS returning HTTP 200 under the current
+CSP, HSTS preload, nosniff, Referrer-Policy, and Permissions-Policy headers. Real Chrome
+baselines hold on 390x844 and 1440x660 with exact canvas/document sizes, no document
+overflow, working production route compass and phone menu controls, and zero app console
+errors — the only console warnings came from a browser wallet extension unrelated to the
+game. The full end-to-end Kingpin contract traversal was completed live on prior deploy
+`6a8bd5f3f4f19f68c316b94e`: 0 KINGPIN CONTRACT accepted, DATA VAULT reached, data secured
+(wanted 2), DATA SECURED shown, safehouse delivered with CASH $1250 / REP 7 / wanted 0 /
+route hidden / ACT III free-roam arc. Stated precisely: commit `748a05e` changes only
+banner priority so the delivery notice outranks STREET CRED rank-up during its window;
+the delivery-banner text itself has not yet been recaptured after that final deploy and
+is not claimed as such. The wanted-three air-unit runtime remains NOT FULLY VERIFIED,
+carried forward honestly from prior passes. VICE//MERIDIAN remains an evolving GTA-style
+browser vertical slice rather than literal complete GTA 7; auth/backend/API/runner jobs
+are N/A for this static Vite app. All prior sections remain intact as historical records
+superseded by this release.
