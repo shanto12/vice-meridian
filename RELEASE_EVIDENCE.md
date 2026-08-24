@@ -2514,3 +2514,48 @@ Vite game. This section records current production evidence for exactly the test
 above — it is not a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving
 GTA-style browser vertical slice rather than a literal complete GTA 7. All prior sections
 remain intact as historical records superseded by this release.
+
+---
+
+# Weather Grip and Traffic Sway Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the wet-road handling slice
+(`17ecb3d15443516c0cd94d9a90c2fc87762ebe7a`, "Add weather grip and traffic sway").
+Documentation only this pass — src/main.ts, package files, netlify.toml, and _headers were
+not modified. Current production evidence covers exactly what was tested; every earlier
+section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `17ecb3d` "Add weather grip and traffic sway" on main == origin/main with a clean tree | src/main.ts-only change: grip = 1 − wet·0.10 − storm·0.05 on turn response, STORM-only deterministic lateral drift while driving, GRIP // DRY/WET/SLIPPERY HUD, deterministic traffic lane sway; transient, resetRun-safe, no new entities or collision rules |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the working tree atop `17ecb3d` | Completed without errors producing dist/assets/index-BTIoZM9f.js (96.72 kB, gzip 27.60 kB); git diff --check clean |
+| Dependency hygiene passed | PASS | npm audit --omit=dev --audit-level=high | found 0 vulnerabilities |
+| Production deploy is live | PASS | Netlify deploy `6a8c352dfc9c88e3bfe8e72c` at https://vice-meridian.netlify.app/ | Alias serves this deploy |
+| Live bundle carries grip and prior markers | PASS | Live HTTP GET of assets/index-BTIoZM9f.js on the production deploy | Bundle contains WEATHER //, GRIP //, DRY, WET, SLIPPERY, CITY CLOCK //, and NIGHT SHIFT // CITY LIGHTS markers — confirming the shipped bundle spans this slice and its predecessors |
+| Security headers verified | PASS | Live HTTP response capture from https://vice-meridian.netlify.app/ | Live CSP, Permissions-Policy, Referrer-Policy, HSTS, and X-Content-Type-Options nosniff all present and unchanged |
+| Real Chrome desktop pass | PASS | Real Chrome production load of the live site | WEATHER // CLEAR, GRIP // DRY, and CITY CLOCK advancing observed; production loaded clean with zero application-origin console errors during exercise |
+| Real Chrome mobile pass | PASS | Real browser session at 390x844 on the live site | Weather/grip/clock readouts present; all six touch controls (Move up, Move left, Move down, Move right, Hold boost, Tap pulse) clicked with zero application-origin console errors |
+| Full-cycle driving physics E2E | VERIFIED BY SOURCE + LIVE BUNDLE + REAL CHROME SMOKE, NOT FULL LONG-RUN CYCLE E2E | src/main.ts review, live bundle marker check, real-Chrome session observations | The deterministic grip formula, STORM drift, GRIP thresholds, and traffic sway are present in source and the live bundle, and real Chrome confirmed the readouts; however, full automatic 6-minute weather-cycle and long-run driving-physics E2E were NOT run in this pass — behavior stands on source and partial-window observation only |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Vite architecture review | Auth/backend/API are not applicable to this static Vite game |
+
+## Summary
+
+Source commit `17ecb3d15443516c0cd94d9a90c2fc87762ebe7a` "Add weather grip and traffic
+sway" sits on main == origin/main behind a clean tree as a src/main.ts-only handling
+layer. npm run build passed producing dist/assets/index-BTIoZM9f.js (96.72 kB,
+gzip 27.60 kB); git diff --check was clean; npm audit --omit=dev --audit-level=high found
+0 vulnerabilities. Netlify deploy `6a8c352dfc9c88e3bfe8e72c` is ready at
+https://vice-meridian.netlify.app/, where the live bundle carries WEATHER //, GRIP //,
+DRY, WET, SLIPPERY, CITY CLOCK //, and NIGHT SHIFT // CITY LIGHTS markers, and live
+headers kept CSP, Permissions-Policy, Referrer-Policy, HSTS, and X-Content-Type-Options
+nosniff unchanged. A real Chrome desktop production load showed WEATHER // CLEAR,
+GRIP // DRY, and the CITY CLOCK advancing; a real Chrome mobile session at 390x844 showed
+weather/grip/clock with all six touch controls (Move up, Move left, Move down, Move right,
+Hold boost, Tap pulse) clicked and zero application-origin console errors. Full automatic
+6-minute weather-cycle and long-run driving physics E2E were not run; behavior is marked
+VERIFIED BY SOURCE + LIVE BUNDLE + REAL CHROME SMOKE, NOT FULL LONG-RUN CYCLE E2E.
+Auth/backend/API are not applicable to this static Vite game. This section records current
+production evidence for exactly the tests listed above — it is not a claim of full GTA 7
+completion; VICE//MERIDIAN remains an evolving GTA-style browser vertical slice rather
+than a literal complete GTA 7. All prior sections remain intact as historical records
+superseded by this release.
