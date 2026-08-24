@@ -31,6 +31,7 @@ app.innerHTML = `
     <p class="hud-weather" id="hud-weather" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#4da6ff;text-shadow:0 0 10px rgba(77,166,255,0.6);">WEATHER // CLEAR</p>
     <p class="hud-grip" id="hud-grip" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">GRIP // DRY</p>
     <p class="hud-traffic" id="hud-traffic" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#00e5b0;text-shadow:0 0 10px rgba(0,229,176,0.6);">TRAFFIC // FLOWING</p>
+    <p class="hud-ride" id="hud-ride" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff9d3c;text-shadow:0 0 10px rgba(255,157,60,0.6);">RIDE // COURIER // SPD+ HULL+</p>
     <p class="hud-hull" id="hud-hull" style="margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#39ff88;text-shadow:0 0 10px rgba(57,255,136,0.6);">HULL <span id="hull-pct">100</span>% <span class="boost-bar" style="display:inline-block;vertical-align:middle;width:90px;"><span class="boost-fill" id="hull-fill" style="width:100%;"></span></span></p>
     <p class="hud-night" id="hud-night" style="position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:1;margin:0;font-size:13px;letter-spacing:3px;color:#c9a4ff;text-shadow:0 0 12px rgba(178,107,255,0.75);pointer-events:none;display:none;"></p>
     <p class="hud-jobboard" id="hud-jobboard" style="display:none;margin:8px 0 0;font-size:12px;letter-spacing:3px;color:#ff6bd6;text-shadow:0 0 10px rgba(255,107,214,0.6);">JOBS // B BLACKOUT // K BANK // V VIP // C CONVOY // J JUNCTION // X TAKEOVER // O SMUGGLER // I CHOP SHOP // Z STASH // N RACE</p>
@@ -51,7 +52,7 @@ app.innerHTML = `
     <p class="run-stats" id="run-stats"></p>
     <p class="run-restart">PRESS R TO RESTART</p>
   </div>
-  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — E near traffic to carjack — G to tune at safehouse — T repair at safehouse — U crew network — N race — Y night shift — TAB contacts — M map — P save — L load — R restart</p>
+  <p class="hint">WASD / ARROWS to move — HOLD SPACE to boost — Q to jam drones — F to pulse — E to enter/exit courier — E near traffic to carjack — G to tune at safehouse — T repair at safehouse — DIGIT2 swap ride at safehouse — U crew network — N race — Y night shift — TAB contacts — M map — P save — L load — R restart</p>
   <div id="touch-controls" aria-label="Touch controls">
     <div class="touch-dpad">
       <button id="touch-up" type="button" aria-label="Move up">▲</button>
@@ -172,6 +173,8 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyU') crewNetworkRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyZ') stashRequested = true
+  // Ride loadout cycling: Digit2 while the phone menu is closed (Digit1-9/0 belong to contacts)
+  if (e.code === 'Digit2' && !phoneOpen) rideRequested = true
   if (e.code === 'KeyY') {
     // Y toggles Night Shift on foot and drives the postgame beats in strict precedence:
     // node activation, contract secure/deliver, district secure/deliver; everywhere else
@@ -473,6 +476,97 @@ const VEHICLE_DISABLED_TEXT = 'VEHICLE DISABLED // REPAIR AT SAFEHOUSE'
 const REPAIR_DONE_TEXT = 'REPAIR SHOP // VEHICLE RESTORED -$150'
 const REPAIR_POOR_TEXT = 'REPAIR SHOP // NEED $150'
 let carHealth = 100
+
+// Safehouse ride loadouts: three courier profiles with real stat tradeoffs, cycled on foot
+// at the safehouse with Digit2. Profile stats REPLACE the baseline block, then garage tier
+// bonuses re-apply on top so both systems compose; stolen rides never touch these values.
+// activeRide persists through an optional backward-compatible save field defaulting to 0
+type RideProfile = {
+  name: string
+  maxSpeed: number
+  boostSpeed: number
+  reverseSpeed: number
+  accel: number
+  brake: number
+  friction: number
+  turnRate: number
+  hullMax: number
+  damageMult: number
+  statTag: string
+}
+const RIDE_PROFILES: RideProfile[] = [
+  {
+    name: 'COURIER',
+    maxSpeed: 360,
+    boostSpeed: 560,
+    reverseSpeed: 150,
+    accel: 420,
+    brake: 560,
+    friction: 240,
+    turnRate: 2.6,
+    hullMax: 100,
+    damageMult: 1,
+    statTag: 'SPD+ HULL+',
+  },
+  {
+    name: 'NIGHT RUNNER',
+    maxSpeed: 420,
+    boostSpeed: 640,
+    reverseSpeed: 160,
+    accel: 520,
+    brake: 600,
+    friction: 230,
+    turnRate: 2.85,
+    hullMax: 70,
+    damageMult: 1.15,
+    statTag: 'SPD++ HULL- TURN+',
+  },
+  {
+    name: 'ARMORED SEDAN',
+    maxSpeed: 320,
+    boostSpeed: 500,
+    reverseSpeed: 140,
+    accel: 340,
+    brake: 520,
+    friction: 260,
+    turnRate: 2.4,
+    hullMax: 130,
+    damageMult: 0.7,
+    statTag: 'HULL++ SPD- ARMOR',
+  },
+]
+const RIDE_UNLOCK_GARAGE_LEVEL = 2 // Night Runner needs the armor plate tier installed
+const RIDE_UNLOCK_REP = 10 // Armored Sedan aligns with the existing KINGPIN street-cred band
+const RIDE_SWITCH_HOLD_MS = 2200
+function rideUnlocked(index: number): boolean {
+  if (index === 0) return true
+  if (index === 1) return garageUpgradeLevel >= RIDE_UNLOCK_GARAGE_LEVEL
+  return rep >= RIDE_UNLOCK_REP || garageUpgradeLevel >= GARAGE_TIERS.length
+}
+function rideLockText(index: number): string {
+  if (index === 1) return `NIGHT RUNNER LOCKED // NEED GARAGE TIER ${RIDE_UNLOCK_GARAGE_LEVEL}`
+  return `ARMORED SEDAN LOCKED // NEED REP ${RIDE_UNLOCK_REP} OR FULL GARAGE`
+}
+let activeRide = 0
+let rideRequested = false
+let rideRestoreAtMs = 0
+let rideBannerText = ''
+// Rebuilds the live courier stats from scratch: baseline profile first, then every earned
+// garage bonus stacks on top — call after any profile switch or progression change
+function applyActiveRide() {
+  const profile = RIDE_PROFILES[activeRide]
+  courierCar.maxSpeed = profile.maxSpeed
+  courierCar.boostSpeed = profile.boostSpeed
+  courierCar.reverseSpeed = profile.reverseSpeed
+  courierCar.accel = profile.accel
+  courierCar.brake = profile.brake
+  courierCar.friction = profile.friction
+  courierCar.turnRate = profile.turnRate
+  if (garageUpgradeLevel >= 1) {
+    courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
+    courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
+  }
+}
 let repairRequested = false
 let repairRestoreAtMs = 0
 let repairBannerAfford = true
@@ -992,6 +1086,7 @@ interface SaveData {
   carAngle?: number
   stashCollected?: boolean
   nightShiftEnabled?: boolean
+  activeRide?: number
 }
 
 function writeSave(): boolean {
@@ -1013,6 +1108,7 @@ function writeSave(): boolean {
       carAngle: courierCar.angle,
       stashCollected,
       nightShiftEnabled,
+      activeRide,
     }
     window.localStorage.setItem(SAVE_KEY, JSON.stringify(data))
     return true
@@ -1050,6 +1146,12 @@ function readSave(): SaveData | null {
     if (data.networkJobComplete !== undefined && typeof data.networkJobComplete !== 'boolean') return null
     if (data.stashCollected !== undefined && typeof data.stashCollected !== 'boolean') return null
     if (data.nightShiftEnabled !== undefined && typeof data.nightShiftEnabled !== 'boolean') return null
+    if (
+      data.activeRide !== undefined &&
+      (!Number.isInteger(data.activeRide) || data.activeRide < 0 || data.activeRide >= RIDE_PROFILES.length)
+    ) {
+      return null
+    }
     if (
       data.garageUpgradeLevel !== undefined &&
       (!Number.isInteger(data.garageUpgradeLevel) ||
@@ -1226,6 +1328,7 @@ const walletEl = document.getElementById('hud-wallet')!
 const weatherEl = document.getElementById('hud-weather')!
 const gripEl = document.getElementById('hud-grip')!
 const trafficFlowEl = document.getElementById('hud-traffic')!
+const rideEl = document.getElementById('hud-ride')!
 const phoneEl = document.getElementById('phone-menu')!
 const phoneStatusEl = document.getElementById('phone-status')!
 const phoneBriefingEl = document.getElementById('phone-briefing')!
@@ -1398,6 +1501,10 @@ function resetRun(nowMs: number) {
   courierCar.y = WORLD_H / 2 + 40
   courierCar.angle = -Math.PI / 4
   courierCar.speed = 0
+  activeRide = 0
+  rideRequested = false
+  rideRestoreAtMs = 0
+  rideBannerText = ''
 }
 
 const signals = Array.from({ length: 3 }, (_, i) => ({
@@ -2397,7 +2504,7 @@ function frame(now: number) {
             missionEl.textContent = `STOLEN RIDE // HULL ${stolenHull}%`
             if (stolenHull <= 0) bailOutOfStolenCar(now)
           } else {
-            carHealth = Math.max(0, carHealth - VEHICLE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
+            carHealth = Math.max(0, carHealth - VEHICLE_HIT_DAMAGE * (RIDE_PROFILES[activeRide].damageMult) * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
             missionEl.textContent = `VEHICLE DAMAGE // ${carHealth}%`
             if (carHealth <= 0) {
               driving = false
@@ -2556,6 +2663,37 @@ function frame(now: number) {
       garageRestoreAtMs = now + GARAGE_HOLD_MS
     }
     garageRequested = false
+
+    // DIGIT2 inside the safehouse cycles the courier loadout: unlocked rides apply live,
+    // locked ones report their requirement; switching is blocked while driving or mid-mission
+    if (rideRequested && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
+      const missionQuiet =
+        contractState !== 'active' &&
+        blackoutState === 'available' &&
+        raceState === 'available' &&
+        bankState === 'available' &&
+        vipState === 'available' &&
+        convoyState === 'available' &&
+        jJobState === 'available' &&
+        turfState === 'available' &&
+        smugglerState === 'available' &&
+        chopShopState === 'available'
+      const nextRide = (activeRide + 1) % RIDE_PROFILES.length
+      if (!missionQuiet) {
+        rideBannerText = 'RIDE // FINISH THE JOB FIRST'
+      } else if (!rideUnlocked(nextRide)) {
+        rideBannerText = rideLockText(nextRide)
+      } else if (nextRide === activeRide) {
+        rideBannerText = `RIDE // ${RIDE_PROFILES[activeRide].name} // ONLY RIDE`
+      } else {
+        activeRide = nextRide
+        applyActiveRide()
+        rideBannerText = `RIDE // ${RIDE_PROFILES[activeRide].name} // ${RIDE_PROFILES[activeRide].statTag}`
+      }
+      missionEl.textContent = rideBannerText
+      rideRestoreAtMs = now + RIDE_SWITCH_HOLD_MS
+    }
+    rideRequested = false
 
     // T inside the safehouse repairs the courier hull when damaged: $150 flat
     if (repairRequested && carHealth < 100 && Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius) {
@@ -3277,6 +3415,11 @@ function frame(now: number) {
         courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
         courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
       }
+      activeRide = typeof data.activeRide === 'number' &&
+        Number.isInteger(data.activeRide) && data.activeRide >= 0 && data.activeRide < RIDE_PROFILES.length
+        ? data.activeRide
+        : 0
+      applyActiveRide()
       if (typeof data.carHealth === 'number' && Number.isFinite(data.carHealth)) {
         carHealth = Math.max(0, Math.min(100, data.carHealth))
       }
@@ -3490,7 +3633,7 @@ function frame(now: number) {
       if (Math.hypot(courierCar.x - u.x, courierCar.y - u.y) < 34) {
         courierCar.speed *= -0.25
         setWanted(Math.min(3, wanted + 1))
-        carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
+        carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (RIDE_PROFILES[activeRide].damageMult) * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
         policeHitUntilMs = now + POLICE_HIT_HOLD_MS
         policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
         policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
@@ -3556,7 +3699,7 @@ function frame(now: number) {
           enterBusted(now)
         }
       } else {
-        carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
+        carHealth = Math.max(0, carHealth - POLICE_HIT_DAMAGE * (RIDE_PROFILES[activeRide].damageMult) * (garageUpgradeLevel >= 2 ? ARMOR_DAMAGE_MULTIPLIER : 1))
         policeHitUntilMs = now + POLICE_HIT_HOLD_MS
         policeHitCooldownUntilMs = now + POLICE_HIT_COOLDOWN_MS
         policeHitRestoreAtMs = now + POLICE_HIT_HOLD_MS
@@ -3754,6 +3897,10 @@ function frame(now: number) {
   if (rivalIncomingRestoreAtMs > 0 && now >= rivalIncomingRestoreAtMs) {
     rivalIncomingRestoreAtMs = 0
   }
+  if (rideRestoreAtMs > 0 && now >= rideRestoreAtMs) {
+    rideRestoreAtMs = 0
+    rideBannerText = ''
+  }
   if (smugglerRestoreAtMs > 0 && now >= smugglerRestoreAtMs) {
     smugglerRestoreAtMs = 0
   }
@@ -3846,6 +3993,7 @@ function frame(now: number) {
     jJobRestoreAtMs > 0 ||
     turfRestoreAtMs > 0 ||
     rivalIncomingRestoreAtMs > 0 ||
+    rideRestoreAtMs > 0 ||
     smugglerRestoreAtMs > 0 ||
     chopShopRestoreAtMs > 0 ||
     stashRestoreAtMs > 0 ||
@@ -3919,6 +4067,8 @@ function frame(now: number) {
     if (missionEl.textContent !== WITNESS_JAMMED_TEXT) missionEl.textContent = WITNESS_JAMMED_TEXT
   } else if (radioRestoreAtMs > 0 && radioText) {
     if (missionEl.textContent !== radioText) missionEl.textContent = radioText
+  } else if (rideRestoreAtMs > 0 && rideBannerText) {
+    if (missionEl.textContent !== rideBannerText) missionEl.textContent = rideBannerText
   } else if (wreckRestoreAtMs > 0) {
     if (missionEl.textContent !== CAR_WRECKED_TEXT) missionEl.textContent = CAR_WRECKED_TEXT
   } else if (kingpinRestoreAtMs > 0) {
@@ -5423,6 +5573,10 @@ function frame(now: number) {
   const walletText = `CASH $${cash} // REP ${rep}`
   if (walletEl.textContent !== walletText) walletEl.textContent = walletText
 
+  // Active ride readout: profile name plus its stat signature, reconciled on change
+  const rideHudText = `RIDE // ${RIDE_PROFILES[activeRide].name} // ${RIDE_PROFILES[activeRide].statTag}`
+  if (rideEl.textContent !== rideHudText) rideEl.textContent = rideHudText
+
   // Campaign route compass: live label/distance/cardinal bearing toward the current
   // main-path target; hidden entirely when no campaign target remains
   const routeTarget = campaignRouteTarget()
@@ -5877,6 +6031,11 @@ function frame(now: number) {
       courierCar.maxSpeed += GARAGE_TUNE_MAX_SPEED_BONUS
       courierCar.accel += GARAGE_TUNE_ACCEL_BONUS
     }
+    activeRide = typeof bootData.activeRide === 'number' &&
+      Number.isInteger(bootData.activeRide) && bootData.activeRide >= 0 && bootData.activeRide < RIDE_PROFILES.length
+      ? bootData.activeRide
+      : 0
+    applyActiveRide()
     if (typeof bootData.carHealth === 'number' && Number.isFinite(bootData.carHealth)) {
       carHealth = Math.max(0, Math.min(100, bootData.carHealth))
     }
