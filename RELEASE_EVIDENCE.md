@@ -2256,3 +2256,47 @@ passes. This section records current production evidence for exactly the tests l
 browser vertical slice rather than a literal complete GTA 7, and no auth, backend runner, or
 API endpoint is part of this static Canvas release. All prior sections remain intact as
 historical records superseded by this release.
+
+---
+
+# Pursuit Heat-Cooling Countdown Production Evidence - Release Evidence (2026-08-24, Central Time)
+
+Release verification for the pursuit-HUD heat-cooling countdown slice (`a28318b`). This is
+current production evidence for exactly what was tested this pass — not a claim of full
+GTA 7 completion; every earlier section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commit traceable and pushed | PASS | Commit `a28318b` "Add heat-cooling countdown to pursuit HUD" on GitHub main | Single-block src/main.ts change replacing the static POLICE PURSUIT HUD text with a live "COOLING -1 IN Ns" segment while passive cooling accrues (wanted > 0, heatCoolStartMs active); authored in an isolated worktree off `1c967f2` so a concurrently evolving working tree stayed untouched; later commits (`fea52e3`, `ae5316b`, `28a853c`) build on top of it unchanged |
+| Build gate passed | PASS | Local npm run build (tsc && vite build) at the slice-only tree `acd4616` | Completed without errors; produced assets/index-CF1xJdsO.js; git diff --check clean; slice content byte-identical to the block now in main |
+| Dependency hygiene passed | PASS | npm audit --omit=dev | found 0 vulnerabilities in the production dependency tree |
+| Root document serves over HTTPS | PASS | Live HTTP GET https://vice-meridian.netlify.app/ | Returned HTTP 200 |
+| Security headers verified | PASS | Production response header capture | CSP default-src 'self' / script-src 'self', HSTS max-age=31536000 includeSubDomains preload, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy camera=() microphone=() geolocation=() |
+| Live bundle carries the countdown string | PASS | Live HTTP GET of assets/index-v9wkd5dT.js on the production deploy | Bundle contains the "COOLING -1 IN" marker, confirming the shipped code includes the countdown (deploy serves the current HEAD lineage that contains the slice verbatim) |
+| Countdown renders live during pursuit | PASS | Real desktop browser session on the live site, DOM readback plus screenshot .playwright-cli/vmslice-countdown-live.png and vmslice-countdown-final.png | After raising heat (carjack path) and driving out of hunter scan range, the pursuit line read "POLICE PURSUIT // HEAT 2/3 // COOLING -1 IN 6S // Q JAM // H SAFEHOUSE" with nearest hunter at 731px (outside the 520px scan radius); a second sighting occurred at heat 1 with the hunter at 608px |
+| Countdown resolves into the shed | PASS | Same uninterrupted session | The countdown ticked down (IN 6S → IN 1S), the existing "POLICE SCAN // HEAT COOLING -1" banner fired, and wanted returned to 0 — full lifecycle in one scripted run with no page navigation |
+| Suppression behavior matches design | OBSERVED | Same session telemetry via #hud-scan distance readback | While any hunter stayed within scan range (~205px readings), the plain hint line rendered without the countdown — matching the rule that passive cooling only accrues when fully clear of hunters |
+| Desktop console cleanliness | PASS WITH NOISE DISCLOSED | Browser console capture during the session | Exactly one console entry: a CSP block for an inline script inside an about:srcdoc frame (host-injected analytics), outside the game's self-hosted bundle; zero game-origin errors |
+| Mobile layout baseline | PASS | Real browser session at 390x844 on the live site | body scrollWidth and canvas width both measured 390 with no horizontal overflow; all six visible touch controls were clicked via pointer events |
+| Auth / backend runner / API endpoint | NOT APPLICABLE | Static Canvas/Vite architecture review | No auth, backend runner, or API endpoint is part of this static Canvas release |
+
+## Summary
+
+Commit `a28318b` "Add heat-cooling countdown to pursuit HUD" is in the production lineage
+at https://vice-meridian.netlify.app/: the live bundle assets/index-v9wkd5dT.js carries the
+"COOLING -1 IN" marker, and the slice-only build at that commit passed tsc && vite build,
+git diff --check, and npm audit --omit=dev with 0 vulnerabilities. A real desktop browser
+session exercised the full loop end-to-end against production: heat raised via the carjack
+path, escape drive out of hunter range, the pursuit line switching to a live "COOLING -1
+IN 6S" countdown with the nearest hunter at 731px, the countdown ticking to 1S, the
+existing HEAT COOLING banner firing, and wanted returning to 0 — captured in DOM readbacks
+and screenshots under .playwright-cli/. Suppression while a hunter stays within scan range
+was observed and matches the intended semantics. The mobile 390x844 baseline re-passed
+with all six touch controls clicked. Disclosed limitations: screenshots were saved but not
+visually re-read this pass, so DOM-level assertions are the primary evidence; and the
+desktop console held one host-side CSP analytics message unrelated to the game. This
+section records current production evidence for exactly the tests listed above — it is not
+a claim of full GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style browser
+vertical slice rather than a literal complete GTA 7, and no auth, backend runner, or API
+endpoint is part of this static Canvas release. All prior sections remain intact as
+historical records superseded by this release.
