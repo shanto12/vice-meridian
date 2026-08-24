@@ -1051,3 +1051,47 @@ one shared ObjectiveMarker list onto both the city map and the radar. Auth/backe
 NOT APPLICABLE for the static Vite site, and VICE//MERIDIAN remains an evolving GTA-style
 vertical slice — not complete GTA 7 and not an enterprise-grade product. All prior
 sections above are preserved as historical records superseded by this release.
+
+# Mission Objective Map Targets - Release Evidence (2026-08-23)
+
+Verification matrix for the mission objective map-targets release (courier drop-off
+objective included). This is the current release record; every earlier section in this
+file is a historical record superseded by it.
+
+| Requirement | Evidence surface | Result | Notes |
+| --- | --- | --- | --- |
+| Source commits c8224a9 "Add mission objective map targets" followed by 3fe0559 "Add courier drop-off objective" are on origin/main; HEAD equals origin/main at 3fe0559; working tree clean before this docs-only update | Cursor Git verification (git log, git rev-parse HEAD origin/main) | PASS | Both feature commits touch src/main.ts only |
+| Netlify production deploy 6a8b97b2ceda1c3cda9baa06 is live at https://vice-meridian.netlify.app/ serving assets/index-DivDhZnP.js | Netlify deploy record plus live curl of root and asset | PASS | Root HTTP 200; assets/index-DivDhZnP.js HTTP 200 |
+| Build gate: npm run build passed | Local build against the source commit | PASS | Vite output 64.86 kB JS / 17.38 kB gzip |
+| Dependency hygiene: npm audit --omit=dev found 0 vulnerabilities | Local audit against the production dependency tree | PASS | Production dependencies only |
+| Whitespace hygiene: git diff --check passed | Local check on tracked changes | PASS | Clean output |
+| Security headers present on production responses | Live curl response headers for root and asset | PASS | Existing CSP, HSTS, X-Content-Type-Options, Referrer-Policy, and Permissions-Policy headers all passed unchanged |
+| Feature scope recorded accurately: the shared objectiveMarkers() projection keeps SAFEHOUSE and adds outbound destinations for courier DROP-OFF, blackout GRID TARGET, bank VAULT, VIP CLIENT, CONVOY, JUNCTION, TAKEOVER, smuggler PICKUP/DROP, CHOP SHOP, and race CHECKPOINT; escape/return phases keep SAFEHOUSE as the objective | Source inspection of src/main.ts | PASS | One ordered world-space list feeds both the city map overlay and NEON RADAR through the identical projection |
+| Real Chrome desktop: active courier leg driven in production at 1440x660 | Real Chrome production pass: moved to the courier and pressed E | PASS | HUD showed COURIER RUN // HOT DELIVERY with WANTED 1/3 |
+| Real Chrome desktop: CITY MAP showed live mission targets during the active run | Real Chrome production screenshot of CITY MAP (M) at 1440x660 | PASS | DROP-OFF 879M and SAFEHOUSE 920M both rendered |
+| Real Chrome desktop: NEON RADAR showed the matching blips during the same run | Real Chrome production screenshot of NEON RADAR at 1440x660 | PASS | Matching DROP-OFF and SAFEHOUSE blips rendered |
+| Desktop layout integrity and console cleanliness | Real Chrome DOM measurement and console capture during the desktop pass | PASS | Scroll widths matched 1440; console error capture was empty |
+| Exact-commit mobile mission-target verification at 390x844 | Prior mobile baselines only | NOT FULLY VERIFIED | This exact commit's mission targets were not rerun in a real Chrome mobile session |
+| Auth, backend, and API integration | Static Vite architecture review | NOT APPLICABLE | No auth, backend, or API surface exists for this static game |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | Evolving GTA-style vertical slice — not complete GTA 7 and not an enterprise-grade product |
+
+## Summary
+
+Source commits c8224a9 "Add mission objective map targets" followed by 3fe0559 "Add
+courier drop-off objective" are on origin/main with HEAD equal to origin/main at
+3fe0559; the live Netlify deploy 6a8b97b2ceda1c3cda9baa06 serves the matching bundle
+assets/index-DivDhZnP.js. Build (Vite 64.86 kB JS / 17.38 kB gzip), npm audit --omit=dev
+(0 vulnerabilities), git diff --check, root/asset HTTP 200, and the existing
+CSP/HSTS/X-Content-Type-Options/Referrer-Policy/Permissions-Policy headers all passed.
+In real Chrome production at 1440x660: moving to the courier and pressing E put the HUD
+into COURIER RUN // HOT DELIVERY with WANTED 1/3; the CITY MAP showed DROP-OFF 879M and
+SAFEHOUSE 920M; the NEON RADAR showed the matching DROP-OFF and SAFEHOUSE blips; scroll
+widths matched 1440 and the console error capture was empty. The shared objectiveMarkers()
+projection keeps SAFEHOUSE and adds outbound destinations for courier DROP-OFF, blackout
+GRID TARGET, bank VAULT, VIP CLIENT, CONVOY, JUNCTION, TAKEOVER, smuggler PICKUP/DROP,
+CHOP SHOP, and race CHECKPOINT; escape/return phases keep SAFEHOUSE as the objective.
+Exact-commit mobile mission-target verification remains NOT FULLY VERIFIED;
+auth/backend/API is NOT APPLICABLE for the static Vite site, and VICE//MERIDIAN remains
+an evolving GTA-style vertical slice — not complete GTA 7 and not an enterprise-grade
+product. All prior sections above are preserved as historical records superseded by
+this release.
