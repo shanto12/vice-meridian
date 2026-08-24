@@ -894,9 +894,47 @@ function districtFor(x: number): string {
 type ObjectiveMarker = { x: number; y: number; label: string; color: string }
 
 function objectiveMarkers(): ObjectiveMarker[] {
-  return [
+  const markers: ObjectiveMarker[] = [
     { x: SAFEHOUSE.x, y: SAFEHOUSE.y, label: 'SAFEHOUSE', color: '#00f0ff' },
   ]
+
+  // Outbound mission legs only: escape/return legs keep the SAFEHOUSE marker above as the objective
+  if (contractState === 'active') {
+    markers.push({ x: SKYWAY_DROP_OFF.x, y: SKYWAY_DROP_OFF.y, label: 'DROP-OFF', color: '#ffe05a' })
+  }
+  if (blackoutState === 'active') {
+    markers.push({ x: BLACKOUT_TARGET.x, y: BLACKOUT_TARGET.y, label: 'GRID TARGET', color: '#ffe05a' })
+  }
+  if (bankState === 'active') {
+    markers.push({ x: BANK_VAULT.x, y: BANK_VAULT.y, label: 'VAULT', color: '#ffe05a' })
+  }
+  if (vipState === 'pickup') {
+    markers.push({ x: VIP_CLIENT.x, y: VIP_CLIENT.y, label: 'VIP CLIENT', color: '#39ff88' })
+  }
+  if (convoyState === 'active') {
+    markers.push({ x: CONVOY_SITE.x, y: CONVOY_SITE.y, label: 'CONVOY', color: '#39ff88' })
+  }
+  if (jJobState === 'active') {
+    markers.push({ x: J_JOB_SITE.x, y: J_JOB_SITE.y, label: 'JUNCTION', color: '#39ff88' })
+  }
+  if (turfState === 'active') {
+    markers.push({ x: TURF_SITE.x, y: TURF_SITE.y, label: 'TAKEOVER', color: '#ff2d96' })
+  }
+  if (smugglerState === 'pickup') {
+    markers.push({ x: SMUGGLER_PICKUP_SITE.x, y: SMUGGLER_PICKUP_SITE.y, label: 'PICKUP', color: '#39ff88' })
+  }
+  if (smugglerState === 'drop') {
+    markers.push({ x: SMUGGLER_DROP_SITE.x, y: SMUGGLER_DROP_SITE.y, label: 'DROP', color: '#ffe05a' })
+  }
+  if (chopShopState === 'steal') {
+    markers.push({ x: CHOP_SHOP_SITE.x, y: CHOP_SHOP_SITE.y, label: 'CHOP SHOP', color: '#b26bff' })
+  }
+  if (raceState === 'active') {
+    const cp = RACE_CHECKPOINTS[Math.min(raceCheckpointIndex, RACE_CHECKPOINTS.length - 1)]
+    markers.push({ x: cp.x, y: cp.y, label: 'CHECKPOINT', color: '#39ff88' })
+  }
+
+  return markers
 }
 
 // Full-screen CITY MAP overlay: static world view, simulation paused while open
