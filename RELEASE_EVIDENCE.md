@@ -2770,3 +2770,62 @@ current production evidence for exactly the tests listed above — it is not a c
 GTA 7 completion; VICE//MERIDIAN remains an evolving GTA-style browser vertical slice
 rather than a literal complete GTA 7. All prior sections remain intact as historical
 records superseded by this release.
+
+---
+
+# Add Safehouse Vehicle Ride Loadouts Production Evidence (2026-08-24, Central Time)
+
+Release verification for the safehouse vehicle ride-loadout slice on main HEAD
+`3c546226184b2d99c2af677582cac1aad9923e8a` with source commits `3e6ae9e` ("Add
+safehouse ride loadouts with stat tradeoffs") and `3c54622` ("Fix ride loadout
+garage-stat stacking on load and reset"). Documentation only this pass — src/main.ts,
+config, package files, assets, and deployment were not modified. Source behavior for this
+slice lives in src/main.ts only. Current production evidence covers exactly what was
+tested; every earlier section remains a historical record superseded by this one.
+
+| Requirement | Result | Evidence surface | Notes |
+| --- | --- | --- | --- |
+| Source commits traceable and pushed | PASS | Cursor source/commit: main HEAD `3c546226184b2d99c2af677582cac1aad9923e8a` with commits `3e6ae9e` "Add safehouse ride loadouts with stat tradeoffs" and `3c54622` "Fix ride loadout garage-stat stacking on load and reset" pushed to origin/main; main was fast-forwarded from the Cursor branch | Source behavior is in src/main.ts only |
+| Player-facing scope shipped | PASS | Cursor source/commit: RIDE HUD row plus three balanced courier profiles in src/main.ts | COURIER, NIGHT RUNNER, and ARMORED SEDAN carry real speed/acceleration/turn/damage tradeoffs; NIGHT RUNNER unlocks at garage tier 2; ARMORED SEDAN unlocks at REP 10 or full garage; DIGIT2 cycles rides while on foot at the safehouse and preserves phone Digit2 contacts when the phone is open; KeyZ stash behavior preserved; activeRide optional/backward-compatible in saves; stolen-car physics separate; reset/load garage-stat stacking corrected |
+| Build gate passed | PASS | Shell/build: local npm run build (tsc + vite build) at the working tree atop `3c54622` | Passed; output dist/assets/index-JIcLaBwS.js 102.64 kB (gzip 29.35 kB) |
+| Diff hygiene passed | PASS | Shell/git: git diff --check at the same tree | Clean |
+| Production-dependency audit passed | PASS | Shell/audit: npm audit --omit=dev --audit-level=high | 0 vulnerabilities found |
+| HEAD == origin/main after push | PASS | Shell/git: git rev-parse HEAD compared against origin/main after fast-forward and push | Matched at `3c546226184b2d99c2af677582cac1aad9923e8a`; tree clean before doc-only edit |
+| Netlify production deploy live/ready | PASS | Live HTTP/bundle: deploy ID `6a8c57d1b6a1ab0c52df95c1` reached live/ready | Production URL https://vice-meridian.netlify.app/; unique deploy URL https://6a8c57d1b6a1ab0c52df95c1--vice-meridian.netlify.app/ |
+| Live HTTP bundle markers verified | PASS | Live HTTP/bundle: GET / returned HTTP/2 200 on production and served the current index-JIcLaBwS.js bundle | Bundle markers RIDE //, NIGHT RUNNER, ARMORED SEDAN, DIGIT2 swap ride, TERRITORY //, RIVAL CREW // INCOMING FIRE, and STREET CRED // present — confirming the deploy serves this slice's updated bundle spanning its predecessors |
+| Live response headers verified | PASS | Live HTTP/headers: response capture from https://vice-meridian.netlify.app/ | CSP default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; Strict-Transport-Security max-age=31536000; includeSubDomains; preload; X-Content-Type-Options nosniff; Referrer-Policy strict-origin-when-cross-origin; Permissions-Policy camera=(), microphone=(), geolocation=() |
+| Real Chrome interaction this release | NOT COMPLETED (ATTEMPTED, BLOCKED) | Real Chrome attempted/blocked: current production Chrome tabs were visible at https://vice-meridian.netlify.app/ (two most-recent tabs) and tab listing succeeded, but claiming/reading the current production tab timed out twice | Current-release real-Chrome desktop AND mobile interaction are marked NOT COMPLETED. Earlier release Chrome passes are historical context only and are NOT reused as current evidence. No screenshots, clicks, timings, gameplay completion, or auth claims are asserted |
+
+## Summary
+
+Source commits `3e6ae9e` "Add safehouse ride loadouts with stat tradeoffs" and `3c54622`
+"Fix ride loadout garage-stat stacking on load and reset" sit behind main HEAD
+`3c546226184b2d99c2af677582cac1aad9923e8a` == origin/main, changing src/main.ts only:
+the RIDE HUD row surfaces three balanced courier profiles — COURIER, NIGHT RUNNER, and
+ARMORED SEDAN — with real speed/acceleration/turn/damage tradeoffs; NIGHT RUNNER unlocks
+at garage tier 2 and ARMORED SEDAN at REP 10 or full garage; DIGIT2 cycles rides while on
+foot at the safehouse while preserving phone Digit2 contacts when the phone is open;
+KeyZ stash behavior is preserved; activeRide stays optional/backward-compatible in saves;
+stolen-car physics remain separate; reset/load garage-stat stacking was corrected.
+Independent local verification: npm run build passed producing dist/assets/index-JIcLaBwS.js
+(102.64 kB, gzip 29.35 kB); git diff --check passed; npm audit --omit=dev --audit-level=high
+found 0 vulnerabilities; main was fast-forwarded from the Cursor branch and pushed, with
+HEAD equal to origin/main. Netlify production: deploy ID `6a8c57d1b6a1ab0c52df95c1`
+reached live/ready at https://vice-meridian.netlify.app/ (unique deploy URL
+https://6a8c57d1b6a1ab0c52df95c1--vice-meridian.netlify.app/); live HTTP verification
+returned HTTP/2 200 serving the current index-JIcLaBwS.js bundle with markers RIDE //,
+NIGHT RUNNER, ARMORED SEDAN, DIGIT2 swap ride, TERRITORY //, RIVAL CREW // INCOMING FIRE,
+and STREET CRED //; live response headers verified the full CSP (default-src 'self';
+script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;
+connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'),
+Strict-Transport-Security max-age=31536000; includeSubDomains; preload,
+X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, and
+Permissions-Policy camera=(), microphone=(), geolocation=(). Disclosed limitation: after
+deploy, current production Chrome tabs were visible at the production URL (two
+most-recent tabs) and tab listing succeeded, but claiming/reading the current production
+tab timed out twice, so current-release real-Chrome desktop and mobile interaction are
+marked NOT COMPLETED — earlier release Chrome passes are historical only and are not
+reused as current evidence, and no screenshots, clicks, timings, gameplay completion, or
+auth claims are asserted. This section records current production evidence for exactly
+the tests listed above and does not claim enterprise-grade completion; all prior sections
+remain intact as historical records superseded by this release.
