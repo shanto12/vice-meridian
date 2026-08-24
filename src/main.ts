@@ -1161,7 +1161,7 @@ function resetRun(nowMs: number) {
   jackFlashUntilMs = 0
   carjackRestoreAtMs = 0
   wreckRestoreAtMs = 0
-  witnessPedIndex = -1
+  witnessIndices.length = 0
   witnessReportDeadlineMs = 0
   witnessAlertRestoreAtMs = 0
   witnessJammedRestoreAtMs = 0
@@ -1284,23 +1284,25 @@ function makePedestrian(i: number): Pedestrian {
 }
 const pedestrians: Pedestrian[] = Array.from({ length: 8 }, (_, i) => makePedestrian(i))
 
-// Witness report: the single nearest pedestrian within WITNESS_RADIUS of a successful
-// carjack panics and calls the cops on a short fuse. One report per carjack, never
-// stacked; Q jams it, H/R clear it. Entirely transient — resetRun-cleared, no save fields
-const WITNESS_RADIUS = 260
+// Witness report: the pedestrians nearest a successful carjack (up to three within
+// WITNESS_RADIUS) panic together and one shared report goes out on a short fuse —
+// exactly one deadline and one heat bump per jack, never stacked per witness. Q jams
+// it, H/R clear it. Entirely transient — resetRun-cleared, no save fields
+const WITNESS_RADIUS = 320
+const WITNESS_MAX_COUNT = 3
 const WITNESS_FLEE_MS = 4000
 const WITNESS_REPORT_MS = 2600
 const WITNESS_ALERT_HOLD_MS = 2200
 const JAM_HOLD_MS = 1800
 const WITNESS_ALERT_TEXT = 'WITNESS // POLICE ALERT'
 const WITNESS_JAMMED_TEXT = 'WITNESS // JAMMED'
-let witnessPedIndex = -1
+let witnessIndices: number[] = []
 let witnessReportDeadlineMs = 0
 let witnessAlertRestoreAtMs = 0
 let witnessJammedRestoreAtMs = 0
 function clearWitnessState() {
-  if (witnessPedIndex >= 0) delete pedestrians[witnessPedIndex].panicUntilMs
-  witnessPedIndex = -1
+  for (const i of witnessIndices) delete pedestrians[i].panicUntilMs
+  witnessIndices.length = 0
   witnessReportDeadlineMs = 0
   witnessAlertRestoreAtMs = 0
   witnessJammedRestoreAtMs = 0
@@ -2258,19 +2260,19 @@ function frame(now: number) {
         jackFlashUntilMs = now + CARJACK_FLASH_MS
         carjackRestoreAtMs = now + CARJACK_HOLD_MS
         missionEl.textContent = CARJACKED_TEXT
-        // Witness selection: single nearest pedestrian inside the radius panics and starts
-        // one pending report; a fresh jack refreshes any previous witness (no stacking)
-        witnessPedIndex = -1
-        let witnessBestDist = WITNESS_RADIUS
+        // Witness selection: every pedestrian within the radius panics and shares one
+        // pending report; nearest first, capped at three, index as stable tie-break.
+        // A fresh jack refreshes any previous group (no stacking)
+        clearWitnessState()
+        const candidates: { index: number; dist: number }[] = []
         for (let i = 0; i < pedestrians.length; i++) {
           const dist = Math.hypot(player.x - pedestrians[i].x, player.y - pedestrians[i].y)
-          if (dist <= witnessBestDist) {
-            witnessBestDist = dist
-            witnessPedIndex = i
-          }
+          if (dist <= WITNESS_RADIUS) candidates.push({ index: i, dist })
         }
-        if (witnessPedIndex >= 0) {
-          pedestrians[witnessPedIndex].panicUntilMs = now + WITNESS_FLEE_MS
+        candidates.sort((a, b) => a.dist - b.dist || a.index - b.index)
+        witnessIndices = candidates.slice(0, WITNESS_MAX_COUNT).map(c => c.index)
+        if (witnessIndices.length > 0) {
+          for (const i of witnessIndices) pedestrians[i].panicUntilMs = now + WITNESS_FLEE_MS
           witnessReportDeadlineMs = now + WITNESS_REPORT_MS
         }
       }
@@ -3316,11 +3318,11 @@ function frame(now: number) {
   }
 
   // Jammer pulse on Q: disables nearest drone in range, cools heat by 1.
-  // A pending witness report jams instantly alongside the pulse; drone/heat logic untouched
+  // A pending witness report jams instantly and the whole group calms; drone/heat logic untouched
   if (jammer.requested) {
     jammer.requested = false
     if (witnessReportDeadlineMs > 0) {
-      witnessReportDeadlineMs = 0
+      clearWitnessState()
       witnessJammedRestoreAtMs = now + JAM_HOLD_MS
       missionEl.textContent = WITNESS_JAMMED_TEXT
     }
