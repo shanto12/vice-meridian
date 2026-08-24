@@ -504,13 +504,18 @@ function otherContactsIdle(excludeKey: string): boolean {
   return CONTACT_JOBS.every(job => job.key === excludeKey || job.state() === 'available')
 }
 
+function playerAtSafehouse(): boolean {
+  return Math.hypot(player.x - SAFEHOUSE.x, player.y - SAFEHOUSE.y) < SAFEHOUSE.radius
+}
+
 function contactAcceptable(job: ContactJob): boolean {
   return (
     job.state() === 'available' &&
     contractIdle() &&
     !missionComplete &&
     otherContactsIdle(job.key) &&
-    (!job.needsFoot || !driving)
+    (!job.needsFoot || !driving) &&
+    playerAtSafehouse()
   )
 }
 
@@ -1181,7 +1186,7 @@ function frame(now: number) {
       if (phase === 'underway') stateText = 'ACTIVE'
       else if (phase === 'returning') stateText = PHONE_RETURN_TEXT
       else if (phase === 'complete') stateText = 'COMPLETE'
-      else if (!contactAcceptable(job)) stateText = 'UNAVAILABLE'
+      else if (!contactAcceptable(job)) stateText = playerAtSafehouse() ? 'UNAVAILABLE' : PHONE_RETURN_TEXT
       else stateText = 'READY'
       const dim = phase === 'complete' ? ' style="opacity:0.55;"' : ''
       return `<li>${index + 1} ${job.label} — ${stateText}${dim}</li>`
