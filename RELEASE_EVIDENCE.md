@@ -1441,3 +1441,60 @@ live was not driven this pass so the RANK UP runtime remains NOT FULLY VERIFIED,
 the wanted-three air-unit runtime. VICE//MERIDIAN remains an evolving GTA-style vertical
 slice, not complete GTA 7. Auth/backend/API stay NOT APPLICABLE for this static Vite app.
 All prior sections remain intact as historical records superseded by this release.
+
+---
+
+# Three Act Campaign Journal - Release Evidence (2026-08-23)
+
+Verification matrix for the campaign-journal release (`2a4b9fe`). This is the current
+release record; every earlier section in this file is a historical record superseded by
+it. Rows are separated so agent provenance, shell gates, live HTTP/header checks,
+bundle-content checks, real-Chrome sessions, and not-yet-verified runtime states are
+never mixed inside one evidence surface.
+
+| Requirement | Verification method | Result | Notes |
+| --- | --- | --- | --- |
+| Implementation model provenance | Cursor agent session via OpenRouter | PASS | Implemented by Cursor model `stealth/ox-alpha` routed through OpenRouter |
+| Source commit traceable and branch aligned | Shell: git status / git log against origin/main | PASS | Commit `2a4b9fe` "Add three act campaign journal" is HEAD on main, pushed to origin/main; working tree clean |
+| Feature commit scope | Shell: git show --stat 2a4b9fe | PASS | Source-only: src/main.ts (+50/-1) and src/style.css (+8); RELEASE_EVIDENCE.md untouched by the feature commit; save schema and mission rewards unchanged |
+| Build gate passed | Shell: npm run build | PASS | tsc + Vite completed without errors; produced /assets/index-DRgjhdgM.js and /assets/index-DuT43UHT.css |
+| Dependency hygiene passed | Shell: npm audit --omit=dev | PASS | 0 vulnerabilities in the production dependency tree |
+| Whitespace hygiene passed | Shell: git diff --check | PASS | Clean output before this docs-only edit |
+| Production deploy ready | Live HTTP: Netlify deploy record plus live curl of root and assets | PASS | Netlify production deploy `6a8bc5c66e21fe45836b794a` is ready at alias https://vice-meridian.netlify.app/ |
+| Root document serves over HTTPS | Live HTTP: GET https://vice-meridian.netlify.app/ | PASS | HTTP 200 |
+| Live JS asset serves | Live HTTP: curl of /assets/index-DRgjhdgM.js | PASS | HTTP 200 alongside the root document |
+| Live bundle contains campaign-journal markers | Bundle content check of the deployed JS | PASS | Contains phone-arc, ACT COMPLETE, ACT I, BLACK MARKET STASH, and STREET CRED markers |
+| Content-Security-Policy present | Live HTTP: response header capture on production root | PASS | default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' |
+| HSTS present | Live HTTP: response header capture | PASS | Strict-Transport-Security max-age=31536000 includeSubDomains preload |
+| Nosniff and referrer policy present | Live HTTP: response header capture | PASS | X-Content-Type-Options: nosniff; Referrer-Policy: strict-origin-when-cross-origin |
+| Permissions-Policy present | Live HTTP: response header capture | PASS | camera=(), microphone=(), geolocation=() |
+| Real Chrome mobile layout with phone arc | Real Chrome mobile session at 390x844 on production with rect capture | PASS | Canvas/document exactly 390x844; no overflow; TAB opened the phone menu and the arc line read ACT I // SIGNAL SWEEP — Recover 3 relay signals across the grid; status line included CRED RUNNER |
+| Mobile touch controls active and exercised | Real Chrome mobile session at 390x844 on production | PASS | Touch controls computed display flex; all six touch buttons CUA-clicked; TAB/M/F/E exercised; no app-reported errors |
+| Real Chrome desktop isolation | Real Chrome desktop session at 1440x660 on production | PASS | Canvas/document exactly 1440x660; touch controls display none; no overflow; no app-reported errors |
+| Phone menu scope clarification | Architecture review | NOT APPLICABLE AS AUTH | The phone-menu overlay is a client-side game UI surface, not an authentication mechanism; auth/backend/API/runner jobs are N/A for this static Vite game |
+| ACT II/III transitions and ACT COMPLETE runtime banner | Manual gameplay attempt to cross act boundaries | NOT FULLY VERIFIED | Act derivation, arc rendering, banner branch, and reset baseline were source/build verified, but crossing into ACT II/III was not fully reached during manual play this pass |
+| Wanted-3 air-unit runtime path | Carried forward from prior passes | NOT FULLY VERIFIED | Still unreached manually; source/build/bundle verification only |
+| Project scope | Release scope review | LIMITATION ACKNOWLEDGED | An evolving GTA-style browser vertical slice rather than a literal complete GTA 7 |
+
+## Summary
+
+Cursor model `stealth/ox-alpha` (via OpenRouter) delivered the three-act campaign journal
+in commit `2a4b9fe` "Add three act campaign journal", changing only src/main.ts and
+src/style.css; HEAD and origin/main are aligned with a clean tree. Local gates passed:
+npm run build (assets index-DRgjhdgM.js + index-DuT43UHT.css), npm audit --omit=dev
+(0 vulnerabilities), and git diff --check. Netlify production deploy
+`6a8bc5c66e21fe45836b794a` is ready at https://vice-meridian.netlify.app/: root and JS
+return HTTP 200; CSP, HSTS preload, nosniff, strict-origin-when-cross-origin, and
+Permissions-Policy headers were observed on the production origin; the live bundle
+contains the phone-arc, ACT COMPLETE, ACT I, BLACK MARKET STASH, and STREET CRED markers.
+In real Chrome mobile at 390x844 canvas/document measured exactly 390x844, the touch dock
+was display:flex with all six buttons CUA-clicked, TAB/M/F/E were exercised without
+app-reported errors or overflow, and the phone arc read ACT I // SIGNAL SWEEP — Recover 3
+relay signals across the grid with CRED RUNNER in the status line. In real Chrome desktop
+at 1440x660 canvas/document matched exactly, touch controls stayed display:none, and no
+app errors appeared. Honestly scoped: ACT II/III transitions and the ACT COMPLETE runtime
+banner were source/build verified but not fully reached in manual play, the wanted-three
+air-unit runtime remains NOT FULLY VERIFIED, and VICE//MERIDIAN remains an evolving
+GTA-style browser vertical slice rather than a literal complete GTA 7. The phone-menu
+overlay is client-side game UI, not auth; backend/API/runner jobs are N/A. All prior
+sections remain intact as historical records superseded by this release.
