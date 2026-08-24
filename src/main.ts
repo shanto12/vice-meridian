@@ -97,7 +97,7 @@ window.addEventListener('keydown', e => {
     keys.add(e.code)
     e.preventDefault()
   }
-  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'KeyU' || e.code === 'KeyO' || e.code === 'KeyI' || e.code === 'KeyZ') {
+  if (e.code === 'Space' || e.code === 'KeyQ' || e.code === 'KeyF' || e.code === 'KeyE' || e.code === 'KeyG' || e.code === 'KeyN' || e.code === 'KeyP' || e.code === 'KeyL' || e.code === 'KeyT' || e.code === 'KeyK' || e.code === 'KeyV' || e.code === 'KeyC' || e.code === 'KeyJ' || e.code === 'KeyX' || e.code === 'KeyU' || e.code === 'KeyO' || e.code === 'KeyI' || e.code === 'KeyZ' || e.code === 'KeyY') {
     e.preventDefault()
   }
   if (e.code === 'KeyM') {
@@ -146,7 +146,12 @@ window.addEventListener('keydown', e => {
   if (e.code === 'KeyU') crewNetworkRequested = true
   if (e.code === 'KeyN') raceRequested = true
   if (e.code === 'KeyZ') stashRequested = true
-  if (e.code === 'KeyY') nightShiftEnabled = !nightShiftEnabled
+  if (e.code === 'KeyY') {
+    // Y toggles Night Shift on foot and activates the Kingpin node during the epilogue;
+    // the epilogue handler consumes the request first when it applies
+    if (missionComplete && !kingpinOnline && playerNearKingpinNode()) kingpinRequested = true
+    else nightShiftEnabled = !nightShiftEnabled
+  }
   if (e.code === 'KeyP') saveRequested = true
   if (e.code === 'KeyL') loadRequested = true
   if (e.code === 'KeyR') restartRequested = true
@@ -600,13 +605,33 @@ function campaignAct(): CampaignAct {
 function campaignActObjective(act: CampaignAct): string {
   if (act === 'ACT I // SIGNAL SWEEP') return 'Recover 3 relay signals across the grid'
   if (act === 'ACT II // EXTRACTION') return 'Reach the extraction gate before the city closes in'
-  return 'Run the network — jobs, stash, and street cred'
+  return kingpinOnline
+    ? 'Network online — free roam the city'
+    : 'Activate the Kingpin Network node'
 }
 const phoneArcEl = document.getElementById('phone-arc')!
 const ACT_COMPLETE_HOLD_MS = 2600
 let lastCampaignAct: CampaignAct = 'ACT I // SIGNAL SWEEP'
 let actCompleteBannerText = ''
 let actCompleteUntilMs = 0
+
+// Kingpin Network epilogue: a transient node that appears only after the run completes
+// (missionComplete). One-shot on-foot activation pays +$500/+3 rep and takes the network
+// online; everything here is resetRun-cleared transient state and never persisted
+const KINGPIN_NODE = { x: WORLD_W * 0.88, y: WORLD_H * 0.16, radius: 95 }
+const KINGPIN_CASH_REWARD = 500
+const KINGPIN_REP_REWARD = 3
+const KINGPIN_HOLD_MS = 2600
+const KINGPIN_ONLINE_TEXT = 'KINGPIN NETWORK // ONLINE +$500 // REP +3'
+let kingpinRequested = false
+let kingpinOnline = false
+let kingpinRestoreAtMs = 0
+function playerNearKingpinNode(): boolean {
+  return (
+    !driving &&
+    Math.hypot(player.x - KINGPIN_NODE.x, player.y - KINGPIN_NODE.y) < KINGPIN_NODE.radius
+  )
+}
 
 // Local browser save slot: durable campaign progress only; transient state never persists
 const SAVE_KEY = 'vice-meridian-save-v1'
@@ -903,6 +928,9 @@ function resetRun(nowMs: number) {
   lastCampaignAct = campaignAct()
   actCompleteBannerText = ''
   actCompleteUntilMs = 0
+  kingpinRequested = false
+  kingpinOnline = false
+  kingpinRestoreAtMs = 0
   policeHitUntilMs = 0
   policeHitCooldownUntilMs = 0
   policeHitRestoreAtMs = 0
@@ -1181,6 +1209,9 @@ function objectiveMarkers(): ObjectiveMarker[] {
   }
   if (!stashCollected) {
     markers.push({ x: STASH_SITE.x, y: STASH_SITE.y, label: 'STASH', color: '#39ff88' })
+  }
+  if (missionComplete && !kingpinOnline) {
+    markers.push({ x: KINGPIN_NODE.x, y: KINGPIN_NODE.y, label: 'KINGPIN', color: '#b26bff' })
   }
   if (raceState === 'active') {
     const cp = RACE_CHECKPOINTS[Math.min(raceCheckpointIndex, RACE_CHECKPOINTS.length - 1)]
@@ -2295,6 +2326,19 @@ function frame(now: number) {
   }
   stashRequested = false
 
+  // Kingpin Network epilogue activation: one-shot on-foot Y inside the node radius
+  // after the run completes pays +$500/+3 rep and takes the network online
+  if (kingpinRequested) {
+    kingpinRequested = false
+    if (missionComplete && !kingpinOnline && playerNearKingpinNode()) {
+      kingpinOnline = true
+      cash += KINGPIN_CASH_REWARD
+      rep += KINGPIN_REP_REWARD
+      kingpinRestoreAtMs = now + KINGPIN_HOLD_MS
+      missionEl.textContent = KINGPIN_ONLINE_TEXT
+    }
+  }
+
   // Chop Shop timer: expiring mid-job safely returns to available with no payout
   if ((chopShopState === 'steal' || chopShopState === 'return') && chopShopDeadlineMs > 0 && now >= chopShopDeadlineMs) {
     chopShopState = 'available'
@@ -2805,6 +2849,9 @@ function frame(now: number) {
     actCompleteUntilMs = 0
     actCompleteBannerText = ''
   }
+  if (kingpinRestoreAtMs > 0 && now >= kingpinRestoreAtMs) {
+    kingpinRestoreAtMs = 0
+  }
   const bannerActive =
     (contractState === 'active') ||
     (blackoutState === 'active') ||
@@ -2832,7 +2879,8 @@ function frame(now: number) {
     chopShopRestoreAtMs > 0 ||
     stashRestoreAtMs > 0 ||
     streetCredRankUpUntilMs > 0 ||
-    actCompleteUntilMs > 0
+    actCompleteUntilMs > 0 ||
+    kingpinRestoreAtMs > 0
   if (!bannerActive) {
     missionEl.textContent = campaignMissionText()
   } else if (trafficHitRestoreAtMs > 0) {
@@ -2881,6 +2929,8 @@ function frame(now: number) {
     if (missionEl.textContent !== rankUpText) missionEl.textContent = rankUpText
   } else if (actCompleteUntilMs > 0 && actCompleteBannerText) {
     if (missionEl.textContent !== actCompleteBannerText) missionEl.textContent = actCompleteBannerText
+  } else if (kingpinRestoreAtMs > 0) {
+    if (missionEl.textContent !== KINGPIN_ONLINE_TEXT) missionEl.textContent = KINGPIN_ONLINE_TEXT
   } else if (repairRestoreAtMs > 0) {
     if (missionEl.textContent !== REPAIR_DONE_TEXT) missionEl.textContent = REPAIR_DONE_TEXT
   } else if (raceState === 'active' && raceTimeLeftSec !== null) {
@@ -3713,6 +3763,48 @@ function frame(now: number) {
     ctx.fillStyle = '#39ff88'
     ctx.fillText('BLACK MARKET STASH', stx, sty - STASH_SITE.radius - 26)
     ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - stx, player.y - sty))}M`, stx, sty - STASH_SITE.radius - 12)
+    ctx.shadowBlur = 0
+  }
+
+  // Kingpin Network node: violet pulsing ring + node glyph during the ACT III epilogue,
+  // hidden once the network is online
+  if (missionComplete && !kingpinOnline) {
+    const knx = KINGPIN_NODE.x
+    const kny = KINGPIN_NODE.y
+    const nearNode = playerNearKingpinNode()
+    const breathe = Math.sin(now / 320) * 6
+    ctx.strokeStyle = '#b26bff'
+    ctx.shadowColor = '#b26bff'
+    ctx.shadowBlur = 20 + breathe
+    ctx.lineWidth = nearNode ? 3.5 : 3
+    ctx.setLineDash([10, 8])
+    ctx.beginPath()
+    ctx.arc(knx, kny, KINGPIN_NODE.radius, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.setLineDash([])
+    // inner node glyph: hub dot with three spokes
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    for (const spoke of [0, 2.09, 4.19]) {
+      ctx.moveTo(knx, kny)
+      ctx.lineTo(knx + Math.cos(spoke) * 14, kny + Math.sin(spoke) * 14)
+    }
+    ctx.stroke()
+    ctx.fillStyle = '#e6ccff'
+    ctx.beginPath()
+    ctx.arc(knx, kny, 4 + Math.sin(now / 150) * 1.5, 0, Math.PI * 2)
+    ctx.fill()
+    if (nearNode) {
+      ctx.font = '600 11px ui-monospace, Consolas, monospace'
+      ctx.textAlign = 'center'
+      ctx.fillStyle = '#b26bff'
+      ctx.fillText('PRESS Y TO ACTIVATE NETWORK', knx, kny + KINGPIN_NODE.radius - 10)
+    }
+    ctx.font = '600 11px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#b26bff'
+    ctx.fillText('KINGPIN NETWORK', knx, kny - KINGPIN_NODE.radius - 26)
+    ctx.fillText(`DIST ${Math.round(Math.hypot(player.x - knx, player.y - kny))}M`, knx, kny - KINGPIN_NODE.radius - 12)
     ctx.shadowBlur = 0
   }
 
