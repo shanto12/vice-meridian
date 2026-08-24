@@ -1162,6 +1162,8 @@ function resetRun(nowMs: number) {
   carjackRestoreAtMs = 0
   wreckRestoreAtMs = 0
   clearBustedState()
+  radioText = ''
+  radioRestoreAtMs = 0
   witnessIndices.length = 0
   witnessReportDeadlineMs = 0
   witnessAlertRestoreAtMs = 0
@@ -1312,6 +1314,20 @@ let bustedActiveUntilMs = 0
 let bustedRestoreAtMs = 0
 let bustedFineDeducted = 0
 let bustedText = ''
+
+// Police-radio dispatch feedback: short transient status lines echoing heat changes and
+// arrests through the mission banner. Purely cosmetic — existing timers, wanted paths,
+// and BUSTED semantics are untouched; resetRun clears it with the rest of the run state
+const RADIO_HOLD_MS = 2200
+const RADIO_BUSTED_TEXT = 'RADIO // SUSPECT BUSTED'
+const RADIO_DISPATCHED_TEXT = 'RADIO // UNIT DISPATCHED'
+const RADIO_PURSUIT_TEXT = 'RADIO // PURSUIT ACTIVE'
+let radioText = ''
+let radioRestoreAtMs = 0
+function setRadioStatus(text: string, nowMs: number) {
+  radioText = text
+  radioRestoreAtMs = nowMs + RADIO_HOLD_MS
+}
 function clearBustedState() {
   bustedActiveUntilMs = 0
   bustedRestoreAtMs = 0
@@ -1328,6 +1344,7 @@ function enterBusted(nowMs: number) {
   bustedActiveUntilMs = nowMs + BUSTED_HOLD_MS
   bustedRestoreAtMs = nowMs + BUSTED_HOLD_MS
   bustedText = `${BUSTED_TEXT_BASE} $${bustedFineDeducted}`
+  setRadioStatus(RADIO_BUSTED_TEXT, nowMs)
   missionEl.textContent = bustedText
   return true
 }
@@ -2290,7 +2307,9 @@ function frame(now: number) {
         driving = true
         stolenCar.speed = 0
         cash += CARJACK_CASH_REWARD
+        const heatBeforeJack = wanted
         setWanted(Math.max(wanted + CARJACK_HEAT, 1))
+        if (wanted > heatBeforeJack) setRadioStatus(heatBeforeJack === 0 ? RADIO_DISPATCHED_TEXT : RADIO_PURSUIT_TEXT, now)
         jackFlashUntilMs = now + CARJACK_FLASH_MS
         carjackRestoreAtMs = now + CARJACK_HOLD_MS
         missionEl.textContent = CARJACKED_TEXT
@@ -3269,6 +3288,7 @@ function frame(now: number) {
       roadblock.y = Math.max(40, Math.min(WORLD_H - 40, edgeY + leadY * 70))
       roadblock.angle = Math.atan2(courierCar.y - roadblock.y, courierCar.x - roadblock.x) + Math.PI / 2
       roadblock.active = true
+      setRadioStatus(RADIO_PURSUIT_TEXT, now)
     }
     // lightweight pursuit: fixed speed and turn rate steering at the car hull
     const ang = Math.atan2(courierCar.y - roadblock.y, courierCar.x - roadblock.x)
@@ -3507,13 +3527,19 @@ function frame(now: number) {
   if (bustedRestoreAtMs > 0 && now >= bustedRestoreAtMs) {
     bustedRestoreAtMs = 0
   }
+  if (radioRestoreAtMs > 0 && now >= radioRestoreAtMs) {
+    radioRestoreAtMs = 0
+    radioText = ''
+  }
   if (witnessJammedRestoreAtMs > 0 && now >= witnessJammedRestoreAtMs) {
     witnessJammedRestoreAtMs = 0
   }
   if (witnessReportDeadlineMs > 0 && now >= witnessReportDeadlineMs) {
     // The call went through: one heat bump per report, then the pending state clears
     witnessReportDeadlineMs = 0
+    const heatBeforeReport = wanted
     setWanted(wanted + 1)
+    if (wanted > heatBeforeReport) setRadioStatus(heatBeforeReport === 0 ? RADIO_DISPATCHED_TEXT : RADIO_PURSUIT_TEXT, now)
     witnessAlertRestoreAtMs = now + WITNESS_ALERT_HOLD_MS
     missionEl.textContent = WITNESS_ALERT_TEXT
   }
@@ -3577,6 +3603,7 @@ function frame(now: number) {
     carjackRestoreAtMs > 0 ||
     wreckRestoreAtMs > 0 ||
     bustedRestoreAtMs > 0 ||
+    radioRestoreAtMs > 0 ||
     witnessReportDeadlineMs > 0 ||
     witnessAlertRestoreAtMs > 0 ||
     witnessJammedRestoreAtMs > 0 ||
@@ -3641,6 +3668,8 @@ function frame(now: number) {
     if (missionEl.textContent !== WITNESS_ALERT_TEXT) missionEl.textContent = WITNESS_ALERT_TEXT
   } else if (witnessJammedRestoreAtMs > 0) {
     if (missionEl.textContent !== WITNESS_JAMMED_TEXT) missionEl.textContent = WITNESS_JAMMED_TEXT
+  } else if (radioRestoreAtMs > 0 && radioText) {
+    if (missionEl.textContent !== radioText) missionEl.textContent = radioText
   } else if (wreckRestoreAtMs > 0) {
     if (missionEl.textContent !== CAR_WRECKED_TEXT) missionEl.textContent = CAR_WRECKED_TEXT
   } else if (kingpinRestoreAtMs > 0) {
@@ -4672,6 +4701,18 @@ function frame(now: number) {
     ctx.shadowColor = '#ff3c3c'
     ctx.shadowBlur = 12
     ctx.fillText('BUSTED', player.x, player.y - 34)
+    ctx.shadowBlur = 0
+    ctx.textAlign = 'left'
+  }
+  // Police-radio tag: small amber/red neon label near the player while a dispatch echoes
+  if (radioRestoreAtMs > now && radioText) {
+    const radioBlink = Math.sin(now / 140) > 0 ? 1 : 0.5
+    ctx.font = 'bold 9px ui-monospace, Consolas, monospace'
+    ctx.textAlign = 'center'
+    ctx.fillStyle = `rgba(255, 179, 0, ${0.55 + 0.4 * radioBlink})`
+    ctx.shadowColor = '#ff3c3c'
+    ctx.shadowBlur = 8
+    ctx.fillText('RADIO ▮▮▮', player.x, player.y + 44)
     ctx.shadowBlur = 0
     ctx.textAlign = 'left'
   }
